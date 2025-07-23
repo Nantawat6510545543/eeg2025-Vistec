@@ -7,6 +7,10 @@ def parse_time_input(text_value):
     text_value = text_value.strip()
     return None if text_value == "" or text_value.lower() == "none" else float(text_value)
 
+def extract_params(spec, kwargs):
+    valid_keys = set(spec["params"].keys())
+    return {k: kwargs[k] for k in kwargs if k in valid_keys}
+
 class EEGUI:
     def __init__(self, controller: 'EEGController'):
         self.controller = controller
@@ -26,58 +30,35 @@ class EEGUI:
         )
         self.task_dropdown = widgets.Dropdown(description='Task:', layout=widgets.Layout(width='250px'))
 
-        self.plot_type = widgets.ToggleButtons(
-            options=['time', 'sensors', 'frequency', 'conditionwise psd', 'epochs', 'evoked'],
-            description='Plot:',
-            layout=widgets.Layout(width='600px')
-        )
-        self.stimulus_dropdown = widgets.Dropdown(
-            options=[],
-            description='Stimulus:',
-            layout=widgets.Layout(width='250px')
+        self.plot_specs = self.controller.get_plot_specs()
+        self.default_params = self.controller.get_default_params()
+
+        self.plot_type = widgets.Dropdown(
+            options=list(self.plot_specs.keys()),
+            description='Plot:', layout=widgets.Layout(width='300px')
         )
 
-        # Filter and PSD options
-        self.lfreq_float = widgets.FloatText(value=3.0, description='l_freq:', layout=widgets.Layout(width='200px'))
-        self.hfreq_float = widgets.FloatText(value=35.0, description='h_freq:', layout=widgets.Layout(width='200px'))
-        self.average_check = widgets.Checkbox(value=True, description='Average', indent=False)
-        self.db_check = widgets.Checkbox(value=True, description='dB', indent=False)
-
-        # Time-domain controls
-        self.duration_float = widgets.FloatText(value=10.0, description='duration:', layout=widgets.Layout(width='200px'))
-        self.start_float = widgets.FloatText(value=0.0, description='start:', layout=widgets.Layout(width='200px'))
-        self.nchan_int = widgets.IntText(value=10, description='n_channels:', layout=widgets.Layout(width='200px'))
-
-        # Epoch cropping and frequency bounds
-        self.tmin_text = widgets.Text(value="1.0", description='tmin:', layout=widgets.Layout(width='200px'))
-        self.tmax_text = widgets.Text(value="2.4", description='tmax:', layout=widgets.Layout(width='200px'))
-        self.fmin_float = widgets.FloatText(value=1.0, description='fmin:', layout=widgets.Layout(width='200px'))
-        self.fmax_float = widgets.FloatText(value=50.0, description='fmax:', layout=widgets.Layout(width='200px'))
+        self.param_inputs = {}  # name → widget
+        self.param_box = widgets.VBox([])
 
         self.plot_button = widgets.Button(description='Plot', button_style='success')
-        self.info_button = widgets.Button(description='Show Info', button_style='info')
 
         self.table_type = widgets.Dropdown(
             options=['events', 'channels', 'electrodes', 'epochs'],
-            description='Table:',
-            layout=widgets.Layout(width='250px')
+            description='Table:', layout=widgets.Layout(width='250px')
         )
         self.rows_int = widgets.IntText(
-            value=10,
-            description='Rows:',
-            layout=widgets.Layout(width='200px')
+            value=10, description='Rows:', layout=widgets.Layout(width='200px')
         )
-
+        self.info_button = widgets.Button(description='Show Info', button_style='info')
         self.output = widgets.Output()
 
-        # Containers
-        self.filter_controls = widgets.HBox([self.lfreq_float, self.hfreq_float])
-        self.time_controls = widgets.HBox([self.duration_float, self.start_float, self.nchan_int])
-        self.psd_options = widgets.HBox([self.average_check, self.db_check])
-        self.t_controls = widgets.HBox([self.tmin_text, self.tmax_text])
-        self.f_controls = widgets.HBox([self.fmin_float, self.fmax_float])
-        self.param_box = widgets.VBox([])
-        self.table_controls = widgets.HBox([self.table_type, self.rows_int, self.info_button])
+        self.table_param_box = widgets.VBox([])
+
+        self.table_controls = widgets.VBox([
+            widgets.HBox([self.table_type, self.rows_int, self.info_button]),
+            self.table_param_box
+        ])
 
     def _build_ui(self):
         self.ui = widgets.VBox([
@@ -87,7 +68,7 @@ class EEGUI:
             self.plot_type,
             self.param_box,
             self.plot_button,
-            self.table_controls, 
+            self.table_controls,
             self.output
         ])
 
@@ -113,7 +94,10 @@ class EEGUI:
         self.table_type.layout.display = 'block' if not is_plot else 'none'
         self.info_button.layout.display = 'inline-block' if not is_plot else 'none'
         self.rows_int.layout.display = 'block' if not is_plot else 'none'
+        self.table_param_box.layout.display = 'block' if not is_plot else 'none'
 
+        if not is_plot:
+            self.update_table_params()
 
     def update_tasks(self, *args):
         subject = self.subject_dropdown.value
@@ -122,67 +106,70 @@ class EEGUI:
         self.task_dropdown.options = formatted
         if formatted:
             self.task_dropdown.value = formatted[0][1]
-            self.update_stimulus_options()
+
+    def _create_widget(self, param_type, default):
+        if param_type == "float":
+            return widgets.FloatText(value=default, layout=widgets.Layout(width='150px'))
+        elif param_type == "int":
+            return widgets.IntText(value=default, layout=widgets.Layout(width='150px'))
+        elif param_type == "str":
+            return widgets.Text(value=default, layout=widgets.Layout(width='150px'))
+        elif param_type == "bool":
+            return widgets.Checkbox(value=default, layout=widgets.Layout(width='150px'))
+        elif param_type == "list_float":
+            return widgets.Text(value=str(default), layout=widgets.Layout(width='150px'))
+        elif param_type == "dropdown":
+            return widgets.Dropdown(options=default, layout=widgets.Layout(width='150px'))
+        else:
+            return widgets.Text(value=str(default), layout=widgets.Layout(width='150px'))
 
     def update_param_inputs(self, *args):
-        plot_mode = self.plot_type.value
-        if plot_mode == 'conditionwise psd':
-            self.param_box.children = [self.t_controls, self.f_controls, self.filter_controls, self.psd_options]
-        elif plot_mode == 'frequency':
-            self.param_box.children = [self.f_controls, self.filter_controls, self.psd_options]
-        elif plot_mode == 'time':
-            self.param_box.children = [self.time_controls, self.filter_controls]
-        elif plot_mode == 'epochs':
-            self.param_box.children = [self.nchan_int,self.t_controls, self.filter_controls, self.stimulus_dropdown]
-            self.update_stimulus_options()
-        elif plot_mode == 'evoked':
-            self.param_box.children = [self.t_controls, self.filter_controls, self.stimulus_dropdown]
-            self.update_stimulus_options()
-        else:
-            self.param_box.children = []
+        plot_key = self.plot_type.value
+        spec = self.plot_specs.get(plot_key, {})
+        params = {**self.default_params, **spec.get("params", {})}
+        self.param_inputs.clear()
+        widgets_list = []
+        for name, meta in params.items():
+            widget = self._create_widget(meta["type"], meta["default"])
+            label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='100px'))
+            hbox = widgets.HBox([label, widget])
+            widgets_list.append(hbox)
+            self.param_inputs[name] = widget
+        rows = [widgets.HBox(widgets_list[i:i+2]) for i in range(0, len(widgets_list), 2)]
+        self.param_box.children = rows
 
-    def update_stimulus_options(self):
-        subject = self.subject_dropdown.value
-        task, run = self.task_dropdown.value
-        run = run if run else None       
-        l_freq = self.lfreq_float.value
-        h_freq = self.hfreq_float.value
-
-        event_ids = self.controller.get_event_ids(subject, task, l_freq, h_freq, run)
-        self.stimulus_dropdown.options = sorted(event_ids)
+    def update_table_params(self):
+        widgets_list = []
+        for name, meta in self.default_params.items():
+            widget = self._create_widget(meta["type"], meta["default"])
+            label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='100px'))
+            hbox = widgets.HBox([label, widget])
+            widgets_list.append(hbox)
+            self.param_inputs[name] = widget
+        rows = [widgets.HBox(widgets_list[i:i+2]) for i in range(0, len(widgets_list), 2)]
+        self.table_param_box.children = rows
 
     def do_plot(self, _):
         with self.output:
             clear_output(wait=True)
             subject = self.subject_dropdown.value
             task, run = self.task_dropdown.value
-
-            tmin = parse_time_input(self.tmin_text.value)
-            tmax = parse_time_input(self.tmax_text.value)
-
             kwargs = {
-                'tmin': tmin,
-                'tmax': tmax,
-                'fmin': self.fmin_float.value,
-                'fmax': self.fmax_float.value,
-                'l_freq': self.lfreq_float.value,
-                'h_freq': self.hfreq_float.value,
-                'duration': self.duration_float.value,
-                'start': self.start_float.value,
-                'n_channels': self.nchan_int.value,
-                'average': self.average_check.value,
-                'dB': self.db_check.value,
-                'stimulus': self.stimulus_dropdown.value,
+                k: (eval(w.value) if self.plot_specs[self.plot_type.value]["params"].get(k, {}).get("type") == "list_float" else w.value)
+                for k, w in self.param_inputs.items()
             }
-            self.controller.show(subject, task, run, plot_type=self.plot_type.value, **kwargs)
+            spec = self.plot_specs[self.plot_type.value]
+            filtered = extract_params({"params": {**self.default_params, **spec["params"]}}, kwargs)
+            spec["function"](subject, task, run, **filtered)
+            self.update_param_inputs()
 
     def do_show_info(self, _):
         with self.output:
             clear_output(wait=True)
             subject = self.subject_dropdown.value
             task, run = self.task_dropdown.value
-            l_freq = self.lfreq_float.value
-            h_freq = self.hfreq_float.value
+            l_freq = float(self.param_inputs["l_freq"].value)
+            h_freq = float(self.param_inputs["h_freq"].value)
 
             metadata = self.controller.show_annotations(subject, task, run)
             print(f"Metadata for {subject} - {task}" + (f" (Run {run})" if run else "") + ":")

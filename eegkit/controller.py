@@ -12,25 +12,24 @@ class EEGController:
 
     def list_tasks(self, subject):
         return self.subject_data.list_tasks(subject)
-    
-    def get_event_ids(self, subject, task,l_freq, h_freq, run=None):
+
+    def get_event_ids(self, subject, task, l_freq, h_freq, run=None):
         task_data = self.subject_data.get_task(subject, task, run)
         epochs, _ = task_data.get_epochs(l_freq=l_freq, h_freq=h_freq)
         return list(epochs.event_id.keys()) if epochs else []
 
+    def get_plot_specs(self):
+        return self.visualizer.plot_specs
+    
+    def get_default_params(self):
+        return self.visualizer.default_params
+
     def show(self, subject, task, run=None, plot_type='time', **kwargs):
-        if plot_type == 'time':
-            self.visualizer.plot_time(subject, task, run, **kwargs)
-        elif plot_type == 'sensors':
-            self.visualizer.plot_sensors(subject, task, run)
-        elif plot_type == 'frequency':
-            self.visualizer.plot_frequency(subject, task, run)
-        elif plot_type == 'conditionwise psd':
-            self.visualizer.plot_conditionwise_psd(subject, task, run, **kwargs)
-        elif plot_type == 'epochs':
-            self.visualizer.plot_epochs_or_evoked(subject, task, run, mode='epochs', **kwargs)
-        elif plot_type == 'evoked':
-            self.visualizer.plot_epochs_or_evoked(subject, task, run, mode='evoked', **kwargs)
+        spec = self.visualizer.plot_specs.get(plot_type)
+        if spec:
+            return spec["function"](subject, task, run, **kwargs)
+        else:
+            print(f"Plot type '{plot_type}' is not defined.")
 
     def show_annotations(self, subject, task, run=None):
         """Return metadata dict or None."""
@@ -44,9 +43,7 @@ class EEGController:
 
     def get_annotation_df(self, subject, task, run=None):
         task_data = self.subject_data.get_task(subject, task, run)
-
         raw = task_data.get_filtered_raw()
-        
         annots = raw.annotations
         df = pd.DataFrame({
             "onset": annots.onset,
