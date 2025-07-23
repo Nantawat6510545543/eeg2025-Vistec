@@ -4,6 +4,72 @@ import matplotlib.pyplot as plt
 class EEGVisualization:
     def __init__(self, subject_data: EEGSubjectData):
         self.data = subject_data
+        self.default_params = {
+            "l_freq": {"type": "float", "default": 1.0},
+            "h_freq": {"type": "float", "default": 50.0},
+        }
+
+        self.plot_specs = self._build_plot_specs()
+
+    def _build_plot_specs(self):
+        return {
+            "sensors": {
+                "function": self.plot_sensors,
+                "label": "Sensor Layout",
+                "params": {}
+            },
+            "time": {
+                "function": self.plot_time,
+                "label": "Time Domain Plot",
+                "params": {
+                    "duration": {"type": "float", "default": 10.0},
+                    "start": {"type": "float", "default": 0.0},
+                    "n_channels": {"type": "int", "default": 10}
+                },
+            },
+            "frequency": {
+                "function": self.plot_frequency,
+                "label": "Frequency Domain",
+                "params": {
+                    "fmin": {"type": "float", "default": 1.0},
+                    "fmax": {"type": "float", "default": 60.0},
+                    "average": {"type": "bool", "default": True},
+                    "dB": {"type": "bool", "default": True},
+                    "spatial_colors": {"type": "bool", "default": False}
+                },
+            },
+            "conditionwise psd": {
+                "function": self.plot_conditionwise_psd,
+                "label": "Condition-wise PSD",
+                "params": {
+                    "fmin": {"type": "float", "default": 1.0},
+                    "fmax": {"type": "float", "default": 50.0},
+                    "tmin": {"type": "float", "default": 0.0},
+                    "tmax": {"type": "float", "default": 2.0},
+                    "average": {"type": "bool", "default": True},
+                    "dB": {"type": "bool", "default": True}
+                },
+            },
+            "epochs": {
+                "function": lambda s, t, r=None, **k: self.plot_epochs_or_evoked(s, t, r, mode="epochs", **k),
+                "label": "Epoch Plot",
+                "params": {
+                    "tmin": {"type": "float", "default": 0.0},
+                    "tmax": {"type": "float", "default": 2.0},
+                    "stimulus": {"type": "dropdown", "default": []},
+                    "n_channels": {"type": "int", "default": 10},
+                },
+            },
+            "evoked": {
+                "function": lambda s, t, r=None, **k: self.plot_epochs_or_evoked(s, t, r, mode="evoked", **k),
+                "label": "Evoked Response",
+                "params": {
+                    "tmin": {"type": "float", "default": 0.0},
+                    "tmax": {"type": "float", "default": 2.0},
+                    "stimulus": {"type": "dropdown", "default": []},
+                },
+            },
+        }
 
     def _validate_and_crop(self, epochs, tmin, tmax):
         start = epochs.tmin
@@ -14,7 +80,7 @@ class EEGVisualization:
 
         if tmin_valid >= tmax_valid:
             return None
-            
+
         cropped = epochs.copy().crop(tmin=tmin_valid, tmax=tmax_valid)
         return cropped
 
@@ -25,7 +91,7 @@ class EEGVisualization:
         fig.set_size_inches(15, 12)
 
         subject_line = f"{subject} - {task}" + (f" - {stimulus}" if stimulus else "") + (f" (Run {run})" if run else "")
-        
+
         if caption:
             caption_line = ", ".join(f"{k} = {v:.1f}" if isinstance(v, (float, int)) else f"{k} = {v}" for k, v in caption.items())
         else:
@@ -115,7 +181,7 @@ class EEGVisualization:
                 print(f"Skipping condition '{condition_name}' — no valid epochs.")
                 continue
             cropped_epochs = self._validate_and_crop(condition_epochs, tmin, tmax)
-            
+
             if cropped_epochs is None:
                 print(f"Skipping {condition_name} — Invalid crop range: tmin={tmin}, tmax={tmax}")
                 continue
@@ -135,7 +201,9 @@ class EEGVisualization:
         tmax = kwargs.get("tmax", None)
 
         task_data = self.data.get_task(subject, task, run)
-        epochs, _ = task_data.get_epochs(l_freq=l_freq, h_freq=h_freq)
+        epochs, labels = task_data.get_epochs(l_freq=l_freq, h_freq=h_freq)
+        self.plot_specs["epochs"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
+        self.plot_specs["evoked"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
 
         if epochs is None:
             print(f"No epochs available for {subject} - {task}" + (f" (Run {run})" if run else ""))
