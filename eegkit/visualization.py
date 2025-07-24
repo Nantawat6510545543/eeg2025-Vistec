@@ -105,126 +105,120 @@ class EEGVisualization:
         fig.subplots_adjust(top=0.90)
         plt.show()
 
-    def plot_sensors(self, subject, task, run=None, **kwargs):
-        l_freq = kwargs.get("l_freq", 1)
-        h_freq = kwargs.get("h_freq", 50)
+    def _filter_params(self, plot_type, kwargs):
+        spec = self.plot_specs.get(plot_type, {})
+        param_defs = {**self.default_params, **spec.get("params", {})}
+        return {k: kwargs.get(k, v.get("default")) for k, v in param_defs.items()}
 
+    def _get_raw(self, subject, task, run, l_freq, h_freq):
         task_data = self.data.get_task(subject, task, run)
-        raw = task_data.get_filtered_raw(l_freq, h_freq)
+        return task_data.get_filtered_raw(l_freq, h_freq)
+
+    def _get_epochs(self, subject, task, run, l_freq, h_freq):
+        task_data = self.data.get_task(subject, task, run)
+        return task_data.get_epochs(l_freq, h_freq)
+
+    def plot_sensors(self, subject, task, run=None, **kwargs):
+        params = self._filter_params("sensors", kwargs)
+        raw = self._get_raw(subject, task, run, params["l_freq"], params["h_freq"])
         raw.plot_sensors(show_names=True)
 
     def plot_time(self, subject, task, run=None, **kwargs):
-        l_freq = kwargs.get("l_freq", 1)
-        h_freq = kwargs.get("h_freq", 50)
-        duration = kwargs.get('duration', 10.0)
-        start = kwargs.get('start', 0.0)
-        n_channels = kwargs.get('n_channels', 10)
-
-        task_data = self.data.get_task(subject, task, run)
-        raw = task_data.get_filtered_raw(l_freq, h_freq)
-
+        params = self._filter_params("time", kwargs)
+        raw = self._get_raw(subject, task, run, params["l_freq"], params["h_freq"])
+        
         fig = raw.plot(
-            duration=duration,
-            start=start,
-            n_channels=n_channels,
+            duration=params["duration"],
+            start=params["start"],
+            n_channels=params["n_channels"],
             scalings='auto',
             show=False,
             block=True
         )
 
-        caption_dict = {"start": start, "duration": duration}
-        self._finalize_figure(fig, subject, task, run, caption=caption_dict, plot_name="Time Domain")
+        self._finalize_figure(
+            fig, subject, task, run,
+            caption=params,
+            plot_name="Time Domain"
+        )
 
     def plot_frequency(self, subject, task, run=None, **kwargs):
-        l_freq = kwargs.get("l_freq", 1)
-        h_freq = kwargs.get("h_freq", 50)
-        fmin = kwargs.get("fmin", 1)
-        fmax = kwargs.get("fmax", 60)
-        average = kwargs.get("average", True)
-        dB = kwargs.get("dB", True)
-        spatial_colors = kwargs.get("spatial_colors", False)
+        params = self._filter_params("frequency", kwargs)
+        raw = self._get_raw(subject, task, run, params["l_freq"], params["h_freq"])
 
-        task_data = self.data.get_task(subject, task, run)
-        raw = task_data.get_filtered_raw(l_freq, h_freq)
-
-        psd = raw.compute_psd(fmin=fmin, fmax=fmax)
+        psd = raw.compute_psd(fmin=params["fmin"], fmax=params["fmax"])
         fig = psd.plot(
-            average=average,
-            spatial_colors=spatial_colors,
-            dB=dB,
+            average=params["average"],
+            spatial_colors=params["spatial_colors"],
+            dB=params["dB"],
             show=False
         )
 
-        caption_dict = {"l_freq": l_freq, "h_freq": h_freq,"fmin": fmin, "fmax": fmax}
-        self._finalize_figure(fig, subject, task, run, caption=caption_dict, plot_name="Frequency Domain")
+        self._finalize_figure(
+            fig, subject, task, run,
+            caption=params,
+            plot_name="Frequency Domain"
+        )
+
 
     def plot_conditionwise_psd(self, subject, task, run=None, **kwargs):
-        fmin = kwargs.get("fmin", 1)
-        fmax = kwargs.get("fmax", 50)
-        tmin = kwargs.get("tmin", None)
-        tmax = kwargs.get("tmax", None)
-        average = kwargs.get("average", True)
-        dB = kwargs.get("dB", True)
-        l_freq = kwargs.get("l_freq", 1)
-        h_freq = kwargs.get("h_freq", 50)
-
-        task_data = self.data.get_task(subject, task, run)
-        epochs, labels = task_data.get_epochs(l_freq=l_freq, h_freq=h_freq)
+        params = self._filter_params("conditionwise_psd", kwargs)
+        epochs, labels = self._get_epochs(subject, task, run, params["l_freq"], params["h_freq"])
 
         if epochs is None:
             print(f"No epochs available for {subject} - {task}" + (f" (Run {run})" if run else ""))
             return
 
-        for condition_name in epochs.event_id:
-            condition_epochs = epochs[condition_name]
+        for condition in epochs.event_id:
+            condition_epochs = epochs[condition]
             if len(condition_epochs) == 0:
-                print(f"Skipping condition '{condition_name}' — no valid epochs.")
-                continue
-            cropped_epochs = self._validate_and_crop(condition_epochs, tmin, tmax)
-
-            if cropped_epochs is None:
-                print(f"Skipping {condition_name} — Invalid crop range: tmin={tmin}, tmax={tmax}")
+                print(f"Skipping condition '{condition}' — no valid epochs.")
                 continue
 
-            psd = cropped_epochs.compute_psd(fmin=fmin, fmax=fmax)
-            fig = psd.plot(spatial_colors=True, average=average, dB=dB, show=False)
+            cropped = self._validate_and_crop(condition_epochs, params["tmin"], params["tmax"])
+            if cropped is None:
+                print(f"Skipping {condition} — Invalid crop range: tmin={params['tmin']}, tmax={params['tmax']}")
+                continue
 
-            caption_dict = {"l_freq": l_freq, "h_freq": h_freq,"tmin": tmin, "tmax": tmax}
-            self._finalize_figure(fig, subject, task, run, condition_name, caption=caption_dict, plot_name="Condition-wise PSD")
+            psd = cropped.compute_psd(fmin=params["fmin"], fmax=params["fmax"])
+            fig = psd.plot(average=params["average"], spatial_colors=True, dB=params["dB"], show=False)
+
+            self._finalize_figure(
+                fig, subject, task, run, condition,
+                caption=params,
+                plot_name="Condition-wise PSD"
+            )
 
     def plot_epochs_or_evoked(self, subject, task, run=None, mode='epochs', **kwargs):
-        l_freq = kwargs.get("l_freq", 1)
-        h_freq = kwargs.get("h_freq", 50)
-        stimulus = kwargs.get("stimulus", None)
-        n_channels = kwargs.get("n_channels", 20)
-        tmin = kwargs.get("tmin", None)
-        tmax = kwargs.get("tmax", None)
+        params = self._filter_params(mode, kwargs)
+        epochs, labels = self._get_epochs(subject, task, run, params["l_freq"], params["h_freq"])
 
-        task_data = self.data.get_task(subject, task, run)
-        epochs, labels = task_data.get_epochs(l_freq=l_freq, h_freq=h_freq)
-        self.plot_specs["epochs"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
-        self.plot_specs["evoked"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
+        if labels is not None:
+            self.plot_specs["epochs"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
+            self.plot_specs["evoked"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
 
         if epochs is None:
             print(f"No epochs available for {subject} - {task}" + (f" (Run {run})" if run else ""))
             return
 
-        if stimulus:
-            if stimulus not in epochs.event_id:
-                print(f"Stimulus '{stimulus}' not found in event_id.")
+        if params["stimulus"]:
+            if params["stimulus"] not in epochs.event_id:
+                print(f"Stimulus '{params['stimulus']}' not found in event_id.")
                 return
-            epochs = epochs[stimulus]
+            epochs = epochs[params["stimulus"]]
 
-        cropped_epochs = self._validate_and_crop(epochs, tmin, tmax)
-        if cropped_epochs is None:
-            print(f"Invalid crop window: tmin={tmin}, tmax={tmax}")
+        cropped = self._validate_and_crop(epochs, params["tmin"], params["tmax"])
+        if cropped is None:
+            print(f"Invalid crop window: tmin={params['tmin']}, tmax={params['tmax']}")
             return
 
         if mode == 'evoked':
-            evoked = cropped_epochs.average()
-            fig = evoked.plot(show=False)
+            fig = cropped.average().plot(show=False)
         else:
-            fig = cropped_epochs.plot(events=False, n_channels=n_channels, show=False)
+            fig = cropped.plot(events=False, n_channels=params["n_channels"], show=False)
 
-        caption_dict = {"l_freq": l_freq, "h_freq": h_freq, "tmin": tmin, "tmax": tmax}
-        self._finalize_figure(fig, subject, task, run, stimulus, caption=caption_dict, plot_name=mode)
+        self._finalize_figure(
+            fig, subject, task, run, params["stimulus"],
+            caption=params,
+            plot_name=mode
+        )
