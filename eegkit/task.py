@@ -76,9 +76,9 @@ class EEGTaskData:
             return self._epochs_cache[key]
 
         if self.task == 'RestingState':
-            epochs, labels = self._resting_preprocess(l_freq, h_freq)
+            epochs, labels = self._resting_preprocess(l_freq=l_freq, h_freq=h_freq)
         elif self.task == 'surroundSupp':
-            epochs, labels = self._Sus_preprocess(l_freq, h_freq)
+            epochs, labels = self._Sus_preprocess(l_freq=l_freq, h_freq=h_freq)
         else:
             return None, None  # Unsupported task
 
@@ -87,7 +87,7 @@ class EEGTaskData:
 
         return epochs, labels
 
-    def _Sus_preprocess(self, tmin=0.0, duration=2.4, l_freq=1, h_freq=50):
+    def _Sus_preprocess(self, l_freq=1, h_freq=50, tmin=0.0, duration=2.4):
         """
         Preprocess surroundSupp task using 'stim_ON' events.
         Epochs are 2.4s long and labeled by background + foreground_contrast + stimulus_cond.
@@ -130,7 +130,7 @@ class EEGTaskData:
         labels = labels[epochs.selection]
         return epochs, labels
 
-    def _resting_preprocess(self, tmin=0.0, tmax=20.0, l_freq=1, h_freq=50):
+    def _resting_preprocess(self, l_freq=1, h_freq=50,tmin=0.0, tmax=20.0):
         """
         Crop raw based on 'resting_start' to 'break cnt' in events.tsv,
         then epoch using eye condition annotations.
