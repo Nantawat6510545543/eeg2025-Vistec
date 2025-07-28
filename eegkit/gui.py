@@ -3,14 +3,6 @@ from IPython.display import display, clear_output
 import json
 from .controller import EEGController
 
-def parse_time_input(text_value):
-    text_value = text_value.strip()
-    return None if text_value == "" or text_value.lower() == "none" else float(text_value)
-
-def extract_params(spec, kwargs):
-    valid_keys = set(spec["params"].keys())
-    return {k: kwargs[k] for k in kwargs if k in valid_keys}
-
 class EEGUI:
     def __init__(self, controller: 'EEGController'):
         self.controller = controller
@@ -159,8 +151,7 @@ class EEGUI:
                 for k, w in self.param_inputs.items()
             }
             spec = self.plot_specs[self.plot_type.value]
-            filtered = extract_params({"params": {**self.default_params, **spec["params"]}}, kwargs)
-            spec["function"](subject, task, run, **filtered)
+            spec["function"](subject, task, run, **kwargs)
             self.update_param_inputs()
 
     def do_show_info(self, _):
