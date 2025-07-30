@@ -1,15 +1,14 @@
 from pathlib import Path
 import re
 from collections import defaultdict
-from .task import EEGTaskData
+from .task_model import EEGTaskModel
 
-
-class EEGSubjectData:
+class EEGSubjectModel:
     def __init__(self, data_dir):
         self._data_dir = Path(data_dir)
         self._subject_ids = self._discover_subjects()
         self._task_index = self._discover_tasks()
-        self._cache = {}  # (subj, task, run) → EEGTaskData
+        self._cache = {}  # (subj, task, run) → EEGTaskModel
 
     def _discover_subjects(self):
         return sorted([p.name for p in self._data_dir.glob("sub-*") if p.is_dir()])
@@ -28,7 +27,7 @@ class EEGSubjectData:
             for eeg_file in eeg_dir.glob("sub-*_task-*_eeg.set"):
                 match = pattern.match(eeg_file.name)
                 if match:
-                    full_subj = match.group(1) 
+                    full_subj = match.group(1)
                     task = match.group("task")
                     run = match.group("run")
                     task_map[full_subj].append((task, run))
@@ -44,11 +43,6 @@ class EEGSubjectData:
     def get_task(self, subject, task, run=None):
         key = (subject, task, run)
         if key not in self._cache:
-            task_data = EEGTaskData(
-                subject=subject,
-                task=task,
-                run=run,
-                data_dir=self._data_dir,
-            )
-            self._cache[key] = task_data
+            task_model = EEGTaskModel(subject, task, run, self._data_dir)
+            self._cache[key] = task_model
         return self._cache[key]
