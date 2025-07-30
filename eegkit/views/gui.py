@@ -1,10 +1,10 @@
+
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 import json
-from .controller import EEGController
 
 class EEGUI:
-    def __init__(self, controller: 'EEGController'):
+    def __init__(self, controller):
         self.controller = controller
         self._init_widgets()
         self._build_ui()
@@ -26,8 +26,7 @@ class EEGUI:
         self.default_params = self.controller.get_default_params()
 
         self.plot_type = widgets.Dropdown(
-            options=list(self.plot_specs.keys()),
-            description='Plot:', layout=widgets.Layout(width='300px')
+            options=list(self.plot_specs.keys()), description='Plot:', layout=widgets.Layout(width='300px')
         )
 
         self.param_inputs = {}  # name → widget
@@ -87,7 +86,6 @@ class EEGUI:
         self.info_button.layout.display = 'inline-block' if not is_plot else 'none'
         self.rows_int.layout.display = 'block' if not is_plot else 'none'
         self.table_param_box.layout.display = 'block' if not is_plot else 'none'
-
         if not is_plot:
             self.update_table_params()
 
@@ -146,12 +144,12 @@ class EEGUI:
             clear_output(wait=True)
             subject = self.subject_dropdown.value
             task, run = self.task_dropdown.value
+            plot_type = self.plot_type.value
             kwargs = {
-                k: (eval(w.value) if self.plot_specs[self.plot_type.value]["params"].get(k, {}).get("type") == "list_float" else w.value)
+                k: (eval(w.value) if self.plot_specs[plot_type]["params"].get(k, {}).get("type") == "list_float" else w.value)
                 for k, w in self.param_inputs.items()
             }
-            spec = self.plot_specs[self.plot_type.value]
-            spec["function"](subject, task, run, **kwargs)
+            self.controller.show(subject, task, run, plot_type=plot_type, **kwargs)
             self.update_param_inputs()
 
     def do_show_info(self, _):
@@ -161,13 +159,13 @@ class EEGUI:
             task, run = self.task_dropdown.value
             l_freq = float(self.param_inputs["l_freq"].value)
             h_freq = float(self.param_inputs["h_freq"].value)
+            table_name = self.table_type.value
+            rows = self.rows_int.value
 
             metadata = self.controller.show_annotations(subject, task, run)
             print(f"Metadata for {subject} - {task}" + (f" (Run {run})" if run else "") + ":")
             print(json.dumps(metadata, indent=2) if metadata else "No metadata available.")
 
-            table_name = self.table_type.value
-            rows = self.rows_int.value
             df = self.controller.show_table(subject, task, run, name=table_name, l_freq=l_freq, h_freq=h_freq, rows=rows)
             print(f"\nTable: {table_name}")
             if df is not None:
