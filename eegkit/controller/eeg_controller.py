@@ -2,11 +2,12 @@ import pandas as pd
 from ..views.visualization import EEGVisualization 
 
 class EEGController:
-    def __init__(self, subject_model):
+    def __init__(self, subject_model, plot_spec_path):
         self.subject_model = subject_model
         self.visualizer = EEGVisualization(
             get_raw_func=self.get_filtered_raw,
-            get_epochs_func=self.get_epochs
+            get_epochs_func=self.get_epochs,
+            json_path=plot_spec_path
         )
 
     def get_filtered_raw(self, subject, task, run, l_freq, h_freq):
