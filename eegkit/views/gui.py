@@ -1,177 +1,156 @@
-
 import ipywidgets as widgets
 from IPython.display import display, clear_output
-import json
+from dataclasses import fields
+import pandas as pd
+from ..models import TaskDTO
 
 class EEGUI:
     def __init__(self, controller):
         self.controller = controller
-        self._init_widgets()
-        self._build_ui()
-        self._connect_events()
-        self._initialize_state()
+        self.specs = self.controller.get_specs()
 
-    def _init_widgets(self):
-        subjects = sorted(self.controller.list_subjects())
-
-        self.mode_toggle = widgets.ToggleButtons(
-            options=['Plot', 'Table'], description='Mode:', layout=widgets.Layout(width='300px')
+        self.mode_selector = widgets.ToggleButtons(
+            options=list(self.specs.keys()), description="Mode:"
         )
-        self.subject_dropdown = widgets.Dropdown(
-            options=subjects, description='Subject:', layout=widgets.Layout(width='250px')
-        )
-        self.task_dropdown = widgets.Dropdown(description='Task:', layout=widgets.Layout(width='250px'))
-
-        self.plot_specs = self.controller.get_plot_specs()
-        self.default_params = self.controller.get_default_params()
-
-        self.plot_type = widgets.Dropdown(
-            options=list(self.plot_specs.keys()), description='Plot:', layout=widgets.Layout(width='300px')
-        )
-
-        self.param_inputs = {}  # name → widget
-        self.param_box = widgets.VBox([])
-
-        self.plot_button = widgets.Button(description='Plot', button_style='success')
-
-        self.table_type = widgets.Dropdown(
-            options=['events', 'channels', 'electrodes', 'epochs'],
-            description='Table:', layout=widgets.Layout(width='250px')
-        )
-        self.rows_int = widgets.IntText(
-            value=10, description='Rows:', layout=widgets.Layout(width='200px')
-        )
-        self.info_button = widgets.Button(description='Show Info', button_style='info')
+        self.action_selector = widgets.ToggleButtons(description="Action:")
+        self.param_box = widgets.VBox()
+        self.plot_button = widgets.Button(description="Run", button_style="success")
         self.output = widgets.Output()
 
-        self.table_param_box = widgets.VBox([])
+        self.subject_dropdown = widgets.Dropdown(
+            options=self.controller.list_subjects(), description="Subject:"
+        )
 
-        self.table_controls = widgets.VBox([
-            widgets.HBox([self.table_type, self.rows_int, self.info_button]),
-            self.table_param_box
-        ])
+        self.task_dropdown = widgets.Dropdown(
+            description="Task:"
+        )
 
-    def _build_ui(self):
+        self.param_inputs = {}  # field_name → widget
+
+        self.mode_selector.observe(self._update_actions, names="value")
+        self.action_selector.observe(self._update_param_inputs, names="value")
+        self.plot_button.on_click(self._execute)
+
         self.ui = widgets.VBox([
-            self.mode_toggle,
             self.subject_dropdown,
             self.task_dropdown,
-            self.plot_type,
+            self.mode_selector,
+            self.action_selector,
             self.param_box,
             self.plot_button,
-            self.table_controls,
             self.output
         ])
 
-    def _connect_events(self):
-        self.mode_toggle.observe(self.update_mode_ui, names='value')
-        self.subject_dropdown.observe(self.update_tasks, names='value')
-        self.plot_type.observe(self.update_param_inputs, names='value')
-        self.plot_button.on_click(self.do_plot)
-        self.info_button.on_click(self.do_show_info)
+        self._update_tasks()
+        self._update_actions()  # Initialize first
 
-    def _initialize_state(self):
-        if self.subject_dropdown.options:
-            self.subject_dropdown.value = self.subject_dropdown.options[0]
-            self.update_tasks()
-        self.update_param_inputs()
-        self.update_mode_ui()
-
-    def update_mode_ui(self, *args):
-        is_plot = self.mode_toggle.value == 'Plot'
-        self.plot_type.layout.display = 'block' if is_plot else 'none'
-        self.param_box.layout.display = 'block' if is_plot else 'none'
-        self.plot_button.layout.display = 'inline-block' if is_plot else 'none'
-        self.table_type.layout.display = 'block' if not is_plot else 'none'
-        self.info_button.layout.display = 'inline-block' if not is_plot else 'none'
-        self.rows_int.layout.display = 'block' if not is_plot else 'none'
-        self.table_param_box.layout.display = 'block' if not is_plot else 'none'
-        if not is_plot:
-            self.update_table_params()
-
-    def update_tasks(self, *args):
+    def _update_tasks(self, *args):
         subject = self.subject_dropdown.value
-        task_keys = sorted(self.controller.list_tasks(subject))
-        formatted = [(f"{t} (run {r})" if r else t, (t, r)) for t, r in task_keys]
-        self.task_dropdown.options = formatted
-        if formatted:
-            self.task_dropdown.value = formatted[0][1]
+        task_keys = self.controller.list_tasks(subject)
+        options = [(f"{task} (Run {run})" if run else task, (task, run)) for task, run in task_keys]
+        self.task_dropdown.options = options
+        if options:
+            self.task_dropdown.value = options[0][1]
 
-    def _create_widget(self, param_type, default):
-        if param_type == "float":
-            return widgets.FloatText(value=default, layout=widgets.Layout(width='150px'))
-        elif param_type == "int":
-            return widgets.IntText(value=default, layout=widgets.Layout(width='150px'))
-        elif param_type == "str":
-            return widgets.Text(value=default, layout=widgets.Layout(width='150px'))
-        elif param_type == "bool":
-            return widgets.Checkbox(value=default, layout=widgets.Layout(width='150px'))
-        elif param_type == "list_float":
-            return widgets.Text(value=str(default), layout=widgets.Layout(width='150px'))
-        elif param_type == "dropdown":
-            return widgets.Dropdown(options=default, layout=widgets.Layout(width='150px'))
-        else:
-            return widgets.Text(value=str(default), layout=widgets.Layout(width='150px'))
 
-    def update_param_inputs(self, *args):
-        plot_key = self.plot_type.value
-        spec = self.plot_specs.get(plot_key, {})
-        params = {**self.default_params, **spec.get("params", {})}
+    def _update_actions(self, *args):
+        group = self.mode_selector.value
+        self.action_selector.options = list(self.specs[group].keys())
+        if self.action_selector.options:
+            self.action_selector.value = self.action_selector.options[0]
+
+    def _update_param_inputs(self, *args):
+        group = self.mode_selector.value
+        action = self.action_selector.value
+        spec = self.specs[group][action]
+
         self.param_inputs.clear()
         widgets_list = []
-        for name, meta in params.items():
-            widget = self._create_widget(meta["type"], meta["default"])
-            label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='100px'))
-            hbox = widgets.HBox([label, widget])
-            widgets_list.append(hbox)
-            self.param_inputs[name] = widget
+        params_cls = spec["params"]
+
+        if params_cls:
+            for f in fields(params_cls):
+                w = self._create_widget(f)
+                label = widgets.Label(value=f"{f.name}:", layout=widgets.Layout(width='120px'))
+                hbox = widgets.HBox([label, w])
+                widgets_list.append(hbox)
+                self.param_inputs[f.name] = w
+
         rows = [widgets.HBox(widgets_list[i:i+2]) for i in range(0, len(widgets_list), 2)]
         self.param_box.children = rows
 
-    def update_table_params(self):
-        widgets_list = []
-        for name, meta in self.default_params.items():
-            widget = self._create_widget(meta["type"], meta["default"])
-            label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='100px'))
-            hbox = widgets.HBox([label, widget])
-            widgets_list.append(hbox)
-            self.param_inputs[name] = widget
-        rows = [widgets.HBox(widgets_list[i:i+2]) for i in range(0, len(widgets_list), 2)]
-        self.table_param_box.children = rows
+    def _create_widget(self, f):
+        from dataclasses import MISSING
+        typ = f.type
+        default = f.default if f.default != MISSING else None
 
-    def do_plot(self, _):
+        if typ == float:
+            return widgets.FloatText(value=default or 0.0, layout=widgets.Layout(width='150px'))
+        elif typ == int:
+            return widgets.IntText(value=default or 0, layout=widgets.Layout(width='150px'))
+        elif typ == bool:
+            return widgets.Checkbox(value=default or False, layout=widgets.Layout(width='150px'))
+        else:
+            options = default if isinstance(default, list) else [default] if default else []
+            return widgets.Dropdown(options=options, layout=widgets.Layout(width='150px'))
+
+    def _build_dto(self, cls):
+        values = {}
+        for f in fields(cls):
+            widget = self.param_inputs.get(f.name)
+            if widget is None:
+                continue
+            val = widget.value
+            try:
+                if f.type == float:
+                    val = float(val)
+                elif f.type == int:
+                    val = int(val)
+                elif f.type == bool:
+                    val = bool(val)
+                elif "List" in str(f.type):
+                    val = eval(val)
+            except:
+                pass
+            values[f.name] = val
+        return cls(**values)
+
+    def _execute(self, _):
         with self.output:
             clear_output(wait=True)
+
+            # 1. Get spec group and key (e.g., "plot_specs" / "time")
+            group = self.mode_selector.value
+            key = self.action_selector.value
+            spec = self.specs[group][key]
+            params_cls = spec["params"]
+
+            # 2. Build TaskDTO from dropdowns
             subject = self.subject_dropdown.value
             task, run = self.task_dropdown.value
-            plot_type = self.plot_type.value
-            kwargs = {
-                k: (eval(w.value) if self.plot_specs[plot_type]["params"].get(k, {}).get("type") == "list_float" else w.value)
-                for k, w in self.param_inputs.items()
-            }
-            self.controller.show(subject, task, run, plot_type=plot_type, **kwargs)
-            self.update_param_inputs()
+            task_dto = TaskDTO(subject=subject, task=task, run=run)
 
-    def do_show_info(self, _):
-        with self.output:
-            clear_output(wait=True)
-            subject = self.subject_dropdown.value
-            task, run = self.task_dropdown.value
-            l_freq = float(self.param_inputs["l_freq"].value)
-            h_freq = float(self.param_inputs["h_freq"].value)
-            table_name = self.table_type.value
-            rows = self.rows_int.value
-
-            metadata = self.controller.show_annotations(subject, task, run)
-            print(f"Metadata for {subject} - {task}" + (f" (Run {run})" if run else "") + ":")
-            print(json.dumps(metadata, indent=2) if metadata else "No metadata available.")
-
-            df = self.controller.show_table(subject, task, run, name=table_name, l_freq=l_freq, h_freq=h_freq, rows=rows)
-            print(f"\nTable: {table_name}")
-            if df is not None:
-                display(df)
+            # 3. Build DTO from inputs or pass None
+            if params_cls is None:
+                params_dto = None
             else:
-                print("No table data available.")
+                params_dto = self._build_dto(params_cls)
+
+            # 4. Call controller with DTOs
+            result = self.controller.show(task_dto, group, key, params_dto)
+
+            if isinstance(result, pd.DataFrame):
+                display(result)
+            elif isinstance(result, (dict, list)):
+                import json
+                print(json.dumps(result, indent=2))
+            elif isinstance(result, str):
+                print(result)
+            elif result is not None:
+                print("Output:", result)
+
+            return result
+
 
     def show(self):
         display(self.ui)
