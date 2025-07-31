@@ -1,78 +1,32 @@
 
 import matplotlib.pyplot as plt
+import json
+import pathlib
 
 class EEGVisualization:
-    def __init__(self, get_raw_func, get_epochs_func):
+    def __init__(self, get_raw_func, get_epochs_func, json_path):
         self.get_raw = get_raw_func
         self.get_epochs = get_epochs_func
+        self.json_path = json_path
+        self.default_params = {}
+        self.plot_specs = {}
 
-        self.default_params = {
-            "l_freq": {"type": "float", "default": 3.0},
-            "h_freq": {"type": "float", "default": 35.0},
-        }
-        self.plot_specs = self._build_plot_specs()
+        self._load_plot_specs()
 
-    def _build_plot_specs(self):
-        min = 3.0
-        max = 35.0
-        return {
-            "sensors": {
-                "function": self.plot_sensors,
-                "label": "Sensor Layout",
-                "params": {},
-            },
-            "time": {
-                "function": self.plot_time,
-                "label": "Time Domain Plot",
-                "params": {
-                    "duration": {"type": "float", "default": 10.0},
-                    "start": {"type": "float", "default": 0.0},
-                    "n_channels": {"type": "int", "default": 10},
-                },
-            },
-            "frequency": {
-                "function": self.plot_frequency,
-                "label": "Frequency Domain",
-                "params": {
-                    "fmin": {"type": "float", "default": min},
-                    "fmax": {"type": "float", "default": max},
-                    "dB": {"type": "bool", "default": True},
-                    "spatial_colors": {"type": "bool", "default": True},
-                    "average": {"type": "bool", "default": False},
-                },
-            },
-            "conditionwise_psd": {
-                "function": self.plot_conditionwise_psd,
-                "label": "Condition-wise PSD",
-                "params": {
-                    "fmin": {"type": "float", "default": min},
-                    "fmax": {"type": "float", "default": max},
-                    "tmin": {"type": "float", "default": 0.0},
-                    "tmax": {"type": "float", "default": 2.4},
-                    "average": {"type": "bool", "default": True},
-                    "dB": {"type": "bool", "default": True},
-                },
-            },
-            "epochs": {
-                "function": self.plot_epochs,
-                "label": "Epoch Plot",
-                "params": {
-                    "tmin": {"type": "float", "default": 0.0},
-                    "tmax": {"type": "float", "default": 2.4},
-                    "stimulus": {"type": "dropdown", "default": []},
-                    "n_channels": {"type": "int", "default": 10},
-                },
-            },
-            "evoked": {
-                "function": self.plot_evoked,
-                "label": "Evoked Response",
-                "params": {
-                    "tmin": {"type": "float", "default": 0.0},
-                    "tmax": {"type": "float", "default": 2.4},
-                    "stimulus": {"type": "dropdown", "default": []},
-                },
-            },
-        }
+    def _load_plot_specs(self):
+
+        path = pathlib.Path(self.json_path)
+        with open(path) as f:
+            spec_file = json.load(f)
+
+        self.default_params = spec_file.get("default_params", {})
+        self.plot_specs = spec_file.get("plot_specs", {})
+
+        for key, spec in self.plot_specs.items():
+            func_name = f"plot_{key}"
+            if hasattr(self, func_name):
+                self.plot_specs[key]["function"] = getattr(self, func_name)
+
 
     def _filter_params(self, plot_type, kwargs):
         spec = self.plot_specs.get(plot_type, {})
