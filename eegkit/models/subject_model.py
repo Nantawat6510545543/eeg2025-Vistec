@@ -2,13 +2,14 @@ from pathlib import Path
 import re
 from collections import defaultdict
 from .task_model import EEGTaskModel
+from .dtos import TaskDTO
 
 class EEGSubjectModel:
     def __init__(self, data_dir):
         self._data_dir = Path(data_dir)
         self._subject_ids = self._discover_subjects()
         self._task_index = self._discover_tasks()
-        self._cache = {}  # (subj, task, run) → EEGTaskModel
+        self._cache = {}
 
     def _discover_subjects(self):
         return sorted([p.name for p in self._data_dir.glob("sub-*") if p.is_dir()])
@@ -40,9 +41,9 @@ class EEGSubjectModel:
     def list_tasks(self, subject):
         return sorted(self._task_index.get(subject, []))
 
-    def get_task(self, subject, task, run=None):
-        key = (subject, task, run)
+    def get_task(self, task_dto: TaskDTO):
+        key = task_dto.__hash__
         if key not in self._cache:
-            task_model = EEGTaskModel(subject, task, run, self._data_dir)
+            task_model = EEGTaskModel(task_dto, self._data_dir)
             self._cache[key] = task_model
         return self._cache[key]
