@@ -2,12 +2,11 @@ from pathlib import Path
 import json
 import pandas as pd
 import mne
+from .dtos import TaskDTO
 
 class EEGTaskLoader:
-    def __init__(self, subject, task, run, data_dir):
-        self.subject = subject
-        self.task = task
-        self.run = run
+    def __init__(self, task_dto: TaskDTO, data_dir):
+        self.task_dto = task_dto
         self.data_dir = Path(data_dir)
 
     def load_raw(self):
@@ -30,10 +29,10 @@ class EEGTaskLoader:
         return self._load_tsv("electrodes.tsv")
 
     def _get_file(self, ext):
-        base = f"{self.subject}_task-{self.task}"
-        if self.run:
-            base += f"_run-{self.run}"
-        return self.data_dir / self.subject / "eeg" / f"{base}_{ext}"
+        base = f"{self.task_dto.subject}_task-{self.task_dto.task}"
+        if self.task_dto.run:
+            base += f"_run-{self.task_dto.run}"
+        return self.data_dir / self.task_dto.subject / "eeg" / f"{base}_{ext}"
 
     def _load_json(self, name):
         path = self._get_file(name)
