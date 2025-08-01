@@ -4,6 +4,8 @@ from dataclasses import fields
 import pandas as pd
 from ..models import TaskDTO
 from dataclasses import MISSING
+import matplotlib.pyplot as plt
+plt.ioff()
 
 class EEGUI:
     def __init__(self, controller):
