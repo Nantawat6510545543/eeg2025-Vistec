@@ -1,58 +1,30 @@
-from dataclasses import dataclass
-from typing import Optional
-
-def make_hashable(obj):
-    if isinstance(obj, (tuple, list)):
-        return tuple(make_hashable(e) for e in obj)
-    elif isinstance(obj, dict):
-        return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
-    elif isinstance(obj, set):
-        return frozenset(make_hashable(e) for e in obj)
-    return obj
+from dataclasses import dataclass, field
+from typing import Optional, List
 
 @dataclass
 class TaskDTO():
     subject: str
     task: str
     run: Optional[str] = None
-    
-    def __eq__(self, other):
-        return type(self) is type(other) and self.__dict__ == other.__dict__
-    def __hash__(self):
-        return hash(hash(make_hashable(self.__dict__)))
-
 
 @dataclass
 class FilterParamsDTO():
     l_freq: float = 3.0
     h_freq: float = 35.0
-    
-    def __eq__(self, other):
-        return type(self) is type(other) and self.__dict__ == other.__dict__
-    def __hash__(self):
-        return hash(hash(make_hashable(self.__dict__)))
 
 
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
-    tmin: float = 0.0
-    tmax: float = 2.4
-    stimulus: Optional[str] = None
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.__dict__ == other.__dict__
-    def __hash__(self):
-        return hash(hash(make_hashable(self.__dict__)))
+    epoch_tmin: float = 0.0
+    epoch_tmax: float = 2.4
+    crop_tmin: float = 0.0
+    crop_tmax: float = 2.4
+    stimulus: List[str] = field(default_factory=lambda: [None])
 
 
 @dataclass
 class EpochFullParamsDTO(EpochParamsDTO):
     n_channels: int = 10
-
-    def __eq__(self, other):
-        return type(self) is type(other) and self.__dict__ == other.__dict__
-    def __hash__(self):
-        return hash(hash(make_hashable(self.__dict__)))
 
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
@@ -62,6 +34,9 @@ class PSDParamsDTO(FilterParamsDTO):
     dB: bool = True
     spatial_colors: bool = True
 
+@dataclass
+class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
+    pass
 
 @dataclass
 class TimeDomainParamsDTO(FilterParamsDTO):
@@ -72,5 +47,5 @@ class TimeDomainParamsDTO(FilterParamsDTO):
 
 @dataclass
 class TableInfoDTO(FilterParamsDTO):
-    table_type: str = "events"
+    table_type: List[str] = field(default_factory=lambda: ["events", "channels", "electrodes", "epochs"])
     rows: int = 10

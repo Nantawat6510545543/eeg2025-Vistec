@@ -42,7 +42,7 @@ class EEGSubjectModel:
         return sorted(self._task_index.get(subject, []))
 
     def get_task(self, task_dto: TaskDTO):
-        key = hash(task_dto)
+        key = (task_dto.subject, task_dto.task, task_dto.run)
         if key not in self._cache:
             task_model = EEGTaskModel(task_dto, self._data_dir)
             self._cache[key] = task_model

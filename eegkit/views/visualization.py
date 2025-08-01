@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pandas as pd
-from ..models import TaskDTO, FilterParamsDTO, TimeDomainParamsDTO, PSDParamsDTO, EpochParamsDTO, EpochFullParamsDTO, TableInfoDTO
+from ..models import TaskDTO, FilterParamsDTO, TimeDomainParamsDTO, PSDParamsDTO, EpochParamsDTO, EpochFullParamsDTO, TableInfoDTO, EpochPSDParamsDTO
+plt.ioff()
 
 class EEGVisualization:
     def __init__(self, get_raw_func, get_epochs_func, get_task_func):
@@ -8,59 +9,49 @@ class EEGVisualization:
         self.get_epochs = get_epochs_func
         self.get_task = get_task_func
         self.specs = {
-            "data_specs": {
-                "meta": {
-                    "label": "Metadata",
+            "Plot": {
+                "Sensor Layout": {
+                    "params": FilterParamsDTO(),
+                    "function": self.plot_sensors
+                },
+                "Time Domain Plot": {
+                    "params": TimeDomainParamsDTO(),
+                    "function": self.plot_time
+                },
+                "Frequency Domain": {
+                    "params": PSDParamsDTO(),
+                    "function": self.plot_frequency
+                },
+                "Condition-wise PSD": {
+                    "params": EpochPSDParamsDTO(),
+                    "function": self.plot_conditionwise_psd
+                },
+                "Epoch Plot": {
+                    "params": EpochFullParamsDTO(),
+                    "function": self.plot_epochs
+                },
+                "Evoked Response": {
+                    "params": EpochParamsDTO(),
+                    "function": self.plot_evoked
+                }
+            },
+            "Data": {
+                "Metadata": {
                     "params": None,
                     "function": self.show_annotations
                 },
-                "table": {
-                    "label": "EEG Table",
-                    "params": TableInfoDTO,
+                "EEG Table": {
+                    "params": TableInfoDTO(),
                     "function": self.show_table
                 },
-                "annotations": {
-                    "label": "get_annotation_df",
-                    "params": FilterParamsDTO,
+                "Annotations": {
+                    "params": FilterParamsDTO(),
                     "function": self.get_annotation_df
                 }
             },
-            "plot_specs": {
-                "sensors": {
-                    "label": "Sensor Layout",
-                    "params": FilterParamsDTO,
-                    "function": self.plot_sensors
-                },
-                "time": {
-                    "label": "Time Domain Plot",
-                    "params": TimeDomainParamsDTO,
-                    "function": self.plot_time
-                },
-                "frequency": {
-                    "label": "Frequency Domain",
-                    "params": PSDParamsDTO,
-                    "function": self.plot_frequency
-                },
-                "conditionwise_psd": {
-                    "label": "Condition-wise PSD",
-                    "params": EpochParamsDTO,
-                    "function": self.plot_conditionwise_psd
-                },
-                "epochs": {
-                    "label": "Epoch Plot",
-                    "params": EpochFullParamsDTO,
-                    "function": self.plot_epochs
-                },
-                "evoked": {
-                    "label": "Evoked Response",
-                    "params": EpochParamsDTO,
-                    "function": self.plot_evoked
-                }
-            }
         }
 
     def _finalize_figure(self, fig: plt.Figure, task_dto: TaskDTO, stimulus=None, caption: dict = None, plot_name="EEG Plot", x=15, y=10) -> plt.Figure:
-        plt.ioff()
         fig.set_size_inches(x, y)
         subject_line = f"{task_dto.subject} - {task_dto.task}" + (f" - {stimulus}" if stimulus else "") + (f" (Run {task_dto.run})" if task_dto.run else "")
         caption_line = ", ".join(f"{k} = {v:.1f}" if isinstance(v, (float, int)) else f"{k} = {v}" for k, v in caption.items()) if caption else ""
@@ -99,7 +90,7 @@ class EEGVisualization:
         fig = self._finalize_figure(fig, task_dto, caption=vars(params), plot_name="Frequency Domain")
         return [fig]
 
-    def plot_conditionwise_psd(self, task_dto: TaskDTO, params: EpochParamsDTO):
+    def plot_conditionwise_psd(self, task_dto: TaskDTO, params: EpochPSDParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
         if epochs is None:
             print(f"No epochs available for {task_dto.subject} - {task_dto.task}")
@@ -111,7 +102,7 @@ class EEGVisualization:
                 continue
             cropped = condition_epochs.copy().crop(tmin=params.tmin, tmax=params.tmax)
             psd = cropped.compute_psd(fmin=params.fmin, fmax=params.fmax)
-            fig = psd.plot(average=params.average, spatial_colors=True, dB=params.dB, show=False)
+            fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
             fig = self._finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Condition-wise PSD")
             fig_list.append(fig)
         return fig_list
@@ -119,13 +110,12 @@ class EEGVisualization:
     def plot_epochs(self, task_dto: TaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
         if labels is not None:
-            pass
-            # self.plot_specs["epochs"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
+            self.specs["Plot"]["Epoch Plot"]["params"].stimulus = [None] + sorted(labels)
         if epochs is None:
             return
         if params.stimulus and params.stimulus in epochs.event_id:
             epochs = epochs[params.stimulus]
-        cropped = epochs.copy().crop(tmin=params.tmin, tmax=params.tmax)
+        cropped = epochs.copy().crop(tmin=params.crop_tmin, tmax=params.crop_tmax)
         fig = cropped.plot(events=False, n_channels=params.n_channels, show=False)
         fig = self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epochs")
         return [fig]
@@ -133,13 +123,12 @@ class EEGVisualization:
     def plot_evoked(self, task_dto: TaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
         if labels is not None:
-            pass
-            # self.plot_specs["evoked"]["params"]["stimulus"]["default"] = [None] + sorted(labels)
+            self.specs["Plot"]["Epoch Plot"]["params"].stimulus = [None] + sorted(labels)
         if epochs is None:
             return
         if params.stimulus and params.stimulus in epochs.event_id:
             epochs = epochs[params.stimulus]
-        cropped = epochs.copy().crop(tmin=params.tmin, tmax=params.tmax)
+        cropped = epochs.copy().crop(tmin=params.crop_tmin, tmax=params.crop_tmax)
         fig = cropped.average().plot_joint(show=False)
         fig = self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked")
         return [fig]
