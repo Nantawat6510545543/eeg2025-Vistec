@@ -7,4 +7,5 @@ from .dtos import (
     TimeDomainParamsDTO,
     TableInfoDTO,
     EpochFullParamsDTO,
+    EpochPSDParamsDTO,
 )   

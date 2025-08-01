@@ -11,7 +11,7 @@ class EEGTaskProcessor:
         self._epochs_cache = {}
 
     def get_filtered(self, params: FilterParamsDTO):
-        key = hash(FilterParamsDTO)
+        key = (params.l_freq, params.h_freq)
 
         if key in self._filtered_cache:
             return self._filtered_cache[key]
@@ -27,15 +27,15 @@ class EEGTaskProcessor:
         self._filtered_cache[key] = raw_copy
         return raw_copy
 
-    def get_epochs(self, epoch_params: EpochParamsDTO):
-        key = hash(epoch_params)
+    def get_epochs(self, params: EpochParamsDTO):
+        key = (params.l_freq, params.h_freq, params.epoch_tmin, params.epoch_tmax)
         if key in self._epochs_cache:
             return self._epochs_cache[key]
 
         if self.task_name == 'RestingState':
-            epochs, labels = self._resting_preprocess(epoch_params)
+            epochs, labels = self._resting_preprocess(params)
         elif self.task_name == 'surroundSupp':
-            epochs, labels = self._sus_preprocess(epoch_params)
+            epochs, labels = self._sus_preprocess(params)
         else:
             print("epochs fail with " + self.task_name)
             return None, None
@@ -43,7 +43,7 @@ class EEGTaskProcessor:
         self._epochs_cache[key] = (epochs, labels)
         return epochs, labels
 
-    def _sus_preprocess(self, params: EpochParamsDTO, tmin=0.0, tmax=2.4):
+    def _sus_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
         stim_rows = self.events[self.events['value'] == 'stim_ON'].copy()
 
@@ -62,13 +62,13 @@ class EEGTaskProcessor:
         ])
         epochs = Epochs(
             filtered, events=events_array, event_id=event_id,
-            tmin=tmin, tmax=tmax, baseline=None, proj=True,
+            tmin=params.epoch_tmin, tmax=params.epoch_tmax, baseline=None, proj=True,
             preload=True, detrend=1
         )
         labels = stim_rows['label'].values[epochs.selection]
         return epochs, labels
 
-    def _resting_preprocess(self, params: EpochParamsDTO, tmin=0.0, tmax=20.0):
+    def _resting_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
         df = self.events
         t_start = df[df['value'] == 'resting_start']['onset'].values[0]
@@ -83,7 +83,7 @@ class EEGTaskProcessor:
 
         epochs = Epochs(
             filtered, events, event_id=eye_map,
-            tmin=tmin, tmax=tmax, baseline=None,
+            tmin=params.epoch_tmin, tmax=params.epoch_tmax, baseline=None,
             proj=True, preload=True
         )
         labels = epochs.events[:, -1] - eye_map['open']

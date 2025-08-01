@@ -1,8 +1,7 @@
 from ..models import (
-    FilterParamsDTO, EpochParamsDTO, TableInfoDTO, TaskDTO
+    FilterParamsDTO, EpochParamsDTO, TaskDTO
 )
 from ..views.visualization import EEGVisualization
-import pandas as pd
 
 class EEGController:
     def __init__(self, subject_model):
@@ -14,12 +13,12 @@ class EEGController:
         )
 
     def get_filtered_raw(self, task_dto: TaskDTO, filter_params: FilterParamsDTO):
-        print("getting raw")
+        # print("Getting raw")
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_filtered_raw(filter_params)
 
     def get_epochs(self, task_dto: TaskDTO, epoch_params: EpochParamsDTO):
-        print("getting epochs")
+        # print("Getting epochs")
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_epochs(epoch_params)
 
@@ -29,16 +28,11 @@ class EEGController:
     def list_tasks(self, subject):
         return self.subject_model.list_tasks(subject)
 
-    def get_event_ids(self, task_dto: TaskDTO, epoch_params: EpochParamsDTO):
-        task_model = self.subject_model.get_task(task_dto)
-        epochs, _ = task_model.get_epochs(epoch_params)
-        return list(epochs.event_id.keys()) if epochs else []
-
     def get_specs(self):
         return self.visualizer.specs
     
     def show(self, task_dto: TaskDTO, group: str, key: str, params_dto):
-        print("Visualizing")
+        # print("Visualizing")
         result = self.visualizer.specs[group][key]["function"](task_dto, params_dto)
         return result
 
