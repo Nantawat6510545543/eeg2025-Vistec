@@ -11,7 +11,7 @@ class EEGTaskProcessor:
         self._epochs_cache = {}
 
     def get_filtered(self, params: FilterParamsDTO):
-        key = (params.l_freq, params.h_freq)
+        key = hash(FilterParamsDTO)
 
         if key in self._filtered_cache:
             return self._filtered_cache[key]
@@ -28,7 +28,7 @@ class EEGTaskProcessor:
         return raw_copy
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
-        key = (epoch_params.l_freq, epoch_params.h_freq)
+        key = hash(epoch_params)
         if key in self._epochs_cache:
             return self._epochs_cache[key]
 
@@ -37,7 +37,7 @@ class EEGTaskProcessor:
         elif self.task_name == 'surroundSupp':
             epochs, labels = self._sus_preprocess(epoch_params)
         else:
-            print("epochs fail with " + task_name)
+            print("epochs fail with " + self.task_name)
             return None, None
 
         self._epochs_cache[key] = (epochs, labels)
