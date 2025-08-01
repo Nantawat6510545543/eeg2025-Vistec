@@ -1,6 +1,6 @@
-import matplotlib.pyplot as plt
 import pandas as pd
 from ..models import TaskDTO, FilterParamsDTO, TimeDomainParamsDTO, PSDParamsDTO, EpochParamsDTO, EpochFullParamsDTO, TableInfoDTO, EpochPSDParamsDTO
+import matplotlib.pyplot as plt
 plt.ioff()
 
 class EEGVisualization:
