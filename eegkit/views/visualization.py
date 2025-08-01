@@ -100,37 +100,34 @@ class EEGVisualization:
             condition_epochs = epochs[condition]
             if len(condition_epochs) == 0:
                 continue
-            cropped = condition_epochs.copy().crop(tmin=params.tmin, tmax=params.tmax)
-            psd = cropped.compute_psd(fmin=params.fmin, fmax=params.fmax)
+            psd = epochs.compute_psd(fmin=params.fmin, fmax=params.fmax)
             fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
             fig = self._finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Condition-wise PSD")
             fig_list.append(fig)
         return fig_list
 
     def plot_epochs(self, task_dto: TaskDTO, params: EpochParamsDTO):
-        epochs, labels = self.get_epochs(task_dto, params)
-        if labels is not None:
-            self.specs["Plot"]["Epoch Plot"]["params"].stimulus = [None] + sorted(labels)
-        if epochs is None:
-            return
-        if params.stimulus and params.stimulus in epochs.event_id:
-            epochs = epochs[params.stimulus]
-        cropped = epochs.copy().crop(tmin=params.crop_tmin, tmax=params.crop_tmax)
-        fig = cropped.plot(events=False, n_channels=params.n_channels, show=False)
-        fig = self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epochs")
-        return [fig]
+        return self._plot_epochs_base(task_dto, params, mode="Epochs")
 
     def plot_evoked(self, task_dto: TaskDTO, params: EpochParamsDTO):
+        return self._plot_epochs_base(task_dto, params, mode="Evoked")
+
+    def _plot_epochs_base(self, task_dto, params, mode):
         epochs, labels = self.get_epochs(task_dto, params)
         if labels is not None:
             self.specs["Plot"]["Epoch Plot"]["params"].stimulus = [None] + sorted(labels)
         if epochs is None:
+            print(f"No epochs available for {task_dto.subject} - {task_dto.task}")
             return
         if params.stimulus and params.stimulus in epochs.event_id:
             epochs = epochs[params.stimulus]
-        cropped = epochs.copy().crop(tmin=params.crop_tmin, tmax=params.crop_tmax)
-        fig = cropped.average().plot_joint(show=False)
-        fig = self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked")
+
+        if mode == "Epochs":
+            fig = epochs.plot(events=False, n_channels=params.n_channels, show=False)
+        elif mode == "Evoked":
+            fig = epochs.average().plot_joint(show=False)
+
+        fig = self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name=mode)
         return [fig]
 
     def show_table(self, task_dto: TaskDTO, table_info: TableInfoDTO):
