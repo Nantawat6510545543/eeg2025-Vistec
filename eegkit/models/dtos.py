@@ -15,10 +15,8 @@ class FilterParamsDTO():
 
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
-    epoch_tmin: float = 0.0
-    epoch_tmax: float = 2.4
-    crop_tmin: float = 0.0
-    crop_tmax: float = 2.4
+    tmin: float = 0.0
+    tmax: float = 2.4
     stimulus: List[str] = field(default_factory=lambda: [None])
 
 

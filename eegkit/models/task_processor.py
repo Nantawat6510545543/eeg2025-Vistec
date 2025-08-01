@@ -28,7 +28,7 @@ class EEGTaskProcessor:
         return raw_copy
 
     def get_epochs(self, params: EpochParamsDTO):
-        key = (params.l_freq, params.h_freq, params.epoch_tmin, params.epoch_tmax)
+        key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
         if key in self._epochs_cache:
             return self._epochs_cache[key]
 
@@ -62,7 +62,7 @@ class EEGTaskProcessor:
         ])
         epochs = Epochs(
             filtered, events=events_array, event_id=event_id,
-            tmin=params.epoch_tmin, tmax=params.epoch_tmax, baseline=None, proj=True,
+            tmin=params.tmin, tmax=params.tmax, baseline=None, proj=True,
             preload=True, detrend=1
         )
         labels = stim_rows['label'].values[epochs.selection]
@@ -83,7 +83,7 @@ class EEGTaskProcessor:
 
         epochs = Epochs(
             filtered, events, event_id=eye_map,
-            tmin=params.epoch_tmin, tmax=params.epoch_tmax, baseline=None,
+            tmin=params.tmin, tmax=params.tmax, baseline=None,
             proj=True, preload=True
         )
         labels = epochs.events[:, -1] - eye_map['open']
