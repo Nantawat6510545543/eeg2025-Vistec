@@ -3,6 +3,7 @@ from IPython.display import display, clear_output
 from dataclasses import fields
 import pandas as pd
 from ..models import TaskDTO
+import matplotlib.pyplot as plt
 
 class EEGUI:
     def __init__(self, controller):
@@ -14,7 +15,7 @@ class EEGUI:
         )
         self.action_selector = widgets.ToggleButtons(description="Action:")
         self.param_box = widgets.VBox()
-        self.plot_button = widgets.Button(description="Run", button_style="success")
+        self.run_button = widgets.Button(description="Run", button_style="success")
         self.output = widgets.Output()
 
         self.subject_dropdown = widgets.Dropdown(
@@ -29,7 +30,7 @@ class EEGUI:
 
         self.mode_selector.observe(self._update_actions, names="value")
         self.action_selector.observe(self._update_param_inputs, names="value")
-        self.plot_button.on_click(self._execute)
+        self.run_button.on_click(self._execute)
 
         self.ui = widgets.VBox([
             self.subject_dropdown,
@@ -37,7 +38,7 @@ class EEGUI:
             self.mode_selector,
             self.action_selector,
             self.param_box,
-            self.plot_button,
+            self.run_button,
             self.output
         ])
 
@@ -141,6 +142,9 @@ class EEGUI:
 
             if isinstance(result, pd.DataFrame):
                 display(result)
+            elif isinstance(result, list) and all(isinstance(fig, plt.Figure) for fig in result):
+                for fig in result:
+                    display(fig)
             elif isinstance(result, (dict, list)):
                 import json
                 print(json.dumps(result, indent=2))
@@ -149,7 +153,7 @@ class EEGUI:
             elif result is not None:
                 print("Output:", result)
 
-            return result
+            return
 
 
     def show(self):

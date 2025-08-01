@@ -1,25 +1,36 @@
-from dataclasses import dataclass, field
-from typing import Optional, List, Union, Dict, Any
+from dataclasses import dataclass
+from typing import Optional
 
+def make_hashable(obj):
+    if isinstance(obj, (tuple, list)):
+        return tuple(make_hashable(e) for e in obj)
+    elif isinstance(obj, dict):
+        return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
+    elif isinstance(obj, set):
+        return frozenset(make_hashable(e) for e in obj)
+    return obj
 
 @dataclass
-class SubjectDTO:
-    subject_id: str
-    tasks: List[Dict[str, Optional[str]]] = field(default_factory=list)
-
-
-@dataclass
-class TaskDTO:
+class TaskDTO():
     subject: str
     task: str
     run: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def __eq__(self, other):
+        return type(self) is type(other) and self.__dict__ == other.__dict__
+    def __hash__(self):
+        return hash(hash(make_hashable(self.__dict__)))
 
 
 @dataclass
-class FilterParamsDTO:
+class FilterParamsDTO():
     l_freq: float = 3.0
     h_freq: float = 35.0
+    
+    def __eq__(self, other):
+        return type(self) is type(other) and self.__dict__ == other.__dict__
+    def __hash__(self):
+        return hash(hash(make_hashable(self.__dict__)))
 
 
 @dataclass
@@ -28,10 +39,20 @@ class EpochParamsDTO(FilterParamsDTO):
     tmax: float = 2.4
     stimulus: Optional[str] = None
 
+    def __eq__(self, other):
+        return type(self) is type(other) and self.__dict__ == other.__dict__
+    def __hash__(self):
+        return hash(hash(make_hashable(self.__dict__)))
+
 
 @dataclass
 class EpochFullParamsDTO(EpochParamsDTO):
     n_channels: int = 10
+
+    def __eq__(self, other):
+        return type(self) is type(other) and self.__dict__ == other.__dict__
+    def __hash__(self):
+        return hash(hash(make_hashable(self.__dict__)))
 
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
@@ -53,4 +74,3 @@ class TimeDomainParamsDTO(FilterParamsDTO):
 class TableInfoDTO(FilterParamsDTO):
     table_type: str = "events"
     rows: int = 10
-    data: Union[List[Dict[str, Any]], str] = field(default_factory=list)

@@ -59,9 +59,8 @@ class EEGVisualization:
             }
         }
 
-    def _finalize_figure(self, fig, task_dto: TaskDTO, stimulus=None, caption: dict = None, plot_name="EEG Plot", x=15, y=10):
-        if not isinstance(fig, plt.Figure):
-            return
+    def _finalize_figure(self, fig: plt.Figure, task_dto: TaskDTO, stimulus=None, caption: dict = None, plot_name="EEG Plot", x=15, y=10) -> plt.Figure:
+        plt.ioff()
         fig.set_size_inches(x, y)
         subject_line = f"{task_dto.subject} - {task_dto.task}" + (f" - {stimulus}" if stimulus else "") + (f" (Run {task_dto.run})" if task_dto.run else "")
         caption_line = ", ".join(f"{k} = {v:.1f}" if isinstance(v, (float, int)) else f"{k} = {v}" for k, v in caption.items()) if caption else ""
@@ -84,9 +83,9 @@ class EEGVisualization:
             n_channels=params.n_channels,
             scalings='auto',
             show=False,
-            block=True
         )
-        self._finalize_figure(fig, task_dto, caption=vars(params), plot_name="Time Domain")
+        fig = self._finalize_figure(fig, task_dto, caption=vars(params), plot_name="Time Domain")
+        return [fig]
 
     def plot_frequency(self, task_dto: TaskDTO, params: PSDParamsDTO):
         raw = self.get_raw(task_dto, params)
@@ -97,13 +96,15 @@ class EEGVisualization:
             dB=params.dB,
             show=False
         )
-        self._finalize_figure(fig, task_dto, caption=vars(params), plot_name="Frequency Domain")
+        fig = self._finalize_figure(fig, task_dto, caption=vars(params), plot_name="Frequency Domain")
+        return [fig]
 
     def plot_conditionwise_psd(self, task_dto: TaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
         if epochs is None:
             print(f"No epochs available for {task_dto.subject} - {task_dto.task}")
             return
+        fig_list =[]
         for condition in epochs.event_id:
             condition_epochs = epochs[condition]
             if len(condition_epochs) == 0:
@@ -111,7 +112,9 @@ class EEGVisualization:
             cropped = condition_epochs.copy().crop(tmin=params.tmin, tmax=params.tmax)
             psd = cropped.compute_psd(fmin=params.fmin, fmax=params.fmax)
             fig = psd.plot(average=params.average, spatial_colors=True, dB=params.dB, show=False)
-            self._finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Condition-wise PSD")
+            fig = self._finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Condition-wise PSD")
+            fig_list.append(fig)
+        return fig_list
 
     def plot_epochs(self, task_dto: TaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
@@ -124,7 +127,8 @@ class EEGVisualization:
             epochs = epochs[params.stimulus]
         cropped = epochs.copy().crop(tmin=params.tmin, tmax=params.tmax)
         fig = cropped.plot(events=False, n_channels=params.n_channels, show=False)
-        return self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epochs")
+        fig = self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epochs")
+        return [fig]
 
     def plot_evoked(self, task_dto: TaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
@@ -137,7 +141,8 @@ class EEGVisualization:
             epochs = epochs[params.stimulus]
         cropped = epochs.copy().crop(tmin=params.tmin, tmax=params.tmax)
         fig = cropped.average().plot_joint(show=False)
-        return self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked")
+        fig = self._finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked")
+        return [fig]
 
     def show_table(self, task_dto: TaskDTO, table_info: TableInfoDTO):
         task_model = self.get_task(task_dto)
@@ -164,7 +169,7 @@ class EEGVisualization:
         return df_map.get(table_info.table_type, pd.DataFrame()).head(table_info.rows)
     
     def get_annotation_df(self, task_dto: TaskDTO, filter_params: FilterParamsDTO):
-        raw = self.get_raw_func(filter_params)
+        raw = self.get_raw(task_dto, filter_params)
         annots = raw.annotations
         df = pd.DataFrame({
             "onset": annots.onset,

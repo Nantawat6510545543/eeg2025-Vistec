@@ -38,7 +38,9 @@ class EEGController:
         return self.visualizer.specs
     
     def show(self, task_dto: TaskDTO, group: str, key: str, params_dto):
-        return self.visualizer.specs[group][key]["function"](task_dto, params_dto)
+        print("Visualizing")
+        result = self.visualizer.specs[group][key]["function"](task_dto, params_dto)
+        return result
 
 
 
