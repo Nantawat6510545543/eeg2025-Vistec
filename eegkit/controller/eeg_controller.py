@@ -31,6 +31,9 @@ class EEGController:
     def get_specs(self):
         return self.visualizer.specs
     
+    def prepare(self, task_dto: TaskDTO, group: str, key: str):
+        self.visualizer.prepare_params(task_dto, group, key)
+    
     def show(self, task_dto: TaskDTO, group: str, key: str, params_dto):
         # print("Visualizing")
         result = self.visualizer.specs[group][key]["function"](task_dto, params_dto)
