@@ -24,9 +24,12 @@ class EEGUI:
         self.param_widgets = {}
         self._build_all_param_layouts()
 
+        self.subject_dropdown.observe(self._update_tasks, names="value")
+        self.task_dropdown.observe(self._update_param_inputs, names="value")
         self.mode_selector.observe(self._update_actions, names="value")
         self.action_selector.observe(self._update_param_inputs, names="value")
         self.run_button.on_click(self._execute)
+
 
         self.ui = widgets.VBox([
             self.subject_dropdown,
@@ -40,6 +43,7 @@ class EEGUI:
 
         self._update_tasks()
         self._update_actions()
+        self._update_param_inputs()
 
     def _build_all_param_layouts(self):
         for group in self.specs:
@@ -68,25 +72,41 @@ class EEGUI:
         self.task_dropdown.options = options
         if options:
             self.task_dropdown.value = options[0][1]
+        self._update_param_inputs()
 
     def _update_actions(self, *args):
         group = self.mode_selector.value
         self.action_selector.options = list(self.specs[group].keys())
         if self.action_selector.options:
             self.action_selector.value = self.action_selector.options[0]
+        self._update_param_inputs()
 
     def _update_param_inputs(self, *args):
         group = self.mode_selector.value
         key = self.action_selector.value
-        layout_key = (group, key)
-
         subject = self.subject_dropdown.value
         task, run = self.task_dropdown.value
-        task_dto = TaskDTO(subject=subject, task=task, run=run)
-        self.controller.prepare(task_dto, group, key)
+        if not group or not key or not subject or not task:
+            return
 
+        task_dto = TaskDTO(subject=subject, task=task, run=run)
+
+        updates = self.controller.prepare(task_dto, group, key)
+
+        layout_key = (group, key)
         self.param_box.children = self.param_layouts.get(layout_key, [])
         self.param_inputs = self.param_widgets.get(layout_key, {})
+
+        if updates:
+            for field, new_value in updates.items():
+                widget = self.param_inputs.get(field)
+                if widget is None:
+                    continue
+                if isinstance(widget, widgets.Dropdown):
+                    widget.options = new_value
+                    widget.value = new_value[0]
+                else:
+                    widget.value = new_value
 
     def _create_widget(self, f, obj):
         value = getattr(obj, f.name)
@@ -169,6 +189,8 @@ class EEGUI:
 
             except Exception as e:
                 print("[Unexpected Error]", e)
+
+            self._update_param_inputs()
 
     def show(self):
         display(self.ui)

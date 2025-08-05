@@ -45,5 +45,5 @@ class TimeDomainParamsDTO(FilterParamsDTO):
 
 @dataclass
 class TableInfoDTO(FilterParamsDTO):
-    table_type: List[str] = field(default_factory=lambda: ["events", "channels", "electrodes", "epochs"])
+    table_type: List[str] = field(default_factory=lambda: ["events", "channels", "electrodes"])
     rows: int = 10
