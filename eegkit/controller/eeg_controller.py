@@ -32,7 +32,7 @@ class EEGController:
         return self.visualizer.specs
     
     def prepare(self, task_dto: TaskDTO, group: str, key: str):
-        self.visualizer.prepare_params(task_dto, group, key)
+        return self.visualizer.prepare_params(task_dto, group, key)
     
     def show(self, task_dto: TaskDTO, group: str, key: str, params_dto):
         # print("Visualizing")
