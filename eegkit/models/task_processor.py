@@ -36,6 +36,8 @@ class EEGTaskProcessor:
             epochs, labels = self._resting_preprocess(params)
         elif self.task_name == 'surroundSupp':
             epochs, labels = self._sus_preprocess(params)
+        elif self.task_name == 'contrastChangeDetection':
+            epochs, labels = self._ccd_preprocess(params)
         else:
             print("epochs fail with " + self.task_name)
             return None, None
@@ -86,5 +88,17 @@ class EEGTaskProcessor:
             tmin=params.tmin, tmax=params.tmax, baseline=None,
             proj=True, preload=True
         )
-        labels = epochs.events[:, -1] - eye_map['open']
+        labels = eye_map
+        return epochs, labels
+
+    def _ccd_preprocess(self, params: EpochParamsDTO):
+        filtered = self.get_filtered(params)
+        events, event_id = events_from_annotations(self.raw)
+        ccd_code = event_id['contrastTrial_start']
+        epochs = Epochs(
+            filtered, events, event_id={'trial_start': ccd_code},
+            tmin=params.tmin, tmax=params.tmax, baseline=None,
+            proj=True, preload=True
+        )
+        labels = ['trial_start']
         return epochs, labels

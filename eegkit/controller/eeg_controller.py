@@ -1,7 +1,7 @@
 from ..models import (
     FilterParamsDTO, EpochParamsDTO, TaskDTO
 )
-from ..views.visualization import EEGVisualization
+from ..services import EEGVisualization
 
 class EEGController:
     def __init__(self, subject_model):
