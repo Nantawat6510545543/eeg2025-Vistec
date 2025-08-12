@@ -2,6 +2,7 @@ import numpy as np
 from mne import Epochs, events_from_annotations
 from .dtos import FilterParamsDTO, EpochParamsDTO
 
+
 class EEGTaskProcessor:
     def __init__(self, raw, events, task_name: str):
         self.raw = raw

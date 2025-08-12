@@ -4,6 +4,7 @@ import pandas as pd
 import mne
 from .dtos import TaskDTO
 
+
 class EEGTaskLoader:
     def __init__(self, task_dto: TaskDTO, data_dir):
         self.task_dto = task_dto

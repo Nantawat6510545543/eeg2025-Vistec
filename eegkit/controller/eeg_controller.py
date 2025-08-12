@@ -3,6 +3,7 @@ from ..models import (
 )
 from ..services import EEGVisualization, EEGDataService
 
+
 class EEGController:
     def __init__(self, subject_model):
         self.subject_model = subject_model
@@ -17,7 +18,7 @@ class EEGController:
             get_task_func=self.subject_model.get_task
         )
 
-        self.specs =  {
+        self.specs = {
             "plot": self.visualizer.spec,
             "data": self.data_service.spec,
         }
@@ -35,19 +36,16 @@ class EEGController:
 
     def list_tasks(self, subject):
         return self.subject_model.list_tasks(subject)
-    
+
     def get_specs(self):
         return self.specs
-    
+
     def prepare(self, task_dto: TaskDTO, group: str, key: str):
         if group == "plot":
             return self.visualizer.prepare_params(task_dto, key)
         else:
             return {}
-    
+
     def show(self, task_dto: TaskDTO, group: str, key: str, params_dto):
         result = self.specs[group][key]["function"](task_dto, params_dto)
         return result
-
-
-

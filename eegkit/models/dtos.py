@@ -1,14 +1,16 @@
 from dataclasses import dataclass, field
 from typing import Optional, List
 
+
 @dataclass
-class TaskDTO():
+class TaskDTO:
     subject: str
     task: str
     run: Optional[str] = None
 
+
 @dataclass
-class FilterParamsDTO():
+class FilterParamsDTO:
     l_freq: float = 3.0
     h_freq: float = 35.0
 
@@ -24,6 +26,7 @@ class EpochParamsDTO(FilterParamsDTO):
 class EpochFullParamsDTO(EpochParamsDTO):
     n_channels: int = 10
 
+
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
     fmin: float = 3.0
@@ -32,9 +35,11 @@ class PSDParamsDTO(FilterParamsDTO):
     dB: bool = True
     spatial_colors: bool = True
 
+
 @dataclass
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
     pass
+
 
 @dataclass
 class TimeDomainParamsDTO(FilterParamsDTO):
