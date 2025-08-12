@@ -8,4 +8,4 @@ from .dtos import (
     TableInfoDTO,
     EpochFullParamsDTO,
     EpochPSDParamsDTO,
-)   
+)

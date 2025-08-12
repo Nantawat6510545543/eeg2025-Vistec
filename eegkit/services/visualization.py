@@ -4,9 +4,11 @@ from ..models import (
 )
 from ..utils import finalize_figure
 import matplotlib.pyplot as plt
+
 plt.ioff()
 
 plot_registry = {}
+
 
 def register_plot(name, dto_cls):
     def decorator(func):
@@ -15,6 +17,7 @@ def register_plot(name, dto_cls):
             "function": func
         }
         return func
+
     return decorator
 
 
@@ -32,14 +35,14 @@ class EEGVisualization:
         spec = self.spec[key]
         params = spec["params"]
         if params is None:
-            return 
+            return
         updates = {}
         if isinstance(params(), EpochParamsDTO):
             epochs, labels = self.get_epochs(task_dto, params)
             if labels is not None:
                 updates["stimulus"] = [None] + sorted(set(labels))
             else:
-                updates["stimulus"] = [None] 
+                updates["stimulus"] = [None]
 
         return updates
 
