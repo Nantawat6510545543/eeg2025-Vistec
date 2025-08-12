@@ -4,7 +4,9 @@ from dataclasses import fields
 import pandas as pd
 from ..models import TaskDTO
 import matplotlib.pyplot as plt
+
 plt.ioff()
+
 
 class EEGUI:
     def __init__(self, controller):
@@ -29,7 +31,6 @@ class EEGUI:
         self.mode_selector.observe(self._update_actions, names="value")
         self.action_selector.observe(self._update_param_inputs, names="value")
         self.run_button.on_click(self._execute)
-
 
         self.ui = widgets.VBox([
             self.subject_dropdown,
@@ -61,7 +62,7 @@ class EEGUI:
                         hbox = widgets.HBox([label, widget])
                         widgets_list.append(hbox)
                         widgets_dict[f.name] = widget
-                rows = [widgets.HBox(widgets_list[i:i+2]) for i in range(0, len(widgets_list), 2)]
+                rows = [widgets.HBox(widgets_list[i:i + 2]) for i in range(0, len(widgets_list), 2)]
                 self.param_layouts[layout_key] = rows
                 self.param_widgets[layout_key] = widgets_dict
 

@@ -4,6 +4,7 @@ from collections import defaultdict
 from .task_model import EEGTaskModel
 from .dtos import TaskDTO
 
+
 class EEGSubjectModel:
     def __init__(self, data_dir):
         self._data_dir = Path(data_dir)
@@ -56,5 +57,5 @@ class EEGSubjectModel:
         if key not in self._cache:
             task_model = EEGTaskModel(task_dto, self._data_dir)
             self._cache[key] = task_model
-        
+
         return self._cache[key]

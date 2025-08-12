@@ -5,6 +5,7 @@ from ..models import (
 
 data_registry = {}
 
+
 def register_data(name, dto_cls):
     def decorator(func):
         data_registry[name] = {
@@ -12,7 +13,9 @@ def register_data(name, dto_cls):
             "function": func
         }
         return func
+
     return decorator
+
 
 class EEGDataService:
     def __init__(self, get_raw_func, get_epochs_func, get_task_func):
