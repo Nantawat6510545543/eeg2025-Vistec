@@ -1,3 +1,3 @@
-from .controller import EEGController
-from .views import EEGUI
-from .models import EEGSubjectModel
+from .controller import *
+from .views import *
+from .models import *
