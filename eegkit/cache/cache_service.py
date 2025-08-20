@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 import hashlib, json, os
-from mne import io, Epochs
+import mne
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 def _repo_root(start: Path) -> Path:
     for p in [*start.parents, start]:
@@ -46,35 +50,50 @@ class LocalCache:
         self.source_sig = _sha256_of_files([p for p in data_files if p.exists()])
         self.pipeline_ver = pipeline_ver
 
-    def _path_for(self, key: CacheKey, ext: str) -> Path:
+    def _path_for(self, key: CacheKey, type, ext: str) -> Path:
         d = self.base / key.subdir()
         d.mkdir(parents=True, exist_ok=True)
-        return d / f"{key.filename_stem()}.{ext}"
+        return d / f"{key.filename_stem()}_{type}.{ext}"
 
-    # RAW (filtered)
     def load_raw_filtered(self, key: CacheKey):
-        p = self._path_for(key, "fif")
+        p = self._path_for(key, "eeg", "fif")
         if p.exists():
-            return io.read_raw_fif(p.as_posix(), preload=True, verbose="ERROR")
+            print(f"[CACHE HIT] Raw filtered found at {p}")
+            return mne.io.read_raw_fif(p.as_posix(), preload=True, verbose="ERROR")
+        print(f"[CACHE MISS] Raw filtered not found for key={p}")
         return None
 
     def save_raw_filtered(self, raw, key: CacheKey):
-        p = self._path_for(key, "fif")
-        tmp = p.parent / (p.stem + "_tmp.fif")
-        raw.save(tmp.as_posix(), overwrite=True)
-        tmp.replace(p)
+        p = self._path_for(key, "eeg", "fif")
+        print(f"[CACHE SAVE] Storing raw filtered at {p}")
+        raw.save(p.as_posix(), overwrite=True)
         return p
 
-    # EPOCHS
     def load_epochs(self, key: CacheKey):
-        p = self._path_for(key, "epo.fif")
-        if p.exists():
-            return Epochs.read(p.as_posix(), preload=True, verbose="ERROR")
-        return None
+        p = self._path_for(key, "epo", "fif")
+        if not p.exists():
+            print(f"[CACHE MISS] Epochs not found for key={p}")
+            return None, None
 
-    def save_epochs(self, epochs, key: CacheKey):
-        p = self._path_for(key, "epo.fif")
-        tmp = p.with_suffix(".tmp")
-        epochs.save(tmp.as_posix(), overwrite=True)
-        tmp.replace(p)
+        epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
+
+        labels_file = p.with_suffix(".labels.json")
+        labels = None
+        if labels_file.exists():
+            with open(labels_file, "r") as f:
+                labels = json.load(f)
+
+        print(f"[CACHE HIT] Epochs found at {p}")
+        return epochs, labels
+
+    def save_epochs(self, epochs, key: CacheKey, labels=None):
+        p = self._path_for(key, "epo", "fif")
+        print(f"[CACHE SAVE] Storing epochs at {p}")
+        epochs.save(p.as_posix(), overwrite=True)
+
+        if labels is not None:
+            labels_file = p.with_suffix(".labels.json")
+            with open(labels_file, "w") as f:
+                json.dump(labels.tolist(), f)
+
         return p
