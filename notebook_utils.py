@@ -28,11 +28,11 @@ def reload_data_classes():
     from eegkit.models.subject_model import EEGSubjectModel
     return EEGSubjectModel
 
-def reload_model_classes():
+def get_model():
     import importlib
 
     import eegkit.services.ai_services
 
     importlib.reload(eegkit.services.ai_services)
-
+   
     return eegkit.services.ai_services
