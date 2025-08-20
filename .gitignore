@@ -43,6 +43,7 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.vscode/
 .eegcache/
 nosetests.xml
 coverage.xml
