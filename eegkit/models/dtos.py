@@ -13,6 +13,8 @@ class TaskDTO:
 class FilterParamsDTO:
     l_freq: float = 3.0
     h_freq: float = 35.0
+    ch_min: int = 1
+    ch_max: int = 128
 
 
 @dataclass
