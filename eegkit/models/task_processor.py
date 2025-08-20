@@ -73,6 +73,8 @@ class EEGTaskProcessor:
             "surroundSupp": self._sus_preprocess,
             "contrastChangeDetection": self._ccd_preprocess,
         }
+        
+        ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
 
         # --- Check memory cache first ---
         if key in self._epochs_cache:
@@ -95,20 +97,20 @@ class EEGTaskProcessor:
                     source_sig=self.cache.source_sig,
                     pipeline_ver=self.cache.pipeline_ver,
                 )
-                cached = self.cache.load_epochs(ck)
-                if cached is not None:
-                    labels = cached.events[:, -1]
-                    self._epochs_cache[key] = (cached, labels)
-                    epochs = cached
+                epochs, labels = self.cache.load_epochs(ck)
+                if epochs is not None:
+                    self._epochs_cache[key] = (epochs, labels)
+                    return epochs.copy().pick(ch_list), labels
                 else:
                     preprocess_fn = preprocess_map.get(self.task_dto.task)
                     if preprocess_fn is None:
                         raise ValueError(f"Unsupported task for epochs: {self.task_dto.task}")
 
-                    epochs, labels = preprocess_fn(params)
-                    self._epochs_cache[key] = (epochs, labels)
-                    if self.cache and ck:
-                        self.cache.save_epochs(epochs, ck)
+                epochs, labels = preprocess_fn(params)
+                self._epochs_cache[key] = (epochs, labels)
+
+                if self.cache and ck:
+                    self.cache.save_epochs(epochs, ck, labels=labels)
             else:
                 # no cache
                 preprocess_fn = preprocess_map.get(self.task_dto.task)
@@ -118,8 +120,6 @@ class EEGTaskProcessor:
                 epochs, labels = preprocess_fn(params)
                 self._epochs_cache[key] = (epochs, labels)
 
-        # --- Pick requested channels ---
-        ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
         return epochs.copy().pick(ch_list), labels
 
 
