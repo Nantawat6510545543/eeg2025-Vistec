@@ -11,7 +11,7 @@ class EEGTaskLoader:
         self.data_dir = Path(data_dir)
 
     def load_raw(self):
-        path = self._get_file("eeg.set")
+        path = self.get_file("eeg.set")
         raw = mne.io.read_raw_eeglab(path, preload=True, montage_units='cm')
         raw.drop_channels(['Cz'])
         raw.set_montage(mne.channels.make_standard_montage("GSN-HydroCel-128"), match_case=False)
@@ -28,22 +28,22 @@ class EEGTaskLoader:
 
     def load_electrodes(self):
         return self._load_tsv("electrodes.tsv")
-
-    def _get_file(self, ext):
+    
+    def get_file(self, ext):
         base = f"{self.task_dto.subject}_task-{self.task_dto.task}"
         if self.task_dto.run:
             base += f"_run-{self.task_dto.run}"
         return self.data_dir / self.task_dto.subject / "eeg" / f"{base}_{ext}"
 
     def _load_json(self, name):
-        path = self._get_file(name)
+        path = self.get_file(name)
         if path.exists():
             with open(path) as f:
                 return json.load(f)
         return {}
 
     def _load_tsv(self, name):
-        path = self._get_file(name)
+        path = self.get_file(name)
         if path.exists():
             return pd.read_csv(path, sep='\t')
         return None
