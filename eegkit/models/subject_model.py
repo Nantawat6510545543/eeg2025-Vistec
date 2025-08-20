@@ -42,7 +42,7 @@ class EEGSubjectModel:
             for task, runs in task_runs.items():
                 runs_trial = len([r for r in runs if r is not None])
                 if runs_trial > 1:
-                    task_map[subj].append((task, f"All {runs_trial}"))
+                    task_map[subj].append((task, f"All-{runs_trial}"))
 
         return dict(task_map)
 

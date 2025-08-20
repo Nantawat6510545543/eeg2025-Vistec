@@ -12,7 +12,7 @@ class EEGTaskModel:
 
         if task_dto.run and "All" in str(task_dto.run):
             try:
-                n_runs = int(str(task_dto.run).split()[1])
+                n_runs = int(str(task_dto.run).split("-")[1])
             except (IndexError, ValueError):
                 raise ValueError(f"Invalid run format: {task_dto.run}")
 
