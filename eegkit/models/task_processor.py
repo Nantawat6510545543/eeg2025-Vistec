@@ -1,0 +1,183 @@
+import numpy as np
+from mne import Epochs, events_from_annotations
+from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
+from ..cache import CacheKey
+
+class EEGTaskProcessor:
+    def __init__(self, raw, events, task_dto: TaskDTO, cache=None):
+        self.raw = raw
+        self.events = events
+        self.task_dto = task_dto
+        self.cache = cache
+
+        self._filtered_cache = {}
+        self._epochs_cache = {}
+
+    def get_filtered(self, params: FilterParamsDTO):
+        key = (params.l_freq, params.h_freq)
+
+        # --- Check memory cache first ---
+        if key in self._filtered_cache:
+            raw_out = self._filtered_cache[key]
+        else:
+            # --- Check disk cache ---
+            ck = None
+            if self.cache:
+                ck = CacheKey(
+                    subject=self.task_dto.subject,
+                    task=self.task_dto.task,
+                    run=self.task_dto.run,
+                    stage="rawfilt",
+                    params={"l_freq": params.l_freq, "h_freq": params.h_freq},
+                    source_sig=self.cache.source_sig,
+                    pipeline_ver=self.cache.pipeline_ver,
+                )
+                cached = self.cache.load_raw_filtered(ck)
+                if cached is not None:
+                    self._filtered_cache[key] = cached
+                    raw_out = cached
+                else:
+                    raw_copy = self.raw.copy().load_data()
+                    raw_copy.filter(
+                        l_freq=params.l_freq,
+                        h_freq=params.h_freq,
+                        fir_design="firwin",
+                        skip_by_annotation="edge"
+                    )
+                    self._filtered_cache[key] = raw_copy
+                    raw_out = raw_copy
+                    if self.cache and ck:
+                        self.cache.save_raw_filtered(raw_copy, ck)
+            else:
+                # no cache
+                raw_copy = self.raw.copy().load_data()
+                raw_copy.filter(
+                    l_freq=params.l_freq,
+                    h_freq=params.h_freq,
+                    fir_design="firwin",
+                    skip_by_annotation="edge"
+                )
+                self._filtered_cache[key] = raw_copy
+                raw_out = raw_copy
+
+        # --- Pick requested channels ---
+        ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
+        return raw_out.copy().pick(ch_list)
+
+
+    def get_epochs(self, params: EpochParamsDTO):
+        key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
+
+        preprocess_map = {
+            "RestingState": self._resting_preprocess,
+            "surroundSupp": self._sus_preprocess,
+            "contrastChangeDetection": self._ccd_preprocess,
+        }
+        
+        ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
+
+        # --- Check memory cache first ---
+        if key in self._epochs_cache:
+            epochs, labels = self._epochs_cache[key]
+        else:
+            # --- Check disk cache ---
+            ck = None
+            if self.cache:
+                ck = CacheKey(
+                    subject=self.task_dto.subject,
+                    task=self.task_dto.task,
+                    run=self.task_dto.run,
+                    stage="epochs",
+                    params={
+                        "l_freq": params.l_freq,
+                        "h_freq": params.h_freq,
+                        "tmin": params.tmin,
+                        "tmax": params.tmax,
+                    },
+                    source_sig=self.cache.source_sig,
+                    pipeline_ver=self.cache.pipeline_ver,
+                )
+                epochs, labels = self.cache.load_epochs(ck)
+                if epochs is not None:
+                    self._epochs_cache[key] = (epochs, labels)
+                    return epochs.copy().pick(ch_list), labels
+                else:
+                    preprocess_fn = preprocess_map.get(self.task_dto.task)
+                    if preprocess_fn is None:
+                        raise ValueError(f"Unsupported task for epochs: {self.task_dto.task}")
+
+                epochs, labels = preprocess_fn(params)
+                self._epochs_cache[key] = (epochs, labels)
+
+                if self.cache and ck:
+                    self.cache.save_epochs(epochs, ck, labels=labels)
+            else:
+                # no cache
+                preprocess_fn = preprocess_map.get(self.task_dto.task)
+                if preprocess_fn is None:
+                    raise ValueError(f"Unsupported task for epochs: {self.task_dto.task}")
+
+                epochs, labels = preprocess_fn(params)
+                self._epochs_cache[key] = (epochs, labels)
+
+        return epochs.copy().pick(ch_list), labels
+
+
+
+    def _sus_preprocess(self, params: EpochParamsDTO):
+        filtered = self.get_filtered(params)
+        stim_rows = self.events[self.events['value'] == 'stim_ON'].copy()
+
+        stim_rows['label'] = stim_rows.apply(
+            lambda row: f"bg{int(row['background'])}_fg{row['foreground_contrast']}_stim{int(row['stimulus_cond'])}",
+            axis=1
+        )
+        labels = stim_rows['label'].unique()
+        event_id = {label: idx + 1 for idx, label in enumerate(sorted(labels))}
+        stim_rows['event_code'] = stim_rows['label'].map(event_id)
+
+        events_array = np.column_stack([
+            stim_rows['sample'].astype(int),
+            np.zeros(len(stim_rows), dtype=int),
+            stim_rows['event_code'].astype(int)
+        ])
+        epochs = Epochs(
+            filtered, events=events_array, event_id=event_id,
+            tmin=params.tmin, tmax=params.tmax, baseline=None, proj=True,
+            preload=True, detrend=1
+        )
+        labels = stim_rows['label'].values[epochs.selection]
+        return epochs, labels
+
+    def _resting_preprocess(self, params: EpochParamsDTO):
+        filtered = self.get_filtered(params)
+        df = self.events
+        t_start = df[df['value'] == 'resting_start']['onset'].values[0]
+        t_end = df[df['value'] == 'break cnt']['onset'].values[1]
+        filtered.crop(tmin=t_start, tmax=t_end)
+
+        events, event_id = events_from_annotations(self.raw)
+        eye_map = {
+            'open': event_id['instructed_toOpenEyes'],
+            'close': event_id['instructed_toCloseEyes']
+        }
+
+        epochs = Epochs(
+            filtered, events, event_id=eye_map,
+            tmin=params.tmin, tmax=params.tmax, baseline=None,
+            proj=True, preload=True
+        )
+        labels = eye_map
+        return epochs, labels
+
+    def _ccd_preprocess(self, params: EpochParamsDTO):
+        filtered = self.get_filtered(params)
+        events, event_id = events_from_annotations(self.raw)
+        ccd_code = event_id['contrastTrial_start']
+        epochs = Epochs(
+            filtered, events, event_id={'trial_start': ccd_code},
+            tmin=params.tmin, tmax=params.tmax, baseline=None,
+            proj=True, preload=True
+        )
+        labels = ['trial_start']
+        return epochs, labels
