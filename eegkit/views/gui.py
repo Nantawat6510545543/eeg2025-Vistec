@@ -149,6 +149,7 @@ class EEGUI:
     def _execute(self, _):
         with self.output:
             clear_output(wait=True)
+            print("Excuting")
 
             try:
                 group = self.mode_selector.value
