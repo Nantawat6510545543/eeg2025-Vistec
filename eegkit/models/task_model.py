@@ -18,17 +18,11 @@ class EEGTaskModel:
 
             raws, events_list = [], []
             for i in range(1, n_runs + 1):
-                run_dto = TaskDTO(task_dto.subject, task_dto.task, str(i))
+                run_dto = TaskDTO(subject=task_dto.subject, task=task_dto.task, run=str(i))
                 loader = EEGTaskLoader(run_dto, data_dir)
-                try:
-                    raw = loader.load_raw()
-                    raws.append(raw)
-                    events_list.append(loader.load_events())
-                except FileNotFoundError:
-                    print(f"[Warning] Run {i} not found for {task_dto.subject} {task_dto.task}, skipping.")
-
-            if not raws:
-                raise FileNotFoundError(f"No runs found for {task_dto.subject} {task_dto.task}")
+                raw = loader.load_raw()
+                raws.append(raw)
+                events_list.append(loader.load_events())
 
             self.raw = concatenate_raws(raws)
             self.events = pd.concat(events_list, ignore_index=True) if events_list else None

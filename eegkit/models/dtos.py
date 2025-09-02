@@ -1,13 +1,36 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional, List, Tuple, ClassVar
+
+NumberRange = Tuple[float, float]
+
+@dataclass
+class BaseTaskDTO:
+    task: str
+    ui_name: ClassVar[str] = "Base"
+    ui_value: ClassVar[object] = None
 
 
 @dataclass
-class TaskDTO:
+class TaskDTO(BaseTaskDTO):
     subject: str
-    task: str
     run: Optional[str] = None
 
+    ui_name: ClassVar[str] = "Single subject"
+    ui_value: ClassVar[object] = None  # None => GUI will use the class itself as value
+
+
+@dataclass
+class SubjectFilterDTO(BaseTaskDTO):
+    age_range: NumberRange = (5.0, 21.0)
+    sex: List[Optional[str]] = field(default_factory=lambda: ["M", "F", None])
+    ehq_range: NumberRange = (-100.0, 100.0)
+    p_factor_range: NumberRange = (float("-inf"), float("inf"))
+    attention_range: NumberRange = (float("-inf"), float("inf"))
+    internalizing_range: NumberRange = (float("-inf"), float("inf"))
+    externalizing_range: NumberRange = (float("-inf"), float("inf"))
+
+    ui_name: ClassVar[str] = "Meta filter (group)"
+    ui_value: ClassVar[object] = None 
 
 @dataclass
 class FilterParamsDTO:
