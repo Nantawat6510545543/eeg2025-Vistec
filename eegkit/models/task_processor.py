@@ -3,7 +3,17 @@ from mne import Epochs, events_from_annotations
 from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
 from ..cache import CacheKey
 
+
+_PREPROCESSORS = {}
+
+def register_preprocessor(task_name: str):
+    def _decorator(func):
+        _PREPROCESSORS[task_name] = func
+        return func
+    return _decorator
+
 class EEGTaskProcessor:
+    
     def __init__(self, raw, events, task_dto: TaskDTO, cache=None):
         self.raw = raw
         self.events = events
@@ -12,6 +22,7 @@ class EEGTaskProcessor:
 
         self._filtered_cache = {}
         self._epochs_cache = {}
+        self.preprocessors = _PREPROCESSORS
 
     def get_filtered(self, params: FilterParamsDTO):
         key = (params.l_freq, params.h_freq)
@@ -60,70 +71,53 @@ class EEGTaskProcessor:
                 self._filtered_cache[key] = raw_copy
                 raw_out = raw_copy
 
-        # --- Pick requested channels ---
         ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
         return raw_out.copy().pick(ch_list)
 
 
     def get_epochs(self, params: EpochParamsDTO):
         key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
-
-        preprocess_map = {
-            "RestingState": self._resting_preprocess,
-            "surroundSupp": self._sus_preprocess,
-            "contrastChangeDetection": self._ccd_preprocess,
-        }
-        
         ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
 
-        # --- Check memory cache first ---
         if key in self._epochs_cache:
             epochs, labels = self._epochs_cache[key]
-        else:
-            # --- Check disk cache ---
-            ck = None
-            if self.cache:
-                ck = CacheKey(
-                    subject=self.task_dto.subject,
-                    task=self.task_dto.task,
-                    run=self.task_dto.run,
-                    stage="epochs",
-                    params={
-                        "l_freq": params.l_freq,
-                        "h_freq": params.h_freq,
-                        "tmin": params.tmin,
-                        "tmax": params.tmax,
-                    },
-                    source_sig=self.cache.source_sig,
-                    pipeline_ver=self.cache.pipeline_ver,
-                )
-                epochs, labels = self.cache.load_epochs(ck)
-                if epochs is not None:
-                    self._epochs_cache[key] = (epochs, labels)
-                    return epochs.copy().pick(ch_list), labels
-                else:
-                    preprocess_fn = preprocess_map.get(self.task_dto.task)
-                    if preprocess_fn is None:
-                        raise ValueError(f"Unsupported task for epochs: {self.task_dto.task}")
+            return epochs.copy().pick(ch_list), labels
 
-                epochs, labels = preprocess_fn(params)
+        ck = None
+        if self.cache:
+            ck = CacheKey(
+                subject=self.task_dto.subject,
+                task=self.task_dto.task,
+                run=self.task_dto.run,
+                stage="epochs",
+                params={
+                    "l_freq": params.l_freq,
+                    "h_freq": params.h_freq,
+                    "tmin": params.tmin,
+                    "tmax": params.tmax,
+                },
+                source_sig=self.cache.source_sig,
+                pipeline_ver=self.cache.pipeline_ver,
+            )
+            epochs, labels = self.cache.load_epochs(ck)
+            if epochs is not None:
                 self._epochs_cache[key] = (epochs, labels)
+                return epochs.copy().pick(ch_list), labels
 
-                if self.cache and ck:
-                    self.cache.save_epochs(epochs, ck, labels=labels)
-            else:
-                # no cache
-                preprocess_fn = preprocess_map.get(self.task_dto.task)
-                if preprocess_fn is None:
-                    raise ValueError(f"Unsupported task for epochs: {self.task_dto.task}")
+        preprocess_fn = self.preprocessors.get(self.task_dto.task)
+        if preprocess_fn is None:
+            print(f"Unsupported task for epochs: '{self.task_dto.task}'")
+            return None, "unavailable"
 
-                epochs, labels = preprocess_fn(params)
-                self._epochs_cache[key] = (epochs, labels)
+        epochs, labels = preprocess_fn(self, params)
+        self._epochs_cache[key] = (epochs, labels)
+        if self.cache and ck:
+            self.cache.save_epochs(epochs, ck, labels=labels)
 
         return epochs.copy().pick(ch_list), labels
 
 
-
+    @register_preprocessor("surroundSupp")
     def _sus_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
         stim_rows = self.events[self.events['value'] == 'stim_ON'].copy()
@@ -149,6 +143,7 @@ class EEGTaskProcessor:
         labels = stim_rows['label'].values[epochs.selection]
         return epochs, labels
 
+    @register_preprocessor("RestingState")
     def _resting_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
         df = self.events
@@ -170,6 +165,7 @@ class EEGTaskProcessor:
         labels = eye_map
         return epochs, labels
 
+    @register_preprocessor("contrastChangeDetection")
     def _ccd_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
         events, event_id = events_from_annotations(self.raw)
