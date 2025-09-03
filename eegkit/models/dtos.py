@@ -18,18 +18,33 @@ class TaskDTO(BaseTaskDTO):
     ui_name: ClassVar[str] = "Single subject"
     ui_value: ClassVar[object] = None  
 
+    def __repr__(self) -> str:
+        return f"subject = {self.subject}, task = {self.task}, run = {self.run}"
+
+
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):
     age_range: NumberRange = (5.0, 21.0)
-    sex: List[Optional[str]] = field(default_factory=lambda: ["M", "F", None])
+    sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
     ehq_range: NumberRange = (-100.0, 100.0)
-    p_factor_range: NumberRange = (float("-inf"), float("inf"))
-    attention_range: NumberRange = (float("-inf"), float("inf"))
-    internalizing_range: NumberRange = (float("-inf"), float("inf"))
-    externalizing_range: NumberRange = (float("-inf"), float("inf"))
+    p_factor_range: NumberRange = (-10, 10)
+    attention_range: NumberRange = (-10, 10)
+    internalizing_range: NumberRange = (-10, 10)
+    externalizing_range: NumberRange = (-10, 10)
 
     ui_name: ClassVar[str] = "Meta filter (group)"
-    ui_value: ClassVar[object] = None 
+    ui_value: ClassVar[object] = None
+
+    def __repr__(self) -> str:
+        return (
+            f"task = {self.task}"
+            f"age_range = {self.age_range}, sex = {self.sex}, "
+            f"ehq_range = {self.ehq_range}, p_factor_range = {self.p_factor_range}, "
+            f"attention_range = {self.attention_range}, "
+            f"internalizing_range = {self.internalizing_range}, "
+            f"externalizing_range = {self.externalizing_range}"
+        )
+    
 
 @dataclass
 class FilterParamsDTO:

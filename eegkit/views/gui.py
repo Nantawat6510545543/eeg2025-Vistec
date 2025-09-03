@@ -134,7 +134,7 @@ class EEGUI:
                     w = widgets.Dropdown(options=all_subjects, layout=widgets.Layout(width='220px'))
                     w.observe(lambda change, _w=w: self._on_subject_changed(cls), names="value")
                 elif subject_schema and name == "task":
-                    w = widgets.Dropdown(options=[], layout=widgets.Layout(width='320px'))
+                    w = widgets.Dropdown(options=[], layout=widgets.Layout(width='220px'))
                 elif subject_schema and name == "run":
                     continue
                 elif (not subject_schema) and name == "task":
