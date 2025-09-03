@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
-from ..models import TaskDTO
+from ..models import BaseTaskDTO
 
 
-def finalize_figure(fig: plt.Figure, task_dto: TaskDTO, stimulus=None, caption: dict = None, plot_name="EEG Plot", x=15,
+def finalize_figure(fig: plt.Figure, task_dto: BaseTaskDTO, stimulus=None, caption: dict = None, plot_name="EEG Plot", x=15,
                     y=10) -> plt.Figure:
     fig.set_size_inches(x, y)
     subject_line = f"{task_dto.subject} - {task_dto.task}" + (f" - {stimulus}" if stimulus else "") + (

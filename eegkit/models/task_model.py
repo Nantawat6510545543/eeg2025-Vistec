@@ -1,13 +1,13 @@
 from .task_loader import EEGTaskLoader
 from .task_processor import EEGTaskProcessor
-from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
+from .dtos import BaseTaskDTO, TaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
 import pandas as pd
 from mne import concatenate_raws
 from ..cache import LocalCache
 
 
 class EEGTaskModel:
-    def __init__(self, task_dto: TaskDTO, data_dir):
+    def __init__(self, task_dto: BaseTaskDTO, data_dir):
         self.task_dto = task_dto
 
         if task_dto.run and "All" in str(task_dto.run):
