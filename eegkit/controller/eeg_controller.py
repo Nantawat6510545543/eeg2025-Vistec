@@ -1,5 +1,5 @@
 from ..models import (
-    FilterParamsDTO, EpochParamsDTO, TaskDTO
+    FilterParamsDTO, EpochParamsDTO, BaseTaskDTO
 )
 from ..services import EEGVisualization, EEGDataService
 
@@ -23,11 +23,11 @@ class EEGController:
             "data": self.data_service.spec,
         }
 
-    def get_filtered_raw(self, task_dto: TaskDTO, filter_params: FilterParamsDTO):
+    def get_filtered_raw(self, task_dto: BaseTaskDTO, filter_params: FilterParamsDTO):
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_filtered_raw(filter_params)
 
-    def get_epochs(self, task_dto: TaskDTO, epoch_params: EpochParamsDTO):
+    def get_epochs(self, task_dto: BaseTaskDTO, epoch_params: EpochParamsDTO):
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_epochs(epoch_params)
 
@@ -40,12 +40,12 @@ class EEGController:
     def get_specs(self):
         return self.specs
 
-    def prepare(self, task_dto: TaskDTO, group: str, key: str):
+    def prepare(self, task_dto: BaseTaskDTO, group: str, key: str):
         if group == "plot":
             return self.visualizer.prepare_params(task_dto, key)
         else:
             return {}
 
-    def show(self, task_dto: TaskDTO, group: str, key: str, params_dto):
+    def show(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
         result = self.specs[group][key]["function"](task_dto, params_dto)
         return result
