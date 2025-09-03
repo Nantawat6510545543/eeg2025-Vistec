@@ -1,6 +1,6 @@
 import numpy as np
 from mne import Epochs, events_from_annotations
-from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
+from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO
 from ..cache import CacheKey
 
 
@@ -14,7 +14,7 @@ def register_preprocessor(task_name: str):
 
 class EEGTaskProcessor:
     
-    def __init__(self, raw, events, task_dto: TaskDTO, cache=None):
+    def __init__(self, raw, events, task_dto: BaseTaskDTO, cache=None):
         self.raw = raw
         self.events = events
         self.task_dto = task_dto

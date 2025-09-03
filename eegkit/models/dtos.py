@@ -16,8 +16,7 @@ class TaskDTO(BaseTaskDTO):
     run: Optional[str] = None
 
     ui_name: ClassVar[str] = "Single subject"
-    ui_value: ClassVar[object] = None  # None => GUI will use the class itself as value
-
+    ui_value: ClassVar[object] = None  
 
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):

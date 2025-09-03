@@ -1,6 +1,6 @@
 import pandas as pd
 from ..models import (
-    TaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
+    BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
 )
 
 data_registry = {}
@@ -28,7 +28,7 @@ class EEGDataService:
             self.spec[key]["function"] = func.__get__(self)
 
     @register_data("EEG Table", TableInfoDTO)
-    def show_table(self, task_dto: TaskDTO, table_info: TableInfoDTO):
+    def show_table(self, task_dto: BaseTaskDTO, table_info: TableInfoDTO):
         task_model = self.get_task(task_dto)
         df_map = {
             'events': task_model.events,
@@ -38,7 +38,7 @@ class EEGDataService:
         return df_map.get(table_info.table_type, pd.DataFrame()).head(table_info.rows)
 
     @register_data("Epochs Table", EpochParamsDTO)
-    def show_epochs_table(self, task_dto: TaskDTO, params: EpochParamsDTO):
+    def show_epochs_table(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
         if epochs is None or labels is None:
             return None
@@ -60,7 +60,7 @@ class EEGDataService:
         return pd.DataFrame(rows)
 
     @register_data("Annotations", FilterParamsDTO)
-    def get_annotation_df(self, task_dto: TaskDTO, filter_params: FilterParamsDTO):
+    def get_annotation_df(self, task_dto: BaseTaskDTO, filter_params: FilterParamsDTO):
         raw = self.get_raw(task_dto, filter_params)
         annots = raw.annotations
         df = pd.DataFrame({
@@ -71,6 +71,6 @@ class EEGDataService:
         return df
 
     @register_data("Metadata", None)
-    def show_annotations(self, task_dto: TaskDTO, params: FilterParamsDTO):
+    def show_annotations(self, task_dto: BaseTaskDTO, params: FilterParamsDTO):
         task_model = self.get_task(task_dto)
         return task_model.metadata
