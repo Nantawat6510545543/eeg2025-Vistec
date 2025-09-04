@@ -1,13 +1,25 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Optional, List, Tuple, ClassVar
 
 NumberRange = Tuple[float, float]
+
+def make_hashable(value):
+    if isinstance(value, list):
+        return tuple(make_hashable(v) for v in value)
+    if isinstance(value, dict):
+        return tuple(sorted((k, make_hashable(v)) for k, v in value.items()))
+    if isinstance(value, set):
+        return frozenset(make_hashable(v) for v in value)
+    return value
 
 @dataclass
 class BaseTaskDTO:
     task: str
     ui_name: ClassVar[str] = "Base"
     ui_value: ClassVar[object] = None
+
+    def __hash__(self):
+        return hash(tuple(make_hashable(getattr(self, f.name)) for f in fields(self)))
 
 
 @dataclass
@@ -16,7 +28,9 @@ class TaskDTO(BaseTaskDTO):
     run: Optional[str] = None
 
     ui_name: ClassVar[str] = "Single subject"
-    ui_value: ClassVar[object] = None  
+    ui_value: ClassVar[object] = None
+
+    __hash__ = BaseTaskDTO.__hash__
 
     def __repr__(self) -> str:
         return f"subject = {self.subject}, task = {self.task}, run = {self.run}"
@@ -26,7 +40,7 @@ class TaskDTO(BaseTaskDTO):
 class SubjectFilterDTO(BaseTaskDTO):
     age_range: NumberRange = (5.0, 21.0)
     sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
-    ehq_range: NumberRange = (-100.0, 100.0)
+    ehq_total_range: NumberRange = (-100.0, 100.0)
     p_factor_range: NumberRange = (-10, 10)
     attention_range: NumberRange = (-10, 10)
     internalizing_range: NumberRange = (-10, 10)
@@ -35,16 +49,18 @@ class SubjectFilterDTO(BaseTaskDTO):
     ui_name: ClassVar[str] = "Meta filter (group)"
     ui_value: ClassVar[object] = None
 
+    __hash__ = BaseTaskDTO.__hash__
+
     def __repr__(self) -> str:
         return (
-            f"task = {self.task}"
+            f"task = {self.task}, "
             f"age_range = {self.age_range}, sex = {self.sex}, "
-            f"ehq_range = {self.ehq_range}, p_factor_range = {self.p_factor_range}, "
+            f"ehq_total_range = {self.ehq_total_range}, p_factor_range = {self.p_factor_range}, "
             f"attention_range = {self.attention_range}, "
             f"internalizing_range = {self.internalizing_range}, "
             f"externalizing_range = {self.externalizing_range}"
         )
-    
+
 
 @dataclass
 class FilterParamsDTO:
