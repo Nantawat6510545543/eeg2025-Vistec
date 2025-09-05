@@ -4,7 +4,7 @@ from dataclasses import fields, MISSING
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from ..models import TaskDTO, SubjectFilterDTO
+from ..models import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 
 plt.ioff()
 
@@ -56,8 +56,8 @@ class EEGUI:
         self._update_actions()
         self._update_param_inputs()
 
-    def _is_subject_schema(self, cls):
-        return any(f.name == "subject" for f in fields(cls))
+    def _is_subject_schema(self, schema_dto: BaseTaskDTO):
+        return any(f.name == "subject" for f in fields(schema_dto))
 
     def _field_default(self, f):
         if f.default is not MISSING:
@@ -113,26 +113,24 @@ class EEGUI:
     def _build_all_schema_layouts(self):
         all_subjects = self.controller.list_subjects()
 
-        def subject_task_pairs(subject):
-            return self.controller.list_tasks(subject)  # list[(task, run)]
-
         all_tasks = []
         for s in all_subjects:
             for t, _r in self.controller.list_tasks(s):
                 if t not in all_tasks:
                     all_tasks.append(t)
 
-        for cls in self.schemas:
+        # schema_dto is subclass of 
+        for schema_dto in self.schemas:
             rows, wmap = [], {}
-            subject_schema = self._is_subject_schema(cls)
+            subject_schema = self._is_subject_schema(schema_dto)
 
-            for f in fields(cls):
+            for f in fields(schema_dto):
                 name = f.name
                 label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='200px'))
 
                 if subject_schema and name == "subject":
                     w = widgets.Dropdown(options=all_subjects, layout=widgets.Layout(width='220px'))
-                    w.observe(lambda change, _w=w: self._on_subject_changed(cls), names="value")
+                    w.observe(lambda change, _w=w: self._on_subject_changed(schema_dto), names="value")
                 elif subject_schema and name == "task":
                     w = widgets.Dropdown(options=[], layout=widgets.Layout(width='220px'))
                 elif subject_schema and name == "run":
@@ -153,30 +151,23 @@ class EEGUI:
                 else:
                     rows.append(widgets.HBox([label, w]))
 
-            self.schema_layouts[cls] = rows
-            self.schema_widgets[cls] = wmap
+            self.schema_layouts[schema_dto] = rows
+            self.schema_widgets[schema_dto] = wmap
 
             if subject_schema:
-                self._refresh_task_options(cls, subject_task_pairs, init=True)
+                self._refresh_task_options(schema_dto, init=True)
 
-    def _on_subject_changed(self, cls):
-        def subject_task_pairs(subject):
-            return self.controller.list_tasks(subject)
-        self._refresh_task_options(cls, subject_task_pairs, init=False)
-        if hasattr(self, "mode_selector"):
-            self._update_param_inputs()
+    def _on_subject_changed(self, schema_dto: BaseTaskDTO):
+        self._refresh_task_options(schema_dto, init=False)
+        self._update_param_inputs()
 
-    def _refresh_task_options(self, cls, pair_fn, init=False):
-        wmap = self.schema_widgets.get(cls)
-        if not wmap:
-            return
+    def _refresh_task_options(self, schema_dto: BaseTaskDTO, init=False):
+        wmap = self.schema_widgets.get(schema_dto)
         subj_w, task_w = wmap.get("subject"), wmap.get("task")
-        if not (subj_w and task_w):
-            return
-        subj = subj_w.value or (self.controller.list_subjects()[0] if self.controller.list_subjects() else None)
-        pairs = pair_fn(subj) if subj is not None else []
+        subj = subj_w.value
+        tasks = self.controller.list_tasks(subj)
         opts = []
-        for t, r in pairs:
+        for t, r in tasks:
             label = f"{t} (Run {r})" if r else f"{t}"
             opts.append((label, (t, r)))
         task_w.options = opts
@@ -205,24 +196,22 @@ class EEGUI:
 
     # switching & updates
     def _on_schema_change(self, *_):
-        cls = self.schema_selector.value
-        self.schema_box.children = self.schema_layouts.get(cls, [])
+        schema_dto = self.schema_selector.value
+        self.schema_box.children = self.schema_layouts.get(schema_dto, [])
         self.schema_box.layout.display = None if self.schema_box.children else "none"
-        if self._is_subject_schema(cls):
-            self._refresh_task_options(cls, lambda s: self.controller.list_tasks(s), init=False)
+        if self._is_subject_schema(schema_dto):
+            self._refresh_task_options(schema_dto, init=False)
         self._update_param_inputs()
 
     def _current_subject_schema_dto_for_prepare(self):
-        cls = self.schema_selector.value
-        if not self._is_subject_schema(cls):
+        schema_dto = self.schema_selector.value
+        if not self._is_subject_schema(schema_dto):
             return None
-        wmap = self.schema_widgets.get(cls, {})
-        try:
-            subject = wmap["subject"].value
-            task, run = wmap["task"].value  # combined selection
-            return cls(subject=subject, task=task, run=run)
-        except Exception:
-            return None
+        wmap = self.schema_widgets.get(schema_dto, {})
+        subject = wmap["subject"].value
+        task, run = wmap["task"].value  # combined selection
+        return schema_dto(subject=subject, task=task, run=run)
+ 
 
     def _update_actions(self, *_):
         group = self.mode_selector.value
@@ -255,11 +244,11 @@ class EEGUI:
                 w.value = new_val
 
     def _build_active_dto(self):
-        cls = self.schema_selector.value
-        wmap = self.schema_widgets[cls]
+        schema_dto = self.schema_selector.value
+        wmap = self.schema_widgets[schema_dto]
         kwargs = {}
-        subject_schema = self._is_subject_schema(cls)
-        for f in fields(cls):
+        subject_schema = self._is_subject_schema(schema_dto)
+        for f in fields(schema_dto):
             name = f.name
             if subject_schema and name == "run":
                 continue
@@ -275,7 +264,7 @@ class EEGUI:
                     kwargs["task"], kwargs["run"] = val, None
             else:
                 kwargs[name] = val
-        return cls(**kwargs)
+        return schema_dto(**kwargs)
 
     def _execute(self, _):
         with self.output:

@@ -1,8 +1,9 @@
 import numpy as np
+import mne
 from mne import Epochs, events_from_annotations
 from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO
 from ..cache import CacheKey
-
+mne.set_log_level('WARNING') 
 
 _PREPROCESSORS = {}
 

@@ -65,7 +65,8 @@ class EEGSubjectModel:
             return self._cache[key]
 
         # cohort
-        subjects = self._filter_subjects_by_dto(task_dto)
+        subjects = self.filter_subjects_by_dto(task_dto)
+        print(f"{len(subjects)} subjects found")
         key = ("cohort", hash(task_dto))
         if key not in self._cache:
             self._cache[key] = EEGCohortModel(task_dto, subjects, self._data_dir)
@@ -117,7 +118,7 @@ class EEGSubjectModel:
 
         raise KeyError(f"'{task}' not found as a column: {cols}")
 
-    def _filter_subjects_by_dto(self, filt: BaseTaskDTO):
+    def filter_subjects_by_dto(self, filt: BaseTaskDTO):
         df = self._load_participants(filt).copy()
 
         for name in getattr(filt, "__dataclass_fields__", {}).keys():
