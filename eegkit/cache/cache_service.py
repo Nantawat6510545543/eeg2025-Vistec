@@ -58,21 +58,21 @@ class LocalCache:
     def load_raw_filtered(self, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
         if p.exists():
-            print(f"[CACHE HIT] Raw filtered found at {p}")
+            # print(f"[CACHE HIT] Raw filtered found at {p}")
             return mne.io.read_raw_fif(p.as_posix(), preload=True, verbose="ERROR")
-        print(f"[CACHE MISS] Raw filtered not found for key={p}")
+        # print(f"[CACHE MISS] Raw filtered not found for key={p}")
         return None
 
     def save_raw_filtered(self, raw, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
-        print(f"[CACHE SAVE] Storing raw filtered at {p}")
+        # print(f"[CACHE SAVE] Storing raw filtered at {p}")
         raw.save(p.as_posix(), overwrite=True)
         return p
 
     def load_epochs(self, key: CacheKey):
         p = self._path_for(key, "epo", "fif")
         if not p.exists():
-            print(f"[CACHE MISS] Epochs not found for key={p}")
+            # print(f"[CACHE MISS] Epochs not found for key={p}")
             return None, None
 
         epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
@@ -83,12 +83,12 @@ class LocalCache:
             with open(labels_file, "r") as f:
                 labels = json.load(f)
 
-        print(f"[CACHE HIT] Epochs found at {p}")
+        # print(f"[CACHE HIT] Epochs found at {p}")
         return epochs, labels
 
     def save_epochs(self, epochs, key: CacheKey, labels=None):
         p = self._path_for(key, "epo", "fif")
-        print(f"[CACHE SAVE] Storing epochs at {p}")
+        # print(f"[CACHE SAVE] Storing epochs at {p}")
         epochs.save(p.as_posix(), overwrite=True)
 
         if labels is not None:
