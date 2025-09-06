@@ -38,7 +38,7 @@ class TaskDTO(BaseTaskDTO):
 
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):
-    age_range: NumberRange = (5.0, 21.0)
+    age_range: NumberRange = (5.0, 6.0)
     sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
     ehq_total_range: NumberRange = (-100.0, 100.0)
     p_factor_range: NumberRange = (-10, 10)
@@ -75,7 +75,7 @@ class EpochParamsDTO(FilterParamsDTO):
     tmin: float = 0.0
     tmax: float = 2.4
     stimulus: List[str] = field(default_factory=lambda: [None])
-
+    only_labels: ClassVar[bool] = False
 
 @dataclass
 class EpochFullParamsDTO(EpochParamsDTO):
