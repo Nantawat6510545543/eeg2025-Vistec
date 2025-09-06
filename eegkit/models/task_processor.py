@@ -3,7 +3,16 @@ import mne
 from mne import Epochs, events_from_annotations
 from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO
 from ..cache import CacheKey
-mne.set_log_level('WARNING') 
+mne.set_log_level('WARNING')
+import itertools
+BACKGROUND = [0, 1]
+FOREGROUND = [0.0, 0.3, 0.6, 1.0]
+STIM = [1, 2, 3]
+EVENT_ID = {
+    f"bg{b}_fg{f:.1f}_stim{s}": i+1
+    for i, (b, f, s) in enumerate(itertools.product(BACKGROUND, FOREGROUND, STIM))
+}
+
 
 _PREPROCESSORS = {}
 
@@ -127,21 +136,23 @@ class EEGTaskProcessor:
             lambda row: f"bg{int(row['background'])}_fg{row['foreground_contrast']}_stim{int(row['stimulus_cond'])}",
             axis=1
         )
-        labels = stim_rows['label'].unique()
-        event_id = {label: idx + 1 for idx, label in enumerate(sorted(labels))}
-        stim_rows['event_code'] = stim_rows['label'].map(event_id)
+        stim_rows["event_code"] = stim_rows["label"].map(EVENT_ID)
 
         events_array = np.column_stack([
             stim_rows['sample'].astype(int),
             np.zeros(len(stim_rows), dtype=int),
             stim_rows['event_code'].astype(int)
         ])
+
+        present_labels = stim_rows["label"].unique()
+        event_id_sub = {k: EVENT_ID[k] for k in present_labels}
+
         epochs = Epochs(
-            filtered, events=events_array, event_id=event_id,
+            filtered, events=events_array, event_id=event_id_sub,
             tmin=params.tmin, tmax=params.tmax, baseline=None, proj=True,
             preload=True, detrend=1
         )
-        labels = stim_rows['label'].values[epochs.selection]
+        labels = stim_rows["label"].values[epochs.selection]
         return epochs, labels
 
     @register_preprocessor("RestingState")

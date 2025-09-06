@@ -22,23 +22,23 @@ class EEGCohortModel:
         self.electrodes = None
         self.metadata = None
 
-        with tqdm(total=len(subject_list), desc="Loading task models") as pbar:
-            for subject in subject_list:
-                for run in (None, 1, 2, 3):
-                    per_subj_dto = TaskDTO(subject=subject, task=task_dto.task, run=run)
-                    try:
-                        task_model = EEGTaskModel(per_subj_dto, data_dir)
-                        self.task_model_list.append(task_model)
-                        if task_model.events is not None:
-                            events_list.append(task_model.events)
-                        if first_ok_model is None:
-                            first_ok_model = task_model
-                            if run is None:
-                                break
-                    except Exception:
-                        pass
-                    finally:
-                        pbar.update(1)
+        for subject in tqdm(subject_list,
+                        total=len(subject_list),
+                        desc="Loading task models",
+                        leave=False):
+            for run in (None, 1, 2, 3):
+                per_subj_dto = TaskDTO(subject=subject, task=task_dto.task, run=run)
+                try:
+                    task_model = EEGTaskModel(per_subj_dto, data_dir)
+                    self.task_model_list.append(task_model)
+                    if task_model.events is not None:
+                        events_list.append(task_model.events)
+                    if first_ok_model is None:
+                        first_ok_model = task_model
+                        if run is None:
+                            break
+                except Exception:
+                    pass
 
 
         self.events = pd.concat(events_list, ignore_index=True) if events_list else None
@@ -70,7 +70,7 @@ class EEGCohortModel:
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
         if self.epochs is not None:
-            return self.epochs
+            return self.epochs, self.labels
 
         epochs_list = []
         labels_union = set()
@@ -88,7 +88,8 @@ class EEGCohortModel:
         if not epochs_list:
             return None
 
+        print(f"concatrnating {len(epochs_list)} epochs")
         self.epochs = concatenate_epochs(epochs_list)
-        self.labels = sorted(labels_union) if labels_union else None
-        return self.epochs
+        self.labels = sorted(labels_union)
+        return self.epochs, self.labels
 

@@ -38,8 +38,10 @@ class EEGVisualization:
             return
         updates = {}
         if isinstance(params(), EpochParamsDTO):
-            epochs, labels = self.get_epochs(task_dto, params)
-            if labels is "unavailable":
+            params.only_labels = True
+            epochs, labels = self.get_epochs(task_dto=task_dto, epoch_params=params)
+            params.only_labels = False
+            if isinstance(labels, str) and labels == "unavailable":
                 return updates
             if labels is not None:
                 updates["stimulus"] = [None] + sorted(set(labels))
