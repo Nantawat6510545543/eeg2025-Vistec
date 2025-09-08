@@ -24,8 +24,8 @@ def register_preprocessor(task_name: str):
 
 class EEGTaskProcessor:
     
-    def __init__(self, raw, events, task_dto: BaseTaskDTO, cache=None):
-        self.raw = raw
+    def __init__(self, get_raw_fn, events, task_dto: BaseTaskDTO, cache):
+        self.get_raw = get_raw_fn
         self.events = events
         self.task_dto = task_dto
         self.cache = cache
@@ -37,41 +37,26 @@ class EEGTaskProcessor:
     def get_filtered(self, params: FilterParamsDTO):
         key = (params.l_freq, params.h_freq)
 
-        # --- Check memory cache first ---
+        # --- Check memory cache ---
         if key in self._filtered_cache:
             raw_out = self._filtered_cache[key]
         else:
             # --- Check disk cache ---
-            ck = None
-            if self.cache:
-                ck = CacheKey(
-                    subject=self.task_dto.subject,
-                    task=self.task_dto.task,
-                    run=self.task_dto.run,
-                    stage="rawfilt",
-                    params={"l_freq": params.l_freq, "h_freq": params.h_freq},
-                    source_sig=self.cache.source_sig,
-                    pipeline_ver=self.cache.pipeline_ver,
-                )
-                cached = self.cache.load_raw_filtered(ck)
-                if cached is not None:
-                    self._filtered_cache[key] = cached
-                    raw_out = cached
-                else:
-                    raw_copy = self.raw.copy().load_data()
-                    raw_copy.filter(
-                        l_freq=params.l_freq,
-                        h_freq=params.h_freq,
-                        fir_design="firwin",
-                        skip_by_annotation="edge"
-                    )
-                    self._filtered_cache[key] = raw_copy
-                    raw_out = raw_copy
-                    if self.cache and ck:
-                        self.cache.save_raw_filtered(raw_copy, ck)
+            ck = CacheKey(
+                subject=self.task_dto.subject,
+                task=self.task_dto.task,
+                run=self.task_dto.run,
+                stage="rawfilt",
+                params={"l_freq": params.l_freq, "h_freq": params.h_freq},
+                source_sig=self.cache.source_sig,
+                pipeline_ver=self.cache.pipeline_ver,
+            )
+            cached = self.cache.load_raw_filtered(ck)
+            if cached is not None:
+                self._filtered_cache[key] = cached
+                raw_out = cached
             else:
-                # no cache
-                raw_copy = self.raw.copy().load_data()
+                raw_copy = self.get_raw().copy().load_data()
                 raw_copy.filter(
                     l_freq=params.l_freq,
                     h_freq=params.h_freq,
@@ -80,39 +65,39 @@ class EEGTaskProcessor:
                 )
                 self._filtered_cache[key] = raw_copy
                 raw_out = raw_copy
+                self.cache.save_raw_filtered(raw_copy, ck)
 
-        ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
-        return raw_out.copy().pick(ch_list)
+        channels = params.channels_list
+        return raw_out.copy().pick(channels)
 
 
     def get_epochs(self, params: EpochParamsDTO):
         key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
-        ch_list = [f"E{i}" for i in range(params.ch_min, params.ch_max + 1)]
+        channels = params.channels_list
 
+        # --- Check memory cache ---
         if key in self._epochs_cache:
             epochs, labels = self._epochs_cache[key]
-            return epochs.copy().pick(ch_list), labels
+            return epochs.copy().pick(channels), labels
 
-        ck = None
-        if self.cache:
-            ck = CacheKey(
-                subject=self.task_dto.subject,
-                task=self.task_dto.task,
-                run=self.task_dto.run,
-                stage="epochs",
-                params={
-                    "l_freq": params.l_freq,
-                    "h_freq": params.h_freq,
-                    "tmin": params.tmin,
-                    "tmax": params.tmax,
-                },
-                source_sig=self.cache.source_sig,
-                pipeline_ver=self.cache.pipeline_ver,
-            )
-            epochs, labels = self.cache.load_epochs(ck)
-            if epochs is not None:
-                self._epochs_cache[key] = (epochs, labels)
-                return epochs.copy().pick(ch_list), labels
+        ck = CacheKey(
+            subject=self.task_dto.subject,
+            task=self.task_dto.task,
+            run=self.task_dto.run,
+            stage="epochs",
+            params={
+                "l_freq": params.l_freq,
+                "h_freq": params.h_freq,
+                "tmin": params.tmin,
+                "tmax": params.tmax,
+            },
+            source_sig=self.cache.source_sig,
+            pipeline_ver=self.cache.pipeline_ver,
+        )
+        epochs, labels = self.cache.load_epochs(ck)
+        if epochs is not None:
+            self._epochs_cache[key] = (epochs, labels)
+            return epochs.copy().pick(channels), labels
 
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
         if preprocess_fn is None:
@@ -124,7 +109,7 @@ class EEGTaskProcessor:
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
 
-        return epochs.copy().pick(ch_list), labels
+        return epochs.copy().pick(channels), labels
 
 
     @register_preprocessor("surroundSupp")
@@ -163,7 +148,7 @@ class EEGTaskProcessor:
         t_end = df[df['value'] == 'break cnt']['onset'].values[1]
         filtered.crop(tmin=t_start, tmax=t_end)
 
-        events, event_id = events_from_annotations(self.raw)
+        events, event_id = events_from_annotations(self.get_raw())
         eye_map = {
             'open': event_id['instructed_toOpenEyes'],
             'close': event_id['instructed_toCloseEyes']
@@ -180,7 +165,7 @@ class EEGTaskProcessor:
     @register_preprocessor("contrastChangeDetection")
     def _ccd_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
-        events, event_id = events_from_annotations(self.raw)
+        events, event_id = events_from_annotations(self.get_raw())
         ccd_code = event_id['contrastTrial_start']
         epochs = Epochs(
             filtered, events, event_id={'trial_start': ccd_code},
