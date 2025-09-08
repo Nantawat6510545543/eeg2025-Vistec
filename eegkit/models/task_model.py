@@ -1,46 +1,45 @@
 from .task_loader import EEGTaskLoader
 from .task_processor import EEGTaskProcessor
-from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
-import pandas as pd
-from mne import concatenate_raws
+from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
 from ..cache import LocalCache
 
 
 class EEGTaskModel:
     def __init__(self, task_dto: TaskDTO, data_dir):
         self.task_dto = task_dto
+        self._electrodes = None
+        self._metadata = None
+        self._channels = None
+        self.loader = None
+        self._saw = None
 
-        if task_dto.run and "All" in str(task_dto.run):
-            try:
-                n_runs = int(str(task_dto.run).split("-")[1])
-            except (IndexError, ValueError):
-                raise ValueError(f"Invalid run format: {task_dto.run}")
+        self.loader = EEGTaskLoader(task_dto, data_dir)
+        self.events = self.loader.load_events()
+        self.cache = LocalCache(data_files=[self.loader.get_file("eeg.set")], pipeline_ver="v1")
+        self.processor = EEGTaskProcessor(self.get_raw, self.events, task_dto, self.cache)
 
-            raws, events_list = [], []
-            for i in range(1, n_runs + 1):
-                run_dto = TaskDTO(subject=task_dto.subject, task=task_dto.task, run=str(i))
-                loader = EEGTaskLoader(run_dto, data_dir)
-                raw = loader.load_raw()
-                raws.append(raw)
-                events_list.append(loader.load_events())
+    def get_raw(self):
+        if not self._saw:
+            self._saw = self.loader.load_raw()
+        return self._saw
 
-            self.raw = concatenate_raws(raws)
-            self.events = pd.concat(events_list, ignore_index=True) if events_list else None
-            self.channels = raws[0].info['ch_names']
+    @property
+    def electrodes(self):
+        if not self._electrodes:
+            self._electrodes = self.loader.load_electrodes()
+        return self._electrodes
 
-        else:
-            loader = EEGTaskLoader(task_dto, data_dir)
-            self.raw = loader.load_raw()
-            self.events = loader.load_events()
-            self.channels = loader.load_channels()
-            
-        self.electrodes = loader.load_electrodes()
-        self.metadata = loader.load_metadata()
-        data_files = [loader.get_file("eeg.set")]
+    @property
+    def metadata(self):
+        if not self._metadata:
+            self._metadata = self.loader.load_metadata()
+        return self._metadata
 
-        self.cache = LocalCache(data_files=data_files, pipeline_ver="v1")
-
-        self.processor = EEGTaskProcessor(self.raw, self.events, task_dto, self.cache)
+    @property
+    def channels(self):
+        if not self._channels:
+            self._channels = self.loader.load_channels()
+        return self._channels
 
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
         return self.processor.get_filtered(filter_params)

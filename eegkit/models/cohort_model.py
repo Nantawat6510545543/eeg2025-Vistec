@@ -35,11 +35,8 @@ class EEGCohortModel:
                         events_list.append(task_model.events)
                     if first_ok_model is None:
                         first_ok_model = task_model
-                        if run is None:
-                            break
                 except Exception:
                     pass
-
 
         self.events = pd.concat(events_list, ignore_index=True) if events_list else None
 
@@ -57,7 +54,10 @@ class EEGCohortModel:
                     total=len(self.task_model_list),
                     desc="Filtering raws",
                     leave=False):
-            raw = task_model.get_filtered_raw(filter_params)
+            try:
+                raw = task_model.get_filtered_raw(filter_params)
+            except:
+                continue
             if raw is not None:
                 filtered_list.append(raw)
 
@@ -79,7 +79,11 @@ class EEGCohortModel:
                             total=len(self.task_model_list),
                             desc="Building epochs",
                             leave=False):
-            epochs, labels = task_model.get_epochs(epoch_params)
+            
+            try:
+                epochs, labels = task_model.get_epochs(epoch_params)
+            except:
+                continue
             epochs_list.append(epochs)
             if isinstance(labels, str) and labels == "unavailable":
                 return None

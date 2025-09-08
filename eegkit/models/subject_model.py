@@ -38,16 +38,6 @@ class EEGSubjectModel:
                     run = match.group("run")
                     task_map[full_subj].append((task, run))
 
-        for subj, tasks in list(task_map.items()):
-            task_runs = defaultdict(set)
-            for task, run in tasks:
-                task_runs[task].add(run)
-
-            for task, runs in task_runs.items():
-                runs_trial = len([r for r in runs if r is not None])
-                if runs_trial > 1:
-                    task_map[subj].append((task, f"All-{runs_trial}"))
-
         return dict(task_map)
 
     def list_subjects(self):
