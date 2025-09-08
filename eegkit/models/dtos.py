@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field, fields
 from typing import Optional, List, Tuple, ClassVar
+import re
 
 NumberRange = Tuple[float, float]
 
@@ -66,10 +67,48 @@ class SubjectFilterDTO(BaseTaskDTO):
 class FilterParamsDTO:
     l_freq: float = 3.0
     h_freq: float = 35.0
-    ch_min: int = 1
-    ch_max: int = 128
+    channels: str = "70, 71, 74, 75, 76, 81, 82, 83"
 
+    @property
+    def channels_list(self):
+        if not self.channels or not self.channels.strip():
+            return [f"E{i}" for i in range(1, 129)]
 
+        # Match "70" or "70-90"
+        number_or_range = re.compile(r'^(\d+)(?:\s*-\s*(\d+))?$')
+
+        # Split on commas or whitespace
+        raw_tokens = re.split(r'[,\s]+', self.channels.strip())
+
+        seen_channel_names = set()
+        parsed_channel_names: List[str] = []
+
+        def add_channel_name(channel_name: str) -> None:
+            if channel_name not in seen_channel_names:
+                seen_channel_names.add(channel_name)
+                parsed_channel_names.append(channel_name)
+
+        for token in raw_tokens:
+            if not token:
+                continue
+
+            match = number_or_range.match(token)
+            if not match:
+                continue  
+
+            start_number_str, end_number_str = match.groups()
+
+            if end_number_str is None:
+                add_channel_name(f"E{int(start_number_str)}")
+            else:
+                start_number = int(start_number_str)
+                end_number = int(end_number_str)
+                lower_bound, upper_bound = sorted((start_number, end_number))
+                for number in range(lower_bound, upper_bound + 1):
+                    add_channel_name(f"E{number}")
+
+        return parsed_channel_names or [f"E{i}" for i in range(1, 129)]
+    
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
     tmin: float = 0.0

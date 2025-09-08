@@ -84,7 +84,7 @@ class EEGUI:
             return widgets.FloatText(value=value, layout=widgets.Layout(width='150px'))
         if isinstance(value, list):
             return widgets.Dropdown(options=value, layout=widgets.Layout(width='200px'))
-        return widgets.Text(value="" if value is None else str(value), layout=widgets.Layout(width='200px'))
+        return widgets.Text(value="" if value is None else str(value), layout=widgets.Layout(width='500'))
 
     def _read_widget(self, widget, default, wrap_list=False):
         if isinstance(widget, dict):
@@ -180,17 +180,31 @@ class EEGUI:
             for key, spec in self.specs[group].items():
                 params_cls = spec["params"]
                 layout_key = (group, key)
-                widgets_list, widgets_dict = [], {}
+                widgets_dict = {}
+                rows, pair_buf = [], []
                 if params_cls:
                     params_obj = params_cls() if callable(params_cls) else params_cls
                     for f in fields(params_obj):
-                        w = self._make_widget(getattr(params_obj, f.name))
-                        widgets_list.append(widgets.HBox([
+                        val = getattr(params_obj, f.name)
+                        w = self._make_widget(val)
+                        widgets_dict[f.name] = w
+                        row = widgets.HBox([
                             widgets.Label(value=f"{f.name}:", layout=widgets.Layout(width='200px')),
                             w
-                        ]))
-                        widgets_dict[f.name] = w
-                rows = [widgets.HBox(widgets_list[i:i + 2]) for i in range(0, len(widgets_list), 2)]
+                        ])
+                        if isinstance(val, str):
+                            if pair_buf:
+                                rows.append(widgets.HBox(pair_buf))
+                                pair_buf = []
+                            rows.append(row)
+                        else:
+                            pair_buf.append(row)
+                            if len(pair_buf) == 2:
+                                rows.append(widgets.HBox(pair_buf))
+                                pair_buf = []
+
+                if pair_buf:
+                    rows.append(widgets.HBox(pair_buf))
                 self.param_layouts[layout_key] = rows
                 self.param_widgets[layout_key] = widgets_dict
 
