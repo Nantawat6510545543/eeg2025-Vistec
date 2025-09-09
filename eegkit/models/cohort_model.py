@@ -18,8 +18,8 @@ class EEGCohortModel:
         self._metadata = None
         self._channels = None
 
-        events_list = [tm.events for tm in task_model_list if tm.events is not None]
-        self.events = pd.concat(events_list, ignore_index=True) if events_list else None
+        events_list = [tm.get_event() for tm in task_model_list]
+        self.events = pd.concat(events_list, ignore_index=True)
 
     @property
     def electrodes(self):
