@@ -225,7 +225,6 @@ class EEGUI:
         subject = wmap["subject"].value
         task, run = wmap["task"].value  # combined selection
         return schema_dto(subject=subject, task=task, run=run)
- 
 
     def _update_actions(self, *_):
         group = self.mode_selector.value

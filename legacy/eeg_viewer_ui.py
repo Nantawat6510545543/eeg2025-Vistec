@@ -6,11 +6,12 @@ from bids_eeg_viewer import BIDS_EEG_Viewer
 st.set_page_config(layout="wide")
 st.title("🧠 BIDS EEG Visualization App")
 
+
 # Initialize viewer and cache it
 @st.cache_resource
-
 def init_viewer():
     return BIDS_EEG_Viewer(data_dir="/mount/sub/cmi_bids_R1/eeg")
+
 
 viewer = init_viewer()
 
@@ -62,6 +63,7 @@ if st.sidebar.button("🔍 Load and Plot"):
     if plot_psd:
         st.subheader("Power Spectral Density")
         psd = raw.compute_psd(fmax=60)
-        psd_clean = psd.copy().pick([ch for ch, d in zip(psd.info['ch_names'], psd.get_data()) if d.any() and all(np.isfinite(d))])
+        psd_clean = psd.copy().pick(
+            [ch for ch, d in zip(psd.info['ch_names'], psd.get_data()) if d.any() and all(np.isfinite(d))])
         fig_psd = psd_clean.plot(average=True, dB=True, spatial_colors=False, show=False)
         st.pyplot(fig_psd)

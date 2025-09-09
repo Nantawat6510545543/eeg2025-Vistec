@@ -2,7 +2,7 @@ from pathlib import Path
 import re
 from collections import defaultdict
 import pandas as pd
-from tqdm.auto import tqdm 
+from tqdm.auto import tqdm
 
 from .task_model import EEGTaskModel
 from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
@@ -46,7 +46,7 @@ class EEGSubjectModel:
 
     def list_tasks(self, subject):
         return sorted(self._task_index.get(subject, []))
-    
+
     def get_task(self, task_dto: BaseTaskDTO):
         # single-subject
         if hasattr(task_dto, "subject") and getattr(task_dto, "subject") is not None:
@@ -61,24 +61,24 @@ class EEGSubjectModel:
             cohort_model = self._cache[key]
             print(f"{cohort_model.subject_length} subjects available")
             return cohort_model
-    
+
         subjects = self.filter_subjects_by_dto(task_dto)
-        subject_length =len(subjects) 
+        subject_length = len(subjects)
         print(f"{subject_length} subjects found")
 
         task_models = []
         wanted_task = getattr(task_dto, "task", None)
 
         for subj in tqdm(subjects,
-                total=len(subjects),
-                desc="Loading task models",
-                leave=False):
+                         total=len(subjects),
+                         desc="Loading task models",
+                         leave=False):
             subj_tasks = self._task_index.get(subj, [])
             has_task = any(t == wanted_task for t, _ in subj_tasks)
             if not has_task:
                 tqdm.write(f"Task '{wanted_task}' not found for subject {subj}")
-                subject_length -=1
-                continue 
+                subject_length -= 1
+                continue
 
             runs = [run for (t, run) in subj_tasks if t == wanted_task]
             if not runs:
@@ -172,4 +172,3 @@ class EEGSubjectModel:
         subject_ids = [s for s in subject_ids if s in self._subject_ids]
 
         return sorted(subject_ids)
-
