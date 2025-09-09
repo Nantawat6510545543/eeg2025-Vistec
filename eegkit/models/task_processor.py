@@ -34,7 +34,7 @@ class EEGTaskProcessor:
         self._epochs_cache = {}
         self.preprocessors = _PREPROCESSORS
 
-    def get_filtered(self, params: FilterParamsDTO):
+    def get_filtered(self, params: FilterParamsDTO, no_pick = False):
         key = (params.l_freq, params.h_freq)
 
         # --- Check memory cache ---
@@ -67,6 +67,8 @@ class EEGTaskProcessor:
                 raw_out = raw_copy
                 self.cache.save_raw_filtered(raw_copy, ck)
 
+        if no_pick:
+            return raw_out.copy()
         channels = params.channels_list
         return raw_out.copy().pick(channels)
 
@@ -114,7 +116,7 @@ class EEGTaskProcessor:
 
     @register_preprocessor("surroundSupp")
     def _sus_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params)
+        filtered = self.get_filtered(params, no_pick = True)
         stim_rows = self.events[self.events['value'] == 'stim_ON'].copy()
 
         stim_rows['label'] = stim_rows.apply(
@@ -142,7 +144,7 @@ class EEGTaskProcessor:
 
     @register_preprocessor("RestingState")
     def _resting_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params)
+        filtered = self.get_filtered(params, no_pick = True)
         df = self.events
         t_start = df[df['value'] == 'resting_start']['onset'].values[0]
         t_end = df[df['value'] == 'break cnt']['onset'].values[1]

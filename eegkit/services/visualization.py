@@ -1,6 +1,6 @@
 from ..models import (
     BaseTaskDTO, FilterParamsDTO, TimeDomainParamsDTO, PSDParamsDTO,
-    EpochParamsDTO, EpochFullParamsDTO, TableInfoDTO, EpochPSDParamsDTO
+    EpochParamsDTO, EpochPSDParamsDTO
 )
 from ..utils import finalize_figure
 import matplotlib.pyplot as plt
@@ -31,24 +31,25 @@ class EEGVisualization:
             func = self.spec[key]["function"]
             self.spec[key]["function"] = func.__get__(self)
 
-    def prepare_params(self, task_dto: BaseTaskDTO, key: str):
+    def prepare_params(self, task_dto, key):
         spec = self.spec[key]
-        params = spec["params"]
-        if params is None:
-            return
-        updates = {}
-        if isinstance(params(), EpochParamsDTO):
-            params.only_labels = True
-            epochs, labels = self.get_epochs(task_dto=task_dto, epoch_params=params)
-            params.only_labels = False
-            if isinstance(labels, str) and labels == "unavailable":
-                return updates
-            if labels is not None:
-                updates["stimulus"] = [None] + sorted(set(labels))
-            else:
-                updates["stimulus"] = [None]
+        params_cls = spec["params"]
+        if not params_cls:
+            return {}
 
-        return updates
+        params_obj = params_cls()
+        
+        if EpochParamsDTO and isinstance(params_obj, EpochParamsDTO):
+            params_obj.only_labels = True
+            _epochs, labels = self.get_epochs(task_dto=task_dto, epoch_params=params_obj)
+            params_obj.only_labels = False
+
+            if isinstance(labels, str) and labels == "unavailable":
+                return {}
+            if labels is not None:
+                return {"stimulus": [None] + list(labels) }
+
+        return {}
 
     @register_plot("Sensor Layout", FilterParamsDTO)
     def plot_sensors(self, task_dto: BaseTaskDTO, params: FilterParamsDTO):
@@ -91,7 +92,7 @@ class EEGVisualization:
             fig_list.append(fig)
         return fig_list
 
-    @register_plot("Epoch Plot", EpochFullParamsDTO)
+    @register_plot("Epoch Plot", EpochParamsDTO)
     def plot_epochs(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
         return self._plot_epochs_base(task_dto, params, mode="Epochs")
 
