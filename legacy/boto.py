@@ -5,6 +5,7 @@ from boto3.s3.transfer import TransferConfig
 import os
 import sys
 
+
 class ProgressBar:
     def __init__(self, filename, total):
         self._filename = filename

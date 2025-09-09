@@ -3,27 +3,31 @@ import mne
 from mne import Epochs, events_from_annotations
 from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO
 from ..cache import CacheKey
+
 mne.set_log_level('WARNING')
 import itertools
+
 BACKGROUND = [0, 1]
 FOREGROUND = [0.0, 0.3, 0.6, 1.0]
 STIM = [1, 2, 3]
 EVENT_ID = {
-    f"bg{b}_fg{f:.1f}_stim{s}": i+1
+    f"bg{b}_fg{f:.1f}_stim{s}": i + 1
     for i, (b, f, s) in enumerate(itertools.product(BACKGROUND, FOREGROUND, STIM))
 }
 
-
 _PREPROCESSORS = {}
+
 
 def register_preprocessor(task_name: str):
     def _decorator(func):
         _PREPROCESSORS[task_name] = func
         return func
+
     return _decorator
 
+
 class EEGTaskProcessor:
-    
+
     def __init__(self, get_raw_fn, events, task_dto: BaseTaskDTO, cache):
         self.get_raw = get_raw_fn
         self.events = events
@@ -34,7 +38,7 @@ class EEGTaskProcessor:
         self._epochs_cache = {}
         self.preprocessors = _PREPROCESSORS
 
-    def get_filtered(self, params: FilterParamsDTO, no_pick = False):
+    def get_filtered(self, params: FilterParamsDTO, no_pick=False):
         key = (params.l_freq, params.h_freq)
 
         # --- Check memory cache ---
@@ -71,7 +75,6 @@ class EEGTaskProcessor:
             return raw_out.copy()
         channels = params.channels_list
         return raw_out.copy().pick(channels)
-
 
     def get_epochs(self, params: EpochParamsDTO):
         key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
@@ -113,10 +116,9 @@ class EEGTaskProcessor:
 
         return epochs.copy().pick(channels), labels
 
-
     @register_preprocessor("surroundSupp")
     def _sus_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params, no_pick = True)
+        filtered = self.get_filtered(params, no_pick=True)
         stim_rows = self.events[self.events['value'] == 'stim_ON'].copy()
 
         stim_rows['label'] = stim_rows.apply(
@@ -144,7 +146,7 @@ class EEGTaskProcessor:
 
     @register_preprocessor("RestingState")
     def _resting_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params, no_pick = True)
+        filtered = self.get_filtered(params, no_pick=True)
         df = self.events
         t_start = df[df['value'] == 'resting_start']['onset'].values[0]
         t_end = df[df['value'] == 'break cnt']['onset'].values[1]
