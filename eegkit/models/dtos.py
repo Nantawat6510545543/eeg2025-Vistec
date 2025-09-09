@@ -75,8 +75,9 @@ class FilterParamsDTO:
 
     @property
     def channels_list(self):
+        # Default to all channels; use 0-based indices compatible with mne.Raw.pick
         if not self.channels or not self.channels.strip():
-            return [i for i in range(1, 129)]
+            return list(range(128))
 
         # Match "70" or "70-90"
         number_or_range = re.compile(r'^(\d+)(?:\s*-\s*(\d+))?$')
@@ -111,7 +112,8 @@ class FilterParamsDTO:
                 for number in range(lower_bound, upper_bound + 1):
                     add_channel_name(number)
 
-        return parsed_channel_names or [i for i in range(1, 129)]
+        # Fallback to all channels (0-based) if nothing parsed
+        return parsed_channel_names or list(range(128))
 
 
 @dataclass
