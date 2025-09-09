@@ -28,9 +28,9 @@ def register_preprocessor(task_name: str):
 
 class EEGTaskProcessor:
 
-    def __init__(self, get_raw_fn, events, task_dto: BaseTaskDTO, cache):
+    def __init__(self, get_raw_fn, get_events_fn, task_dto: BaseTaskDTO, cache):
         self.get_raw = get_raw_fn
-        self.events = events
+        self.get_events = get_events_fn
         self.task_dto = task_dto
         self.cache = cache
 
@@ -119,7 +119,8 @@ class EEGTaskProcessor:
     @register_preprocessor("surroundSupp")
     def _sus_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params, no_pick=True)
-        stim_rows = self.events[self.events['value'] == 'stim_ON'].copy()
+        events = self.get_events()
+        stim_rows = events[events['value'] == 'stim_ON'].copy()
 
         stim_rows['label'] = stim_rows.apply(
             lambda row: f"bg{int(row['background'])}_fg{row['foreground_contrast']}_stim{int(row['stimulus_cond'])}",
@@ -147,7 +148,7 @@ class EEGTaskProcessor:
     @register_preprocessor("RestingState")
     def _resting_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params, no_pick=True)
-        df = self.events
+        df = self.get_events()
         t_start = df[df['value'] == 'resting_start']['onset'].values[0]
         t_end = df[df['value'] == 'break cnt']['onset'].values[1]
         filtered.crop(tmin=t_start, tmax=t_end)
@@ -168,7 +169,7 @@ class EEGTaskProcessor:
 
     @register_preprocessor("contrastChangeDetection")
     def _ccd_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params)
+        filtered = self.get_filtered(params, no_pick=True)
         events, event_id = events_from_annotations(self.get_raw())
         ccd_code = event_id['contrastTrial_start']
         epochs = Epochs(
