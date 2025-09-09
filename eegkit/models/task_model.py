@@ -12,16 +12,21 @@ class EEGTaskModel:
         self._channels = None
         self.loader = None
         self._saw = None
+        self._events = None
 
         self.loader = EEGTaskLoader(task_dto, data_dir)
-        self.events = self.loader.load_events()
         self.cache = LocalCache(data_files=[self.loader.get_file("eeg.set")], pipeline_ver="v1")
-        self.processor = EEGTaskProcessor(self.get_raw, self.events, task_dto, self.cache)
+        self.processor = EEGTaskProcessor(self.get_raw, self.get_event, task_dto, self.cache)
 
     def get_raw(self):
         if not self._saw:
             self._saw = self.loader.load_raw()
         return self._saw
+
+    def get_raw(self):
+        if not self._events:
+            self._events = self.loader.load_events()
+        return self._events
 
     @property
     def electrodes(self):
