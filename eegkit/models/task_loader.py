@@ -28,7 +28,7 @@ class EEGTaskLoader:
 
     def load_electrodes(self):
         return self._load_tsv("electrodes.tsv")
-    
+
     def get_file(self, ext):
         base = f"{self.task_dto.subject}_task-{self.task_dto.task}"
         if self.task_dto.run:
