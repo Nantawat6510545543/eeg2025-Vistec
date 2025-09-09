@@ -38,7 +38,7 @@ class EEGVisualization:
             return {}
 
         params_obj = params_cls()
-        
+
         if EpochParamsDTO and isinstance(params_obj, EpochParamsDTO):
             params_obj.only_labels = True
             _epochs, labels = self.get_epochs(task_dto=task_dto, epoch_params=params_obj)
@@ -47,7 +47,7 @@ class EEGVisualization:
             if isinstance(labels, str) and labels == "unavailable":
                 return {}
             if labels is not None:
-                return {"stimulus": [None] + list(labels) }
+                return {"stimulus": [None] + list(labels)}
 
         return {}
 

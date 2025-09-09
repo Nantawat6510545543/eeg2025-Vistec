@@ -4,6 +4,7 @@ import re
 
 NumberRange = Tuple[float, float]
 
+
 def make_hashable(value):
     if isinstance(value, list):
         return tuple(make_hashable(v) for v in value)
@@ -12,6 +13,7 @@ def make_hashable(value):
     if isinstance(value, set):
         return frozenset(make_hashable(v) for v in value)
     return value
+
 
 @dataclass
 class BaseTaskDTO:
@@ -85,7 +87,7 @@ class FilterParamsDTO:
         seen_channel_names = set()
         parsed_channel_names: list[int] = []
 
-        def add_channel_name(channel_name: str) -> None:
+        def add_channel_name(channel_name: int) -> None:
             if channel_name not in seen_channel_names:
                 seen_channel_names.add(channel_name)
                 parsed_channel_names.append(channel_name)
@@ -96,7 +98,7 @@ class FilterParamsDTO:
 
             match = number_or_range.match(token)
             if not match:
-                continue  
+                continue
 
             start_number_str, end_number_str = match.groups()
             start_number = int(start_number_str) - 1
@@ -110,7 +112,8 @@ class FilterParamsDTO:
                     add_channel_name(number)
 
         return parsed_channel_names or [i for i in range(1, 129)]
-    
+
+
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
     tmin: float = 0.0

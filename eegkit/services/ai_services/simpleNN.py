@@ -1,5 +1,6 @@
 import torch.nn as nn
 
+
 class SimpleNN(nn.Module):
     def __init__(self, input_dim, num_classes):
         super().__init__()
@@ -11,4 +12,3 @@ class SimpleNN(nn.Module):
 
     def forward(self, x):
         return self.layers(x)
-

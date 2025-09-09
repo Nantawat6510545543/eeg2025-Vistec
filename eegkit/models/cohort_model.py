@@ -3,7 +3,7 @@ from mne import concatenate_raws, concatenate_epochs
 
 from .dtos import SubjectFilterDTO, FilterParamsDTO, EpochParamsDTO
 from .task_model import EEGTaskModel
-from tqdm.auto import tqdm 
+from tqdm.auto import tqdm
 
 
 class EEGCohortModel:
@@ -38,16 +38,16 @@ class EEGCohortModel:
         if not self._channels:
             self._channels = self.task_model_list[0].channels
         return self._channels
-            
+
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
         if self.filtered_raw is not None:
             return self.filtered_raw
 
         filtered_list = []
         for task_model in tqdm(self.task_model_list,
-                    total=len(self.task_model_list),
-                    desc="Filtering raws",
-                    leave=False):
+                               total=len(self.task_model_list),
+                               desc="Filtering raws",
+                               leave=False):
             raw = task_model.get_filtered_raw(filter_params)
             if raw is not None:
                 filtered_list.append(raw)
@@ -59,7 +59,6 @@ class EEGCohortModel:
         self.filtered_raw = concatenate_raws(filtered_list)
         return self.filtered_raw
 
-
     def get_epochs(self, epoch_params: EpochParamsDTO):
         if self.epochs is not None:
             return self.epochs, self.labels
@@ -68,10 +67,10 @@ class EEGCohortModel:
         labels_union = set()
 
         for task_model in tqdm(self.task_model_list,
-                            total=len(self.task_model_list),
-                            desc="Building epochs",
-                            leave=False):
-            
+                               total=len(self.task_model_list),
+                               desc="Building epochs",
+                               leave=False):
+
             epochs, labels = task_model.get_epochs(epoch_params)
             epochs_list.append(epochs)
             if isinstance(labels, str) and labels == "unavailable":
@@ -85,4 +84,3 @@ class EEGCohortModel:
         self.epochs = concatenate_epochs(epochs_list)
         self.labels = sorted(labels_union)
         return self.epochs, self.labels
-
