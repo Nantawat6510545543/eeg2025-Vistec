@@ -40,23 +40,27 @@ class EEGDataService:
     @register_data("Epochs Table", EpochParamsDTO)
     def show_epochs_table(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
-        if epochs is None or labels is None:
+        if epochs is None:
             return None
-        labels_series = pd.Series(labels)
-        unique_labels = sorted(set(labels_series))
+
         rows = []
-        for label in unique_labels:
-            idx = labels_series[labels_series == label].index
-            label_epochs = epochs[idx]
+        for label, _code in epochs.event_id.items():
+            try:
+                cond_epochs = epochs[label]
+            except Exception:
+                continue
+            if len(cond_epochs) == 0:
+                continue
             row = {
                 'label': label,
-                'n_epochs': len(label_epochs),
-                'n_channels': len(label_epochs.ch_names),
-                'timespan_sec': label_epochs.times[-1] - label_epochs.times[0] if len(label_epochs.times) > 1 else 0,
-                'sampling_rate': label_epochs.info['sfreq'],
-                'duration_per_epoch_sec': label_epochs.get_data().shape[-1] / label_epochs.info['sfreq']
+                'n_epochs': len(cond_epochs),
+                'n_channels': len(cond_epochs.ch_names),
+                'timespan_sec': float(cond_epochs.times[-1] - cond_epochs.times[0]) if len(cond_epochs.times) > 1 else 0.0,
+                'sampling_rate': float(cond_epochs.info.get('sfreq', 0.0)),
+                'duration_per_epoch_sec': float(cond_epochs.get_data().shape[-1] / cond_epochs.info.get('sfreq', 1.0)),
             }
             rows.append(row)
+
         return pd.DataFrame(rows)
 
     @register_data("Annotations", FilterParamsDTO)
