@@ -99,6 +99,17 @@ class LocalCache:
         if labels is not None:
             labels_file = p.with_suffix(".labels.json")
             with open(labels_file, "w") as f:
-                json.dump(labels.tolist(), f)
+                try:
+                    from numpy import ndarray
+                    if isinstance(labels, ndarray):
+                        json.dump(labels.tolist(), f)
+                    elif isinstance(labels, (list, tuple)):
+                        json.dump(list(labels), f)
+                    elif isinstance(labels, dict):
+                        json.dump(labels, f)
+                    else:
+                        json.dump(labels, f)
+                except Exception:
+                    json.dump(str(labels), f)
 
         return p
