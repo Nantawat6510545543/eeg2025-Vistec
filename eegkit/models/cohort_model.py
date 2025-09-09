@@ -1,49 +1,43 @@
-from typing import List, Optional
 import pandas as pd
 from mne import concatenate_raws, concatenate_epochs
 
-from .dtos import TaskDTO, SubjectFilterDTO, FilterParamsDTO, EpochParamsDTO
+from .dtos import SubjectFilterDTO, FilterParamsDTO, EpochParamsDTO
 from .task_model import EEGTaskModel
 from tqdm.auto import tqdm 
 
 
 class EEGCohortModel:
-    def __init__(self, task_dto: SubjectFilterDTO, subject_list: List[str], data_dir: str):
+    def __init__(self, task_dto: SubjectFilterDTO, task_model_list: list[EEGTaskModel], subject_length: int):
         self.task_dto = task_dto
-        self.data_dir = data_dir
-        self.task_model_list: List[EEGTaskModel] = []
+        self.task_model_list = task_model_list
+        self.subject_length = subject_length
         self.filtered_raw = None
         self.epochs = None
-        self.labels: Optional[List[str]] = None
+        self.labels = None
+        self._electrodes = None
+        self._metadata = None
+        self._channels = None
 
-        events_list = []
-        first_ok_model: Optional[EEGTaskModel] = None
-        self.channels = None
-        self.electrodes = None
-        self.metadata = None
-
-        for subject in tqdm(subject_list,
-                        total=len(subject_list),
-                        desc="Loading task models",
-                        leave=False):
-            for run in (None, 1, 2, 3):
-                per_subj_dto = TaskDTO(subject=subject, task=task_dto.task, run=run)
-                try:
-                    task_model = EEGTaskModel(per_subj_dto, data_dir)
-                    self.task_model_list.append(task_model)
-                    if task_model.events is not None:
-                        events_list.append(task_model.events)
-                    if first_ok_model is None:
-                        first_ok_model = task_model
-                except Exception:
-                    pass
-
+        events_list = [tm.events for tm in task_model_list if tm.events is not None]
         self.events = pd.concat(events_list, ignore_index=True) if events_list else None
 
-        if first_ok_model is not None:
-            self.channels = first_ok_model.channels
-            self.electrodes = getattr(first_ok_model, "electrodes", None)
-            self.metadata = getattr(first_ok_model, "metadata", None)
+    @property
+    def electrodes(self):
+        if not self._electrodes:
+            self._electrodes = getattr(self.task_model_list[0], "electrodes", None)
+        return self._electrodes
+
+    @property
+    def metadata(self):
+        if not self._metadata:
+            self._metadata = getattr(self.task_model_list[0], "metadata", None)
+        return self._metadata
+
+    @property
+    def channels(self):
+        if not self._channels:
+            self._channels = self.task_model_list[0].channels
+        return self._channels
             
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
         if self.filtered_raw is not None:
@@ -54,16 +48,14 @@ class EEGCohortModel:
                     total=len(self.task_model_list),
                     desc="Filtering raws",
                     leave=False):
-            try:
-                raw = task_model.get_filtered_raw(filter_params)
-            except:
-                continue
+            raw = task_model.get_filtered_raw(filter_params)
             if raw is not None:
                 filtered_list.append(raw)
 
         if not filtered_list:
             return None
 
+        print(f"concatrnating {len(filtered_list)} raws")
         self.filtered_raw = concatenate_raws(filtered_list)
         return self.filtered_raw
 
@@ -80,10 +72,7 @@ class EEGCohortModel:
                             desc="Building epochs",
                             leave=False):
             
-            try:
-                epochs, labels = task_model.get_epochs(epoch_params)
-            except:
-                continue
+            epochs, labels = task_model.get_epochs(epoch_params)
             epochs_list.append(epochs)
             if isinstance(labels, str) and labels == "unavailable":
                 return None
