@@ -55,7 +55,7 @@ class EEGCohortModel:
         if not filtered_list:
             return None
 
-        print(f"concatrnating {len(filtered_list)} raws")
+        print(f"concatenating {len(filtered_list)} raws")
         self.filtered_raw = concatenate_raws(filtered_list)
         return self.filtered_raw
 
@@ -80,7 +80,7 @@ class EEGCohortModel:
         if not epochs_list:
             return None
 
-        print(f"concatrnating {len(epochs_list)} epochs")
+        print(f"concatenating {len(epochs_list)} epochs")
         self.epochs = concatenate_epochs(epochs_list)
         self.labels = sorted(labels_union)
         return self.epochs, self.labels
