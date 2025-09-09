@@ -2,9 +2,10 @@ from pathlib import Path
 import re
 from collections import defaultdict
 import pandas as pd
+from tqdm.auto import tqdm 
 
 from .task_model import EEGTaskModel
-from .dtos import BaseTaskDTO
+from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 from .cohort_model import EEGCohortModel
 
 
@@ -55,18 +56,50 @@ class EEGSubjectModel:
             return self._cache[key]
 
         # cohort
-        subjects = self.filter_subjects_by_dto(task_dto)
-        print(f"{len(subjects)} subjects found")
         key = ("cohort", hash(task_dto))
-        if key not in self._cache:
-            self._cache[key] = EEGCohortModel(task_dto, subjects, self._data_dir)
+        if key in self._cache:
+            cohort_model = self._cache[key]
+            print(f"{cohort_model.subject_length} subjects available")
+            return cohort_model
+    
+        subjects = self.filter_subjects_by_dto(task_dto)
+        subject_length =len(subjects) 
+        print(f"{subject_length} subjects found")
+
+        task_models = []
+        wanted_task = getattr(task_dto, "task", None)
+
+        for subj in tqdm(subjects,
+                total=len(subjects),
+                desc="Loading task models",
+                leave=False):
+            subj_tasks = self._task_index.get(subj, [])
+            has_task = any(t == wanted_task for t, _ in subj_tasks)
+            if not has_task:
+                tqdm.write(f"Task '{wanted_task}' not found for subject {subj}")
+                subject_length -=1
+                continue 
+
+            runs = [run for (t, run) in subj_tasks if t == wanted_task]
+            if not runs:
+                runs = [None]
+
+            for run in runs:
+                per_subj_dto = TaskDTO(subject=subj, task=wanted_task, run=run)
+                tqdm.write(str(per_subj_dto))
+                single_key = ("single", hash(per_subj_dto))
+                if single_key not in self._cache:
+                    self._cache[single_key] = EEGTaskModel(per_subj_dto, self._data_dir)
+                task_models.append(self._cache[single_key])
+
+        self._cache[key] = EEGCohortModel(task_dto, task_models, subject_length)
         return self._cache[key]
 
     @property
     def _participants_path(self):
         return self._data_dir / "participants.tsv"
 
-    def _load_participants(self, filt: BaseTaskDTO):
+    def _load_participants(self, filt: SubjectFilterDTO):
         if self._participants_df is not None:
             return self._participants_df
 
@@ -108,35 +141,35 @@ class EEGSubjectModel:
 
         raise KeyError(f"'{task}' not found as a column: {cols}")
 
-    def filter_subjects_by_dto(self, filt: BaseTaskDTO):
-        df = self._load_participants(filt).copy()
+    def filter_subjects_by_dto(self, dto: SubjectFilterDTO):
+        df = self._load_participants(dto).copy()
 
-        for name in getattr(filt, "__dataclass_fields__", {}).keys():
-            if name in ("task", "subject", "run", "ui_name", "ui_value"):
+        for field_name in getattr(dto, "__dataclass_fields__", {}).keys():
+            if field_name in ("task", "subject", "run", "ui_name", "ui_value"):
                 continue
-            if name.endswith("_range"):
-                col = name[:-6]
-                if col not in df.columns:
-                    print("skip " + col)
+
+            if field_name.endswith("_range"):
+                column_name = field_name[:-6]
+                if column_name not in df.columns:
                     continue
-                rng = getattr(filt, name, None)
-                if isinstance(rng, (tuple, list)) and len(rng) == 2:
-                    lo, hi = rng
-                    vals = pd.to_numeric(df[col], errors="coerce")
-                    df = df[(vals >= lo) & (vals <= hi)]
+                range_value = getattr(dto, field_name, None)
+                if isinstance(range_value, (tuple, list)) and len(range_value) == 2:
+                    lower, upper = range_value
+                    numeric_values = pd.to_numeric(df[column_name], errors="coerce")
+                    df = df[(numeric_values >= lower) & (numeric_values <= upper)]
             else:
-                if name not in df.columns:
-                    print("name " + col)
+                if field_name not in df.columns:
                     continue
-                val = getattr(filt, name, None)
-                if isinstance(val, (list, tuple)):
-                    choices = [v for v in val if v is not None]
-                    if choices:
-                        df = df[df[name].isin(choices)]
-                elif val is not None:
-                    df = df[df[name] == val]
+                field_value = getattr(dto, field_name, None)
+                if isinstance(field_value, (list, tuple)):
+                    allowed_values = [v for v in field_value if v is not None]
+                    if allowed_values:
+                        df = df[df[field_name].isin(allowed_values)]
+                elif field_value is not None:
+                    df = df[df[field_name] == field_value]
 
-        subs = df["participant_id"].tolist()
-        subs = [s for s in subs if s in self._subject_ids]
+        subject_ids = df["participant_id"].tolist()
+        subject_ids = [s for s in subject_ids if s in self._subject_ids]
 
-        return sorted(subs)
+        return sorted(subject_ids)
+

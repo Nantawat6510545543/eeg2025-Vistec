@@ -25,6 +25,7 @@ class BaseTaskDTO:
 
 @dataclass
 class TaskDTO(BaseTaskDTO):
+    task: str
     subject: str
     run: Optional[str] = None
 
@@ -39,13 +40,14 @@ class TaskDTO(BaseTaskDTO):
 
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):
+    task: str
     age_range: NumberRange = (5.0, 6.0)
     sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
-    ehq_total_range: NumberRange = (-100.0, 100.0)
-    p_factor_range: NumberRange = (-10, 10)
-    attention_range: NumberRange = (-10, 10)
-    internalizing_range: NumberRange = (-10, 10)
-    externalizing_range: NumberRange = (-10, 10)
+    ehq_total_range: NumberRange = (-1000.0, 1000.0)
+    p_factor_range: NumberRange = (-100, 100)
+    attention_range: NumberRange = (-100, 100)
+    internalizing_range: NumberRange = (-100, 100)
+    externalizing_range: NumberRange = (-100, 100)
 
     ui_name: ClassVar[str] = "Meta filter (group)"
     ui_value: ClassVar[object] = None
@@ -72,7 +74,7 @@ class FilterParamsDTO:
     @property
     def channels_list(self):
         if not self.channels or not self.channels.strip():
-            return [f"E{i}" for i in range(1, 129)]
+            return [i for i in range(1, 129)]
 
         # Match "70" or "70-90"
         number_or_range = re.compile(r'^(\d+)(?:\s*-\s*(\d+))?$')
@@ -81,7 +83,7 @@ class FilterParamsDTO:
         raw_tokens = re.split(r'[,\s]+', self.channels.strip())
 
         seen_channel_names = set()
-        parsed_channel_names: List[str] = []
+        parsed_channel_names: list[int] = []
 
         def add_channel_name(channel_name: str) -> None:
             if channel_name not in seen_channel_names:
@@ -97,17 +99,17 @@ class FilterParamsDTO:
                 continue  
 
             start_number_str, end_number_str = match.groups()
+            start_number = int(start_number_str) - 1
 
             if end_number_str is None:
-                add_channel_name(f"E{int(start_number_str)}")
+                add_channel_name(start_number)
             else:
-                start_number = int(start_number_str)
-                end_number = int(end_number_str)
+                end_number = int(end_number_str) - 1
                 lower_bound, upper_bound = sorted((start_number, end_number))
                 for number in range(lower_bound, upper_bound + 1):
-                    add_channel_name(f"E{number}")
+                    add_channel_name(number)
 
-        return parsed_channel_names or [f"E{i}" for i in range(1, 129)]
+        return parsed_channel_names or [i for i in range(1, 129)]
     
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
@@ -115,10 +117,6 @@ class EpochParamsDTO(FilterParamsDTO):
     tmax: float = 2.4
     stimulus: List[str] = field(default_factory=lambda: [None])
     only_labels: ClassVar[bool] = False
-
-@dataclass
-class EpochFullParamsDTO(EpochParamsDTO):
-    n_channels: int = 10
 
 
 @dataclass

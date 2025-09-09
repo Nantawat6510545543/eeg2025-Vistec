@@ -8,6 +8,5 @@ from .dtos import (
     PSDParamsDTO,
     TimeDomainParamsDTO,
     TableInfoDTO,
-    EpochFullParamsDTO,
     EpochPSDParamsDTO,
 )
