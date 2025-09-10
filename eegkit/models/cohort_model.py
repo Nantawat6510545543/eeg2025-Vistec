@@ -17,25 +17,30 @@ class EEGCohortModel:
         self._electrodes = None
         self._metadata = None
         self._channels = None
+        self._events_concat = None 
 
-        events_list = [tm.get_event() for tm in task_model_list]
-        self.events = pd.concat(events_list, ignore_index=True)
+    @property
+    def events(self):
+        if self._events_concat is None:
+            events_list = [tm.get_event() for tm in self.task_model_list]
+            self._events_concat = pd.concat(events_list, ignore_index=True)
+        return self._events_concat
 
     @property
     def electrodes(self):
-        if not self._electrodes:
+        if not self._electrodes and self.task_model_list:
             self._electrodes = getattr(self.task_model_list[0], "electrodes", None)
         return self._electrodes
 
     @property
     def metadata(self):
-        if not self._metadata:
+        if not self._metadata and self.task_model_list:
             self._metadata = getattr(self.task_model_list[0], "metadata", None)
         return self._metadata
 
     @property
     def channels(self):
-        if not self._channels:
+        if not self._channels and self.task_model_list:
             self._channels = self.task_model_list[0].channels
         return self._channels
 
@@ -72,10 +77,13 @@ class EEGCohortModel:
                                leave=False):
 
             epochs, labels = task_model.get_epochs(epoch_params)
+            if epochs is None:
+                continue
             epochs_list.append(epochs)
             if isinstance(labels, str) and labels == "unavailable":
                 return None
-            labels_union.update(labels)
+            if labels is not None:
+                labels_union.update(labels)
 
         if not epochs_list:
             return None
