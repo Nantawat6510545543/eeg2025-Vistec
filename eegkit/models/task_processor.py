@@ -7,12 +7,22 @@ from ..cache import CacheKey
 mne.set_log_level('WARNING')
 import itertools
 
+# fixed mapping
 BACKGROUND = [0, 1]
 FOREGROUND = [0.0, 0.3, 0.6, 1.0]
 STIM = [1, 2, 3]
 EVENT_ID = {
     f"bg{b}_fg{f:.1f}_stim{s}": i + 1
     for i, (b, f, s) in enumerate(itertools.product(BACKGROUND, FOREGROUND, STIM))
+}
+
+RESTING_STATE_EVENT_ID = {  
+    'open': 1,
+    'close': 2,
+}
+
+CCD_EVENT_ID = {  
+    'trial_start': 1,
 }
 
 _PREPROCESSORS = {}
@@ -162,32 +172,52 @@ class EEGTaskProcessor:
             return None, None
         filtered.crop(tmin=t_start, tmax=t_end)
 
-        events, event_id = events_from_annotations(self.get_raw())
-        eye_map = {
-            'open': event_id.get('instructed_toOpenEyes'),
-            'close': event_id.get('instructed_toCloseEyes')
-        }
-        eye_map = {k: v for k, v in eye_map.items() if v is not None}
-        if not eye_map:
+        events_arr, ann_event_id = events_from_annotations(self.get_raw())
+        open_code = ann_event_id.get('instructed_toOpenEyes')
+        close_code = ann_event_id.get('instructed_toCloseEyes')
+        new_events_list = []
+        present = []
+        if open_code is not None:
+            open_rows = events_arr[events_arr[:, 2] == open_code]
+            for row in open_rows:
+                new_events_list.append([row[0], 0, RESTING_STATE_EVENT_ID['open']])
+            if open_rows.size > 0:
+                present.append('open')
+        if close_code is not None:
+            close_rows = events_arr[events_arr[:, 2] == close_code]
+            for row in close_rows:
+                new_events_list.append([row[0], 0, RESTING_STATE_EVENT_ID['close']])
+            if close_rows.size > 0:
+                present.append('close')
+        if not new_events_list:
             return None, None
-
+        new_events = np.array(sorted(new_events_list, key=lambda r: r[0]), dtype=int)
+        event_id_sub = {k: RESTING_STATE_EVENT_ID[k] for k in present}
         epochs = Epochs(
-            filtered, events, event_id=eye_map,
+            filtered, new_events, event_id=event_id_sub,
             tmin=params.tmin, tmax=params.tmax, baseline=None,
             proj=True, preload=True
         )
-        labels = list(eye_map.keys())
+        labels = list(event_id_sub.keys())
         return epochs, labels
 
     @register_preprocessor("contrastChangeDetection")
     def _ccd_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params, no_pick=True)
-        events, event_id = events_from_annotations(self.get_raw())
-        if 'contrastTrial_start' not in event_id:
+        events_arr, ann_event_id = events_from_annotations(self.get_raw())
+        if 'contrastTrial_start' not in ann_event_id:
             return None, None
-        ccd_code = event_id['contrastTrial_start']
+        ccd_code = ann_event_id['contrastTrial_start']
+        trial_rows = events_arr[events_arr[:, 2] == ccd_code]
+        if trial_rows.size == 0:
+            return None, None
+        new_events = np.column_stack([
+            trial_rows[:, 0].astype(int),
+            np.zeros(trial_rows.shape[0], dtype=int),
+            np.full(trial_rows.shape[0], CCD_EVENT_ID['trial_start'], dtype=int)
+        ])
         epochs = Epochs(
-            filtered, events, event_id={'trial_start': ccd_code},
+            filtered, new_events, event_id=CCD_EVENT_ID,
             tmin=params.tmin, tmax=params.tmax, baseline=None,
             proj=True, preload=True
         )
