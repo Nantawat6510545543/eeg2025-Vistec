@@ -52,7 +52,6 @@ class EEGTaskProcessor:
                 run=self.task_dto.run,
                 stage="rawfilt",
                 params={"l_freq": params.l_freq, "h_freq": params.h_freq},
-                source_sig=self.cache.source_sig,
                 pipeline_ver=self.cache.pipeline_ver,
             )
             cached = self.cache.load_raw_filtered(ck)
@@ -96,7 +95,6 @@ class EEGTaskProcessor:
                 "tmin": params.tmin,
                 "tmax": params.tmax,
             },
-            source_sig=self.cache.source_sig,
             pipeline_ver=self.cache.pipeline_ver,
         )
         epochs, labels = self.cache.load_epochs(ck)
@@ -110,6 +108,8 @@ class EEGTaskProcessor:
             return None, "unavailable"
 
         epochs, labels = preprocess_fn(self, params)
+        if epochs is None:
+            return None, "unavailable"
         self._epochs_cache[key] = (epochs, labels)
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
@@ -120,7 +120,11 @@ class EEGTaskProcessor:
     def _sus_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params, no_pick=True)
         events = self.get_events()
+        if events is None:
+            return None, None
         stim_rows = events[events['value'] == 'stim_ON'].copy()
+        if stim_rows.empty:
+            return None, None
 
         stim_rows['label'] = stim_rows.apply(
             lambda row: f"bg{int(row['background'])}_fg{row['foreground_contrast']}_stim{int(row['stimulus_cond'])}",
@@ -149,28 +153,38 @@ class EEGTaskProcessor:
     def _resting_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params, no_pick=True)
         df = self.get_events()
-        t_start = df[df['value'] == 'resting_start']['onset'].values[0]
-        t_end = df[df['value'] == 'break cnt']['onset'].values[1]
+        if df is None:
+            return None, None
+        try:
+            t_start = df[df['value'] == 'resting_start']['onset'].values[0]
+            t_end = df[df['value'] == 'break cnt']['onset'].values[1]
+        except Exception:
+            return None, None
         filtered.crop(tmin=t_start, tmax=t_end)
 
         events, event_id = events_from_annotations(self.get_raw())
         eye_map = {
-            'open': event_id['instructed_toOpenEyes'],
-            'close': event_id['instructed_toCloseEyes']
+            'open': event_id.get('instructed_toOpenEyes'),
+            'close': event_id.get('instructed_toCloseEyes')
         }
+        eye_map = {k: v for k, v in eye_map.items() if v is not None}
+        if not eye_map:
+            return None, None
 
         epochs = Epochs(
             filtered, events, event_id=eye_map,
             tmin=params.tmin, tmax=params.tmax, baseline=None,
             proj=True, preload=True
         )
-        labels = eye_map
+        labels = list(eye_map.keys())
         return epochs, labels
 
     @register_preprocessor("contrastChangeDetection")
     def _ccd_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params, no_pick=True)
         events, event_id = events_from_annotations(self.get_raw())
+        if 'contrastTrial_start' not in event_id:
+            return None, None
         ccd_code = event_id['contrastTrial_start']
         epochs = Epochs(
             filtered, events, event_id={'trial_start': ccd_code},
