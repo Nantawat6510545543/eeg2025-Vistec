@@ -48,7 +48,7 @@ class EEGTaskProcessor:
         self._epochs_cache = {}
         self.preprocessors = _PREPROCESSORS
 
-    def get_filtered(self, params: FilterParamsDTO, no_pick=False):
+    def get_filtered(self, params: FilterParamsDTO):
         key = (params.l_freq, params.h_freq)
 
         # --- Check memory cache ---
@@ -80,19 +80,15 @@ class EEGTaskProcessor:
                 raw_out = raw_copy
                 self.cache.save_raw_filtered(raw_copy, ck)
 
-        if no_pick:
-            return raw_out.copy()
-        channels = params.channels_list
-        return raw_out.copy().pick(channels)
+        return raw_out.copy()
 
     def get_epochs(self, params: EpochParamsDTO):
         key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
-        channels = params.channels_list
 
         # --- Check memory cache ---
         if key in self._epochs_cache:
             epochs, labels = self._epochs_cache[key]
-            return epochs.copy().pick(channels), labels
+            return epochs.copy(), labels
 
         ck = CacheKey(
             subject=self.task_dto.subject,
@@ -110,7 +106,7 @@ class EEGTaskProcessor:
         epochs, labels = self.cache.load_epochs(ck)
         if epochs is not None:
             self._epochs_cache[key] = (epochs, labels)
-            return epochs.copy().pick(channels), labels
+            return epochs.copy(), labels
 
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
         if preprocess_fn is None:
@@ -124,11 +120,11 @@ class EEGTaskProcessor:
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
 
-        return epochs.copy().pick(channels), labels
+        return epochs.copy(), labels
 
     @register_preprocessor("surroundSupp")
     def _sus_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params, no_pick=True)
+        filtered = self.get_filtered(params)
         events = self.get_events()
         if events is None:
             return None, None
@@ -161,7 +157,7 @@ class EEGTaskProcessor:
 
     @register_preprocessor("RestingState")
     def _resting_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params, no_pick=True)
+        filtered = self.get_filtered(params)
         df = self.get_events()
         if df is None:
             return None, None
@@ -203,7 +199,7 @@ class EEGTaskProcessor:
 
     @register_preprocessor("contrastChangeDetection")
     def _ccd_preprocess(self, params: EpochParamsDTO):
-        filtered = self.get_filtered(params, no_pick=True)
+        filtered = self.get_filtered(params)
         events_arr, ann_event_id = events_from_annotations(self.get_raw())
         if 'contrastTrial_start' not in ann_event_id:
             return None, None
