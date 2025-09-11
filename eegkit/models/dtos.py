@@ -70,8 +70,8 @@ class SubjectFilterDTO(BaseTaskDTO):
 @dataclass
 class FilterParamsDTO:
     l_freq: float = 3.0
-    h_freq: float = 35.0
-    channels: str = "70, 71, 74, 75, 76, 81, 82, 83"
+    h_freq: float = 60
+    channels: str = "69-76,81-83,88,89"
 
     @property
     def channels_list(self):
