@@ -11,34 +11,57 @@ from .cohort_model import EEGCohortModel
 class EEGSubjectModel:
     def __init__(self, data_dir):
         self._data_dir = Path(data_dir)
+        self._release_dirs = self._discover_release_dirs()
+        self._subject_release_map = self._map_subject_releases()
         self._subject_ids = self._discover_subjects()
         self._task_index = self._discover_tasks()
         self._cache = {}
         self._participants_df = None
 
+    def _discover_release_dirs(self):
+        if any(self._data_dir.glob('sub-*')):
+            return [self._data_dir]
+        release_dirs = sorted([p for p in self._data_dir.glob('cmi_bids_R*') if p.is_dir()])
+        return release_dirs or [self._data_dir]
+
+    def _map_subject_releases(self):
+        mapping = {}
+        for rdir in self._release_dirs:
+            for p in rdir.glob('sub-*'):
+                if p.is_dir():
+                    mapping.setdefault(p.name, rdir)
+        return mapping
+
     def _discover_subjects(self):
-        return sorted([p.name for p in self._data_dir.glob("sub-*") if p.is_dir()])
+        subjects = set()
+        for rdir in self._release_dirs:
+            for p in rdir.glob("sub-*"):
+                if p.is_dir():
+                    subjects.add(p.name)
+        return sorted(subjects)
 
     def _discover_tasks(self):
         task_map = defaultdict(list)
         pattern = re.compile(
             r"(sub-(?P<subject>[^_]+))_task-(?P<task>[^_]+)(?:_run-(?P<run>\d+))?_eeg\.set"
         )
-
-        for subj_dir in self._data_dir.glob("sub-*"):
-            eeg_dir = subj_dir / "eeg"
-            if not eeg_dir.exists():
-                continue
-
-            for eeg_file in eeg_dir.glob("sub-*_task-*_eeg.set"):
-                match = pattern.match(eeg_file.name)
-                if match:
-                    full_subj = match.group(1)
-                    task = match.group("task")
-                    run = match.group("run")
-                    task_map[full_subj].append((task, run))
-
+        for rdir in self._release_dirs:
+            for subj_dir in rdir.glob("sub-*"):
+                eeg_dir = subj_dir / "eeg"
+                if not eeg_dir.exists():
+                    continue
+                for eeg_file in eeg_dir.glob("sub-*_task-*_eeg.set"):
+                    match = pattern.match(eeg_file.name)
+                    if match:
+                        full_subj = match.group(1)
+                        task = match.group("task")
+                        run = match.group("run")
+                        if (task, run) not in task_map[full_subj]:
+                            task_map[full_subj].append((task, run))
         return dict(task_map)
+
+    def _subject_data_dir(self, subject: str):
+        return self._subject_release_map.get(subject, self._data_dir)
 
     def list_subjects(self):
         return self._subject_ids
@@ -51,7 +74,8 @@ class EEGSubjectModel:
         if hasattr(task_dto, "subject") and getattr(task_dto, "subject") is not None:
             key = ("single", hash(task_dto))
             if key not in self._cache:
-                self._cache[key] = EEGTaskModel(task_dto, self._data_dir)
+                subj_dir = self._subject_data_dir(task_dto.subject)
+                self._cache[key] = EEGTaskModel(task_dto, subj_dir)
             return self._cache[key]
 
         # cohort
@@ -88,7 +112,8 @@ class EEGSubjectModel:
                 print(per_subj_dto)
                 single_key = ("single", hash(per_subj_dto))
                 if single_key not in self._cache:
-                    self._cache[single_key] = EEGTaskModel(per_subj_dto, self._data_dir)
+                    subj_dir = self._subject_data_dir(subj)
+                    self._cache[single_key] = EEGTaskModel(per_subj_dto, subj_dir)
                 task_models.append(self._cache[single_key])
 
         self._cache[key] = EEGCohortModel(task_dto, task_models, subject_length)
@@ -102,9 +127,21 @@ class EEGSubjectModel:
         if self._participants_df is not None:
             return self._participants_df
 
+        dfs = []
+        for rdir in self._release_dirs:
+            p = rdir / 'participants.tsv'
+            if p.exists():
+                try:
+                    dfs.append(pd.read_csv(p, sep='\t'))
+                except Exception:
+                    pass
+        if not dfs:
+            raise FileNotFoundError("No participants.tsv found in provided data directory/releases")
+        df = pd.concat(dfs, ignore_index=True)
+
         cols = {"participant_id"}
         for name in getattr(filt, "__dataclass_fields__", {}).keys():
-            if name in ("task", "subject", "run"):
+            if name in ("task", "subject", "run", "subject_limit"):
                 continue
             if name.endswith("_range"):
                 base = name[:-6]
@@ -112,7 +149,6 @@ class EEGSubjectModel:
             else:
                 cols.add(name)
 
-        df = pd.read_csv(self._participants_path, sep="\t")
         task = getattr(filt, "task", None)
         df = self.filter_available(df, task)
         df = df[[c for c in cols if c in df.columns]]
@@ -144,7 +180,7 @@ class EEGSubjectModel:
         df = self._load_participants(dto).copy()
 
         for field_name in getattr(dto, "__dataclass_fields__", {}).keys():
-            if field_name in ("task", "subject", "run", "ui_name", "ui_value"):
+            if field_name in ("task", "subject", "run", "ui_name", "ui_value", "subject_limit"):
                 continue
 
             if field_name.endswith("_range"):
@@ -157,7 +193,7 @@ class EEGSubjectModel:
                 if isinstance(range_value, (tuple, list)) and len(range_value) == 2:
                     lower, upper = range_value
                     if lower is None and upper is None:
-                        continue
+                        continue  # fully open
                     numeric_values = pd.to_numeric(df[column_name], errors="coerce")
                     mask = pd.Series(True, index=df.index)
                     if lower is not None:
@@ -178,5 +214,11 @@ class EEGSubjectModel:
 
         subject_ids = df["participant_id"].tolist()
         subject_ids = [s for s in subject_ids if s in self._subject_ids]
+        subject_ids = sorted(subject_ids)
+        if getattr(dto, 'subject_limit', None):
+            limit = int(dto.subject_limit)
+            subject_ids = subject_ids[:limit]
+        else:
+            setattr(dto, 'subject_limit', len(subject_ids))
 
-        return sorted(subject_ids)
+        return subject_ids

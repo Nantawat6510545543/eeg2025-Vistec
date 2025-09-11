@@ -2,8 +2,7 @@ from dataclasses import dataclass, field, fields
 from typing import Optional, List, Tuple, ClassVar
 import re
 
-# Allow open-ended ranges: each bound can be None
-NumberRange = Tuple[Optional[float], Optional[float]]
+NumberRange = Tuple[float, float]
 
 
 def make_hashable(value):
@@ -44,6 +43,7 @@ class TaskDTO(BaseTaskDTO):
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):
     task: str
+    subject_limit: Optional[int] = None 
     age_range: Optional[NumberRange] = (None, None)
     sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
     ehq_total_range: Optional[NumberRange] = (None, None)
@@ -59,12 +59,13 @@ class SubjectFilterDTO(BaseTaskDTO):
 
     def __repr__(self) -> str:
         return (
-            f"task = {self.task}, "
-            f"age_range = {self.age_range}, sex = {self.sex}, "
-            f"ehq_total_range = {self.ehq_total_range}, p_factor_range = {self.p_factor_range}, "
-            f"attention_range = {self.attention_range}, "
-            f"internalizing_range = {self.internalizing_range}, "
-            f"externalizing_range = {self.externalizing_range}"
+            f"Task = {self.task}, "
+            f"Number of subject = {self.subject_limit}, "
+            f"Age range = {self.age_range}, sex = {self.sex}, "
+            f"Ehq total range = {self.ehq_total_range}, P factor range = {self.p_factor_range}, "
+            f"Attention range = {self.attention_range}, "
+            f"Internalizing range = {self.internalizing_range}, "
+            f"Externalizing range = {self.externalizing_range}"
         )
 
 
