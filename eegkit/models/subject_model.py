@@ -63,8 +63,11 @@ class EEGSubjectModel:
 
         subjects = self.filter_subjects_by_dto(task_dto)
         subject_length = len(subjects)
-        print(f"{subject_length} subjects found")
+        if subject_length == 0:
+            print(f"No subjects found")
+            return None
 
+        print(f"{subject_length} subjects found")
         task_models = []
         wanted_task = getattr(task_dto, "task", None)
 
@@ -149,10 +152,19 @@ class EEGSubjectModel:
                 if column_name not in df.columns:
                     continue
                 range_value = getattr(dto, field_name, None)
+                if range_value is None:
+                    continue
                 if isinstance(range_value, (tuple, list)) and len(range_value) == 2:
                     lower, upper = range_value
+                    if lower is None and upper is None:
+                        continue
                     numeric_values = pd.to_numeric(df[column_name], errors="coerce")
-                    df = df[(numeric_values >= lower) & (numeric_values <= upper)]
+                    mask = pd.Series(True, index=df.index)
+                    if lower is not None:
+                        mask &= numeric_values >= lower
+                    if upper is not None:
+                        mask &= numeric_values <= upper
+                    df = df[mask]
             else:
                 if field_name not in df.columns:
                     continue
