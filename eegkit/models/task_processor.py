@@ -83,6 +83,11 @@ class EEGTaskProcessor:
         return raw_out.copy()
 
     def get_epochs(self, params: EpochParamsDTO):
+        preprocess_fn = self.preprocessors.get(self.task_dto.task)
+        if preprocess_fn is None:
+            print(f"Unsupported task for epochs: '{self.task_dto.task}'")
+            return None, "unavailable"
+
         key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
 
         # --- Check memory cache ---
@@ -107,11 +112,6 @@ class EEGTaskProcessor:
         if epochs is not None:
             self._epochs_cache[key] = (epochs, labels)
             return epochs.copy(), labels
-
-        preprocess_fn = self.preprocessors.get(self.task_dto.task)
-        if preprocess_fn is None:
-            print(f"Unsupported task for epochs: '{self.task_dto.task}'")
-            return None, "unavailable"
 
         epochs, labels = preprocess_fn(self, params)
         if epochs is None:
