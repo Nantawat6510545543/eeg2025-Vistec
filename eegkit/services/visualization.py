@@ -55,11 +55,14 @@ class EEGVisualization:
     @register_plot("Sensor Layout", FilterParamsDTO)
     def plot_sensors(self, task_dto: BaseTaskDTO, params: FilterParamsDTO):
         raw = self.get_raw(task_dto, params)
-        raw.plot_sensors(show_names=True)
+        raw = raw.pick(params.channels_list)
+        fig = raw.plot_sensors(show_names=True)
+        return [fig]
 
     @register_plot("Time Domain Plot", TimeDomainParamsDTO)
     def plot_time(self, task_dto: BaseTaskDTO, params: TimeDomainParamsDTO):
         raw = self.get_raw(task_dto, params)
+        raw = raw.pick(params.channels_list)
         fig = raw.plot(
             duration=params.duration,
             start=params.start,
@@ -72,6 +75,7 @@ class EEGVisualization:
     @register_plot("Frequency Domain", PSDParamsDTO)
     def plot_frequency(self, task_dto: BaseTaskDTO, params: PSDParamsDTO):
         raw = self.get_raw(task_dto, params)
+        raw = raw.pick(params.channels_list)
         psd = raw.compute_psd(fmin=params.fmin, fmax=params.fmax)
         fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
         return [finalize_figure(fig, task_dto, caption=vars(params), plot_name="Frequency Domain")]
@@ -79,6 +83,7 @@ class EEGVisualization:
     @register_plot("Condition-wise PSD", EpochPSDParamsDTO)
     def plot_conditionwise_psd(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
+        epochs = epochs.pick(params.channels_list)
         if epochs is None:
             print(f"No epochs available for {task_dto.subject} - {task_dto.task}")
             return None
@@ -103,6 +108,7 @@ class EEGVisualization:
 
     def _plot_epochs_base(self, task_dto, params, mode):
         epochs, labels = self.get_epochs(task_dto, params)
+        epochs = epochs.pick(params.channels_list)
         if epochs is None:
             return None
         if params.stimulus and params.stimulus in epochs.event_id:
@@ -118,6 +124,7 @@ class EEGVisualization:
     @register_plot("SNR Spectrum", EpochPSDParamsDTO)
     def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
+        epochs = epochs.pick(params.channels_list)
 
         sfreq = epochs.info["sfreq"]
 
