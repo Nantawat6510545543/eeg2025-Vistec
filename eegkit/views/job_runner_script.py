@@ -1,8 +1,5 @@
-#!/usr/bin/env python3
 import json, matplotlib, sys
-matplotlib.use('Agg')
 from pathlib import Path
-from pprint import pprint
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -13,20 +10,21 @@ from eegkit.models.dtos import (
 from eegkit.models.subject_model import EEGSubjectModel
 from eegkit.controller.eeg_controller import EEGController
 
+matplotlib.use('Agg')
+
 def main(spec_path: str):
-    SPEC = json.load(open(spec_path, 'r'))
+    with open(spec_path, 'r') as f:
+        SPEC = json.load(f)
     JOB_DIR = Path(SPEC['job_dir'])
     FIG_DIR = JOB_DIR / 'figures'
     FIG_DIR.mkdir(exist_ok=True, parents=True)
 
-    # Map class names → DTOs
     schema_map = {c.__name__: c for c in [TaskDTO, SubjectFilterDTO]}
     params_map = {c.__name__: c for c in [
         FilterParamsDTO, EpochParamsDTO, PSDParamsDTO,
         EpochPSDParamsDTO, TimeDomainParamsDTO, TableInfoDTO
     ]}
 
-    # Reconstruct schema and params
     SchemaCls = schema_map.get(SPEC['schema_class'])
     if SchemaCls is None:
         raise RuntimeError(f"Unknown schema class {SPEC['schema_class']}")
@@ -53,10 +51,14 @@ def main(spec_path: str):
         print('[JOB][ERROR]', e, file=sys.stderr)
         traceback.print_exc()
         (JOB_DIR / 'ERROR').write_text(str(e))
+        error_json = {
+            'error': str(e),
+            'type': type(e).__name__
+        }
+        (JOB_DIR / 'error.json').write_text(json.dumps(error_json, indent=2))
         sys.exit(1)
 
     # Persist outputs
-    print(type(result))
     if isinstance(result, pd.DataFrame):
         out_csv = JOB_DIR / 'dataframe.csv'
         result.to_csv(out_csv, index=False)
@@ -77,7 +79,8 @@ def main(spec_path: str):
             print(f"[JOB] Saved single figure -> {fpath}")
     elif isinstance(result, (dict, list)):
         out_json = JOB_DIR / 'output.json'
-        json.dump(result, open(out_json, 'w'), indent=2)
+        with open(out_json, 'w') as f:
+            json.dump(result, f, indent=2)
         print(f"[JOB] Saved JSON -> {out_json}")
     elif isinstance(result, str):
         out_txt = JOB_DIR / 'output.txt'
