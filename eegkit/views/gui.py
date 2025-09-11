@@ -90,12 +90,31 @@ class EEGUI:
             return widgets.Dropdown(options=value, layout=widgets.Layout(width='200px'))
         return widgets.Text(value="" if value is None else str(value), layout=widgets.Layout(width='500'))
 
+    def _make_range_widget(self, default_value):
+        """Create a range widget supporting open-ended bounds.
+        default_value expected: (lower, upper) where each may be None.
+        """
+        if isinstance(default_value, (tuple, list)) and len(default_value) == 2:
+            lower, upper = default_value
+        else:
+            lower, upper = (None, None)
+        return {
+            "min": widgets.Text(value='' if lower is None else str(lower), placeholder='min', layout=widgets.Layout(width='100px')),
+            "max": widgets.Text(value='' if upper is None else str(upper), placeholder='max', layout=widgets.Layout(width='100px')),
+        }
+
     def _read_widget(self, widget, default, wrap_list=False):
         if isinstance(widget, dict):
-            try:
-                return (float(widget["min"].value), float(widget["max"].value))
-            except Exception:
-                return default
+            vmin = widget["min"].value
+            vmax = widget["max"].value
+            # Interpret blanks as open bounds
+            lower = None if vmin in (None, "") else self._safe_float(vmin)
+            upper = None if vmax in (None, "") else self._safe_float(vmax)
+            if isinstance(default, (tuple, list)) and len(default) == 2:
+                # If both open and default is open, keep open
+                if lower is None and upper is None:
+                    return (None, None)
+            return (lower, upper)
         val = getattr(widget, "value", None)
         if wrap_list and isinstance(default, list):
             return [val]
@@ -113,6 +132,12 @@ class EEGUI:
                 return default
         return val
 
+    def _safe_float(self, v):
+        try:
+            return float(v)
+        except Exception:
+            return None
+
     # schema panels
     def _build_all_schema_layouts(self):
         all_subjects = self.controller.list_subjects()
@@ -123,7 +148,6 @@ class EEGUI:
                 if t not in all_tasks:
                     all_tasks.append(t)
 
-        # schema_dto is subclass of 
         for schema_dto in self.schemas:
             rows, wmap = [], {}
             subject_schema = self._is_subject_schema(schema_dto)
@@ -141,6 +165,9 @@ class EEGUI:
                     continue
                 elif (not subject_schema) and name == "task":
                     w = widgets.Dropdown(options=all_tasks, layout=widgets.Layout(width='220px'))
+                elif (schema_dto is SubjectFilterDTO) and name.endswith('_range'):
+                    default_val = self._field_default(f)
+                    w = self._make_range_widget(default_val)
                 else:
                     default_val = self._field_default(f)
                     w = self._make_widget(default_val)

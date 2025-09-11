@@ -2,7 +2,8 @@ from dataclasses import dataclass, field, fields
 from typing import Optional, List, Tuple, ClassVar
 import re
 
-NumberRange = Tuple[float, float]
+# Allow open-ended ranges: each bound can be None
+NumberRange = Tuple[Optional[float], Optional[float]]
 
 
 def make_hashable(value):
@@ -43,13 +44,13 @@ class TaskDTO(BaseTaskDTO):
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):
     task: str
-    age_range: NumberRange = (5.0, 6.0)
+    age_range: Optional[NumberRange] = (None, None)
     sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
-    ehq_total_range: NumberRange = (-1000.0, 1000.0)
-    p_factor_range: NumberRange = (-100, 100)
-    attention_range: NumberRange = (-100, 100)
-    internalizing_range: NumberRange = (-100, 100)
-    externalizing_range: NumberRange = (-100, 100)
+    ehq_total_range: Optional[NumberRange] = (None, None)
+    p_factor_range: Optional[NumberRange] = (None, None)
+    attention_range: Optional[NumberRange] = (None, None)
+    internalizing_range: Optional[NumberRange] = (None, None)
+    externalizing_range: Optional[NumberRange] = (None, None)
 
     ui_name: ClassVar[str] = "Meta filter (group)"
     ui_value: ClassVar[object] = None
