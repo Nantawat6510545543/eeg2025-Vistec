@@ -2,7 +2,6 @@ from pathlib import Path
 import re
 from collections import defaultdict
 import pandas as pd
-from tqdm.auto import tqdm
 
 from .task_model import EEGTaskModel
 from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
@@ -69,14 +68,11 @@ class EEGSubjectModel:
         task_models = []
         wanted_task = getattr(task_dto, "task", None)
 
-        for subj in tqdm(subjects,
-                         total=len(subjects),
-                         desc="Loading task models",
-                         leave=False):
+        for subj in subjects:
             subj_tasks = self._task_index.get(subj, [])
             has_task = any(t == wanted_task for t, _ in subj_tasks)
             if not has_task:
-                tqdm.write(f"Task '{wanted_task}' not found for subject {subj}")
+                print(f"Task '{wanted_task}' not found for subject {subj}")
                 subject_length -= 1
                 continue
 
@@ -86,7 +82,7 @@ class EEGSubjectModel:
 
             for run in runs:
                 per_subj_dto = TaskDTO(subject=subj, task=wanted_task, run=run)
-                tqdm.write(str(per_subj_dto))
+                print(per_subj_dto)
                 single_key = ("single", hash(per_subj_dto))
                 if single_key not in self._cache:
                     self._cache[single_key] = EEGTaskModel(per_subj_dto, self._data_dir)

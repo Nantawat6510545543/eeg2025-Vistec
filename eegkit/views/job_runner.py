@@ -1,4 +1,3 @@
-# eegkit/service/job_runner.py
 from dataclasses import fields
 from pathlib import Path
 import json
@@ -26,7 +25,9 @@ class JobRunner:
 
     def _create_job_dir(self, group: str, key: str, task_name: str) -> Path:
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        dto_part = re.sub(r"[^A-Za-z0-9]+", "_", f"{group}_{key}_{task_name}")[:40]
+        dto_part = re.sub(r"[^A-Za-z0-9]+", "_", f"{group}_{key}_{task_name}").strip("_")[:40]
+        if not dto_part:
+            dto_part = "job"
         job_id = f"job_{ts}_{dto_part}_{uuid.uuid4().hex[:6]}"
         job_dir = self.jobs_root / job_id
         (job_dir / "figures").mkdir(parents=True, exist_ok=True)
@@ -45,6 +46,7 @@ class JobRunner:
         )
 
         spec = {
+            "spec_version": 1,
             "group": group,
             "key": key,
             "schema_class": schema_cls_name,
@@ -54,6 +56,7 @@ class JobRunner:
             "data_dir": data_dir,
             "job_id": job_dir.name,
             "job_dir": str(job_dir),
+            "created_utc": datetime.datetime.now().isoformat() + "Z",
         }
         spec_path.write_text(json.dumps(spec, indent=2))
 
@@ -75,7 +78,8 @@ _candidates = [
 ]
 for _p in _candidates:
     if (_p / "eegkit").exists():
-        sys.path.insert(0, str(_p))
+        if str(_p) not in sys.path:
+            sys.path.insert(0, str(_p))
         break
 
 try:
@@ -98,24 +102,25 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
             pass
         return runner_path
 
-
     def _launch(self, job_dir: Path, runner_path: Path):
         """
         Launch the job in a detached tmux session when available;
-        otherwise fall back to a background subprocess.
+        otherwise fall back to a background subprocess with log capture.
         """
         tmux_path = shutil.which("tmux")
         session_name = job_dir.name
+        log_path = job_dir / 'job.log'
 
         if tmux_path:
             cmd = [
                 tmux_path,
                 "new-session", "-d", "-s", session_name,
-                f"python {runner_path.as_posix()} 2>&1 | tee -a {(job_dir / 'job.log').as_posix()}"
+                f"python {runner_path.as_posix()} 2>&1 | tee -a {log_path.as_posix()}"
             ]
             print("[DEBUG] tmux launch command:", " ".join(cmd))
             try:
                 subprocess.run(cmd, check=True)
+                (job_dir / 'session.txt').write_text(session_name)
                 print(f"[INFO] Launched tmux session: {session_name}")
                 print(f"[INFO] Job directory: {job_dir}")
                 print("\n--- To inspect logs ---")
@@ -123,13 +128,15 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
                 print("------------------------------------------------\n")
                 return
             except Exception as e:
-                print(f"[WARN] Failed to start tmux session ({e}). Running inline...")
+                print(f"[WARN] Failed to start tmux session ({e}). Falling back to background process...")
 
-        # fallback: non-blocking background process
-        cmd = ["python", runner_path.as_posix()]
-        print("[DEBUG] subprocess launch command:", " ".join(cmd))
-        subprocess.Popen(cmd)
-        print("[INFO] tmux not found. Running job inline (non-blocking).")
+        # fallback: non-blocking background process with stdout/err redirected
+        print("[DEBUG] subprocess launch command: python", runner_path.as_posix())
+        with open(log_path, 'a') as log_file:
+            proc = subprocess.Popen(["python", runner_path.as_posix()], stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
+        (job_dir / 'pid').write_text(str(proc.pid))
+        print("[INFO] Started background process PID", proc.pid)
+        print(f"[INFO] Logs: {log_path}")
         print(f"[INFO] Job directory: {job_dir}")
 
 
