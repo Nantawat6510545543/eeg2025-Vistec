@@ -3,6 +3,8 @@ from IPython.display import display, clear_output
 from dataclasses import fields, MISSING
 import pandas as pd
 import matplotlib.pyplot as plt
+from .job_runner import JobRunner
+from pathlib import Path
 
 from ..models import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 
@@ -26,6 +28,9 @@ class EEGUI:
         self.param_box = widgets.VBox()
         self.run_button = widgets.Button(description="Run", button_style="success")
         self.output = widgets.Output()
+        # Track created jobs
+        self.jobs_root = Path("jobs")
+        self.jobs_root.mkdir(exist_ok=True, parents=True)
 
         self.schema_layouts = {}
         self.schema_widgets = {}
@@ -282,36 +287,30 @@ class EEGUI:
     def _execute(self, _):
         with self.output:
             clear_output(wait=True)
-            print("Excuting")
+            print("Scheduling job...")
+
             group = self.mode_selector.value
             key = self.action_selector.value
             spec = self.specs[group][key]
             params_cls = spec["params"]
 
+            # Build DTOs from current UI state
             built_dto = self._build_active_dto()
+            params_dto = None
+            if params_cls:
+                defaults = params_cls()
+                widgets_map = self.param_widgets.get((group, key), {})
+                params_values = {
+                    f.name: self._read_widget(widgets_map[f.name], getattr(defaults, f.name), wrap_list=False)
+                    for f in fields(defaults)
+                }
+                params_dto = params_cls(**params_values)
 
-            params_defaults = params_cls()
-            widgets_map = self.param_widgets[(group, key)]
-            params_values = {
-                f.name: self._read_widget(widgets_map[f.name], getattr(params_defaults, f.name), wrap_list=False)
-                for f in fields(params_defaults)
-            }
-            params_dto = params_cls(**params_values)
+            runner = JobRunner(self.controller, self.jobs_root)
+            job_dir = runner.schedule(group, key, built_dto, params_dto)
 
-            result = self.controller.show(built_dto, group, key, params_dto)
-
-            if isinstance(result, pd.DataFrame):
-                display(result)
-            elif isinstance(result, list) and all(hasattr(fig, "savefig") for fig in result):
-                for fig in result:
-                    display(fig)
-            elif isinstance(result, (dict, list)):
-                import json
-                print(json.dumps(result, indent=2))
-            elif isinstance(result, str):
-                print(result)
-            elif result is not None:
-                print("Output:", result)
+            print(f"Queued: {group}/{key} for subject={getattr(built_dto, 'subject', None)}, task={getattr(built_dto, 'task', None)}")
+            print(f"Job directory: {job_dir}")
 
             self._update_param_inputs()
 
