@@ -70,19 +70,16 @@ class SubjectFilterDTO(BaseTaskDTO):
 @dataclass
 class FilterParamsDTO:
     l_freq: float = 3.0
-    h_freq: float = 60
+    h_freq: float = 55.0
     channels: str = "69-76,81-83,88,89"
 
     @property
     def channels_list(self):
-        # Default to all channels; use 0-based indices compatible with mne.Raw.pick
         if not self.channels or not self.channels.strip():
             return list(range(128))
 
-        # Match "70" or "70-90"
         number_or_range = re.compile(r'^(\d+)(?:\s*-\s*(\d+))?$')
 
-        # Split on commas or whitespace
         raw_tokens = re.split(r'[,\s]+', self.channels.strip())
 
         seen_channel_names = set()
@@ -112,7 +109,6 @@ class FilterParamsDTO:
                 for number in range(lower_bound, upper_bound + 1):
                     add_channel_name(number)
 
-        # Fallback to all channels (0-based) if nothing parsed
         return parsed_channel_names or list(range(128))
 
 
@@ -127,7 +123,7 @@ class EpochParamsDTO(FilterParamsDTO):
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
     fmin: float = 3.0
-    fmax: float = 35.0
+    fmax: float = 55.0
     average: bool = True
     dB: bool = True
     spatial_colors: bool = True

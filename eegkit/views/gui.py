@@ -1,7 +1,6 @@
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 from dataclasses import fields, MISSING
-import pandas as pd
 import matplotlib.pyplot as plt
 from .job_runner import JobRunner
 from pathlib import Path
@@ -28,7 +27,7 @@ class EEGUI:
         self.param_box = widgets.VBox()
         self.run_button = widgets.Button(description="Run", button_style="success")
         self.output = widgets.Output()
-        # Track created jobs
+        
         self.jobs_root = Path("jobs")
         self.jobs_root.mkdir(exist_ok=True, parents=True)
 
@@ -294,7 +293,6 @@ class EEGUI:
             spec = self.specs[group][key]
             params_cls = spec["params"]
 
-            # Build DTOs from current UI state
             built_dto = self._build_active_dto()
             params_dto = None
             if params_cls:
