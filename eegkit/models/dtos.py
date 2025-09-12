@@ -58,15 +58,42 @@ class SubjectFilterDTO(BaseTaskDTO):
     __hash__ = BaseTaskDTO.__hash__
 
     def __repr__(self) -> str:
-        return (
-            f"Task = {self.task}, "
-            f"Number of subject = {self.subject_limit}, "
-            f"Age range = {self.age_range}, sex = {self.sex}, "
-            f"Ehq total range = {self.ehq_total_range}, P factor range = {self.p_factor_range}, "
-            f"Attention range = {self.attention_range}, "
-            f"Internalizing range = {self.internalizing_range}, "
-            f"Externalizing range = {self.externalizing_range}"
-        )
+        def fmt_range(label: str, rng):
+            if not (isinstance(rng, (tuple, list)) and len(rng) == 2):
+                return None
+            lo, hi = rng
+            if lo is None and hi is None:
+                return None
+            def _n(v):
+                if v is None:
+                    return None
+                return int(v) if isinstance(v, (int, float)) and float(v).is_integer() else v
+            lo, hi = _n(lo), _n(hi)
+            if lo is None:
+                return f"{label} <= {hi}"
+            if hi is None:
+                return f"{label} >= {lo}"
+            return f"{label} [{lo}, {hi}]"
+
+        parts = [f"Task={self.task}"]
+        if self.subject_limit is not None:
+            parts.append(f"Number of subjects={self.subject_limit}")
+        if self.sex[0]:
+            parts.append(f"sex={self.sex[0]}")
+
+        for label, rng in [
+            ("Age", self.age_range),
+            ("Ehq total", self.ehq_total_range),
+            ("P factor", self.p_factor_range),
+            ("Attention", self.attention_range),
+            ("Internalizing", self.internalizing_range),
+            ("Externalizing", self.externalizing_range),
+        ]:
+            fr = fmt_range(label, rng)
+            if fr:
+                parts.append(fr)
+
+        return ", ".join(parts)
 
 
 @dataclass
@@ -82,7 +109,7 @@ class FilterParamsDTO:
 
         number_or_range = re.compile(r'^(\d+)(?:\s*-\s*(\d+))?$')
 
-        raw_tokens = re.split(r'[,\s]+', self.channels.strip())
+        raw_tokens = re.split(r'[\s,]+', self.channels.strip())
 
         seen_channel_names = set()
         parsed_channel_names: list[int] = []
@@ -133,6 +160,21 @@ class PSDParamsDTO(FilterParamsDTO):
 
 @dataclass
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
+    pass
+
+@dataclass
+class EvokedParamsDTO(EpochParamsDTO):
+    spatial_colors: bool = True
+    gfp: List[Optional[str]] = field(default_factory=lambda: [True, False, "only"])
+
+@dataclass
+class EvokedTopoParamsDTO(EpochParamsDTO):
+    times: Optional[str] = 'auto'
+    average: Optional[float] = None
+
+
+@dataclass
+class EvokedJointParamsDTO(EvokedParamsDTO,EvokedTopoParamsDTO):
     pass
 
 

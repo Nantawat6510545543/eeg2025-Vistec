@@ -1,7 +1,4 @@
-from ..models import (
-    BaseTaskDTO, FilterParamsDTO, TimeDomainParamsDTO, PSDParamsDTO,
-    EpochParamsDTO, EpochPSDParamsDTO
-)
+from ..models import *
 from ..utils import finalize_figure
 import matplotlib.pyplot as plt
 import numpy as np
@@ -85,7 +82,6 @@ class EEGVisualization:
         epochs, labels = self.get_epochs(task_dto, params)
         epochs = epochs.pick(params.channels_list)
         if epochs is None:
-            print(f"No epochs available for {task_dto.subject} - {task_dto.task}")
             return None
         fig_list = []
         for condition in epochs.event_id:
@@ -100,13 +96,6 @@ class EEGVisualization:
 
     @register_plot("Epoch Plot", EpochParamsDTO)
     def plot_epochs(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
-        return self._plot_epochs_base(task_dto, params, mode="Epochs")
-
-    @register_plot("Evoked Response", EpochParamsDTO)
-    def plot_evoked(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
-        return self._plot_epochs_base(task_dto, params, mode="Evoked")
-
-    def _plot_epochs_base(self, task_dto, params, mode):
         epochs, labels = self.get_epochs(task_dto, params)
         epochs = epochs.pick(params.channels_list)
         if epochs is None:
@@ -114,12 +103,59 @@ class EEGVisualization:
         if params.stimulus and params.stimulus in epochs.event_id:
             epochs = epochs[params.stimulus]
 
-        if mode == "Epochs":
-            fig = epochs.plot(events=False, n_channels=params.n_channels, show=False)
-        elif mode == "Evoked":
-            fig = epochs.average().plot_joint(show=False)
+        fig = epochs.plot(events=False, n_channels=params.n_channels, show=False)
 
-        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name=mode)]
+        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epoch Plot")]
+
+    @register_plot("Evoked Plot", EvokedParamsDTO)
+    def plot_evoked(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
+        epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
+
+        epochs = epochs.pick(params.channels_list)
+        if params.stimulus and params.stimulus in epochs.event_id:
+            epochs = epochs[params.stimulus]
+
+        evoked = epochs.average()
+        fig = evoked.plot(gfp=params.gfp, spatial_colors=params.spatial_colors, show=False)
+
+        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Plot")]
+
+    @register_plot("Evoked Topo Plot", EvokedTopoParamsDTO)
+    def plot_evoked_topo(self, task_dto: BaseTaskDTO, params: EvokedTopoParamsDTO):
+        epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
+
+        epochs = epochs.pick(params.channels_list)
+        if params.stimulus and params.stimulus in epochs.event_id:
+            epochs = epochs[params.stimulus]
+
+        evoked = epochs.average()
+        fig = evoked.plot_topomap(times=params.times, show=False)
+
+        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Topo")]
+
+    @register_plot("Evoked Plot Joint", EvokedJointParamsDTO)
+    def plot_evoked_joint(self, task_dto: BaseTaskDTO, params: EvokedJointParamsDTO):
+        epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
+
+        epochs = epochs.pick(params.channels_list)
+        if params.stimulus and params.stimulus in epochs.event_id:
+            epochs = epochs[params.stimulus]
+
+        evoked = epochs.average()
+        fig = evoked.plot_joint(
+            times=params.times,
+            topomap_args={},
+            ts_args={"gfp": params.gfp, "spatial_colors": params.spatial_colors},
+            show=False,
+        )
+
+        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Joint")]
 
     @register_plot("SNR Spectrum", EpochPSDParamsDTO)
     def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):

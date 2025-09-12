@@ -9,4 +9,7 @@ from .dtos import (
     TimeDomainParamsDTO,
     TableInfoDTO,
     EpochPSDParamsDTO,
+    EvokedParamsDTO,
+    EvokedTopoParamsDTO,
+    EvokedJointParamsDTO,
 )

@@ -3,12 +3,7 @@ from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from eegkit.models.dtos import (
-    TaskDTO, SubjectFilterDTO, FilterParamsDTO, EpochParamsDTO, PSDParamsDTO,
-    EpochPSDParamsDTO, TimeDomainParamsDTO, TableInfoDTO
-)
-from eegkit.models.subject_model import EEGSubjectModel
-from eegkit.controller.eeg_controller import EEGController
+from eegkit import *
 
 matplotlib.use('Agg')
 
@@ -22,7 +17,7 @@ def main(spec_path: str):
     schema_map = {c.__name__: c for c in [TaskDTO, SubjectFilterDTO]}
     params_map = {c.__name__: c for c in [
         FilterParamsDTO, EpochParamsDTO, PSDParamsDTO,
-        EpochPSDParamsDTO, TimeDomainParamsDTO, TableInfoDTO
+        EpochPSDParamsDTO, TimeDomainParamsDTO, TableInfoDTO, EvokedParamsDTO, EvokedTopoParamsDTO, EvokedJointParamsDTO
     ]}
 
     SchemaCls = schema_map.get(SPEC['schema_class'])
