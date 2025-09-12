@@ -193,7 +193,7 @@ class EEGSubjectModel:
                 if isinstance(range_value, (tuple, list)) and len(range_value) == 2:
                     lower, upper = range_value
                     if lower is None and upper is None:
-                        continue  # fully open
+                        continue
                     numeric_values = pd.to_numeric(df[column_name], errors="coerce")
                     mask = pd.Series(True, index=df.index)
                     if lower is not None:
