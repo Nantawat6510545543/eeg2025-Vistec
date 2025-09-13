@@ -101,18 +101,19 @@ class FilterParamsDTO:
     l_freq: float = 3.0
     h_freq: float = 55.0
     channels: str = "69-76,81-83,88,89"
+    combine_channels: bool = False
 
     @property
     def channels_list(self):
         if not self.channels or not self.channels.strip():
-            return list(range(128))
+            return [f"E{i}" for i in range(1, 129)]
 
         number_or_range = re.compile(r'^(\d+)(?:\s*-\s*(\d+))?$')
 
         raw_tokens = re.split(r'[\s,]+', self.channels.strip())
 
         seen_channel_names = set()
-        parsed_channel_names: list[int] = []
+        parsed_channel_names: list[str] = []
 
         def add_channel_name(channel_name: int) -> None:
             if channel_name not in seen_channel_names:
@@ -128,17 +129,17 @@ class FilterParamsDTO:
                 continue
 
             start_number_str, end_number_str = match.groups()
-            start_number = int(start_number_str) - 1
 
             if end_number_str is None:
-                add_channel_name(start_number)
+                add_channel_name(f"E{int(start_number_str)}")
             else:
-                end_number = int(end_number_str) - 1
+                start_number = int(start_number_str)
+                end_number = int(end_number_str)
                 lower_bound, upper_bound = sorted((start_number, end_number))
                 for number in range(lower_bound, upper_bound + 1):
-                    add_channel_name(number)
+                    add_channel_name(f"E{number}")
 
-        return parsed_channel_names or list(range(128))
+        return parsed_channel_names or [f"E{i}" for i in range(1, 129)]
 
 
 @dataclass
@@ -172,6 +173,19 @@ class EvokedTopoParamsDTO(EpochParamsDTO):
     times: Optional[str] = 'auto'
     average: Optional[float] = None
 
+    @property
+    def get_times(self):
+        s = (self.times or '').strip().lower()
+        if s == 'peak':
+            return 'peak'
+        if s == 'auto':
+            return 'auto'
+        try:
+            numbers = [float(x) for x in re.findall(r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)', self.times)]
+        except Exception:
+            return 'auto'
+        filtered = [x for x in numbers if self.tmin <= x <= self.tmax]
+        return filtered if filtered else 'auto'
 
 @dataclass
 class EvokedJointParamsDTO(EvokedParamsDTO,EvokedTopoParamsDTO):
