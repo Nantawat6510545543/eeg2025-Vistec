@@ -34,6 +34,9 @@ class EEGController:
     def list_subjects(self):
         return self.subject_model.list_subjects()
 
+    def list_all_tasks(self):
+        return self.subject_model.list_all_tasks()
+
     def list_tasks(self, subject):
         return self.subject_model.list_tasks(subject)
 

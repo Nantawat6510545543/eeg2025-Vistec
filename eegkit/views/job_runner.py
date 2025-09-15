@@ -46,7 +46,7 @@ class JobRunner:
     def _write_spec(self, spec_path: Path, group: str, key: str, dto, params_dto, job_dir: Path):
         schema_cls_name = type(dto).__name__
         params_cls_name = type(params_dto).__name__ if params_dto else None
-        data_dir = str(getattr(self.controller.subject_model, "_data_dir", "."))
+        data_dir = self.controller.subject_model.data_dir
 
         schema_kwargs = {f.name: getattr(dto, f.name) for f in fields(dto)}
         params_kwargs = (
