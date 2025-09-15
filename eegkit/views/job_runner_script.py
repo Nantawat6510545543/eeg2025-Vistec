@@ -11,8 +11,7 @@ def main(spec_path: str):
     with open(spec_path, 'r') as f:
         SPEC = json.load(f)
     JOB_DIR = Path(SPEC['job_dir'])
-    FIG_DIR = JOB_DIR / 'figures'
-    FIG_DIR.mkdir(exist_ok=True, parents=True)
+    JOB_DIR.mkdir(exist_ok=True, parents=True)
 
     schema_map = {c.__name__: c for c in [TaskDTO, SubjectFilterDTO]}
     params_map = {c.__name__: c for c in [
@@ -53,14 +52,13 @@ def main(spec_path: str):
         (JOB_DIR / 'error.json').write_text(json.dumps(error_json, indent=2))
         sys.exit(1)
 
-    # Persist outputs
     if isinstance(result, pd.DataFrame):
         out_csv = JOB_DIR / 'dataframe.csv'
         result.to_csv(out_csv, index=False)
         print(f"[JOB] Saved DataFrame -> {out_csv}")
     elif isinstance(result, list) and result and all(hasattr(f, 'savefig') for f in result):
         if len(result) > 1:
-            multi_dir = FIG_DIR / 'multi'
+            multi_dir = JOB_DIR / 'multi'
             multi_dir.mkdir(exist_ok=True)
             for i, fig in enumerate(result, start=1):
                 fpath = multi_dir / f'fig_{i:02d}.png'
@@ -68,7 +66,7 @@ def main(spec_path: str):
                 plt.close(fig)
             print(f"[JOB] Saved {len(result)} figures in {multi_dir}")
         else:
-            fpath = FIG_DIR / 'figure.png'
+            fpath = JOB_DIR / 'figure.png'
             result[0].savefig(fpath, dpi=150, bbox_inches='tight')
             plt.close(result[0])
             print(f"[JOB] Saved single figure -> {fpath}")
@@ -85,7 +83,7 @@ def main(spec_path: str):
         out_txt = JOB_DIR / 'repr.txt'
         out_txt.write_text(repr(result))
         print(f"[JOB] Saved repr -> {out_txt}")
-
+        
     print('[JOB] Done.', flush=True)
 
 
