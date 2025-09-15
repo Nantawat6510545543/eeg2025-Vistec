@@ -108,8 +108,8 @@ class EEGUI:
             vmin = widget["min"].value
             vmax = widget["max"].value
             # Interpret blanks as open bounds
-            lower = None if vmin in (None, "") else self._safe_float(vmin)
-            upper = None if vmax in (None, "") else self._safe_float(vmax)
+            lower = None if vmin in (None, "") else float(vmin)
+            upper = None if vmax in (None, "") else float(vmax)
             if isinstance(default, (tuple, list)) and len(default) == 2:
                 # If both open and default is open, keep open
                 if lower is None and upper is None:
@@ -131,22 +131,11 @@ class EEGUI:
             except Exception:
                 return default
         return val
-
-    def _safe_float(self, v):
-        try:
-            return float(v)
-        except Exception:
-            return None
-
+    
     # schema panels
     def _build_all_schema_layouts(self):
         all_subjects = self.controller.list_subjects()
-
-        all_tasks = []
-        for s in all_subjects:
-            for t, _r in self.controller.list_tasks(s):
-                if t not in all_tasks:
-                    all_tasks.append(t)
+        all_tasks = self.controller.list_all_tasks()
 
         for schema_dto in self.schemas:
             rows, wmap = [], {}
