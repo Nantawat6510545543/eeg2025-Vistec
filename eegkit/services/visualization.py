@@ -128,6 +128,7 @@ class EEGVisualization:
 
     @register_plot("Evoked Topo Plot", EvokedTopoParamsDTO)
     def plot_evoked_topo(self, task_dto: BaseTaskDTO, params: EvokedTopoParamsDTO):
+        params.combine_channels = False
         epochs, labels = self.get_epochs(task_dto, params)
         epochs = self._prepare_channels(epochs, params)
         if params.stimulus and params.stimulus in epochs.event_id:
@@ -138,6 +139,7 @@ class EEGVisualization:
 
     @register_plot("Evoked Plot Joint", EvokedJointParamsDTO)
     def plot_evoked_joint(self, task_dto: BaseTaskDTO, params: EvokedJointParamsDTO):
+        params.combine_channels = False
         epochs, labels = self.get_epochs(task_dto, params)
         epochs = self._prepare_channels(epochs, params)
         if params.stimulus and params.stimulus in epochs.event_id:
