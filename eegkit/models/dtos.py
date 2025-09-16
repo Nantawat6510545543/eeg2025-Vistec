@@ -51,6 +51,8 @@ class SubjectFilterDTO(BaseTaskDTO):
     attention_range: Optional[NumberRange] = (None, None)
     internalizing_range: Optional[NumberRange] = (None, None)
     externalizing_range: Optional[NumberRange] = (None, None)
+    ccd_accuracy_range: Optional[NumberRange] = (None, None)
+    ccd_response_time_range: Optional[NumberRange] = (None, None)
 
     ui_name: ClassVar[str] = "Meta filter (group)"
     ui_value: ClassVar[object] = None
