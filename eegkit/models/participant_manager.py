@@ -3,6 +3,7 @@ import re
 from collections import defaultdict
 from typing import List, Tuple, Optional, Dict, Set
 import pandas as pd
+import numpy as np
 
 from .dtos import SubjectFilterDTO
 
@@ -101,6 +102,97 @@ class ParticipantManager:
         meta = {"participant_id","release_number","age","sex","ehq_total","commercial_use","full_pheno","p_factor","attention","internalizing","externalizing"}
         return [c for c in cols if c not in meta]
 
+    # ---------- CCD metrics helpers ----------
+    def _ccd_event_files(self, subject: str, release_dir: Path) -> List[Path]:
+        eeg_dir = release_dir / subject / "eeg"
+        if not eeg_dir.exists():
+            return []
+        pattern = f"{subject}_task-contrastChangeDetection*_events.tsv"
+        return sorted(eeg_dir.glob(pattern))
+
+    def _compute_ccd_metrics(self, subject: str, release_dir: Path) -> Tuple[Optional[float], Optional[float]]:
+        files = self._ccd_event_files(subject, release_dir)
+        if not files:
+            return (None, None)
+        total_targets = 0
+        hits = 0
+        rt_hits: List[float] = []
+
+        for fpath in files:
+            ev = pd.read_csv(fpath, sep="\t")
+            df = ev.copy()
+
+            df["onset"] = pd.to_numeric(df["onset"], errors="coerce")
+            df = df.dropna(subset=["onset"])  
+            df = df.sort_values("onset").reset_index(drop=True)
+
+            is_target = df["value"].isin(["left_target", "right_target"]).values
+            is_press = df["value"].isin(["left_buttonPress", "right_buttonPress"]).values
+            is_trial_start = df["value"].eq("contrastTrial_start").values
+
+            idx_targets = np.where(is_target)[0]
+            idx_trial_starts = np.where(is_trial_start)[0]
+
+            for i, ti in enumerate(idx_targets):
+                t_on = float(df.loc[ti, "onset"])
+                # Find end of window: next trial start after this target (strictly after t_on)
+                next_ts = idx_trial_starts[idx_trial_starts > ti]
+                window_end = float(df.loc[next_ts[0], "onset"]) if next_ts.size > 0 else np.inf
+                # First press after target before end of window
+                cand_idx = np.where((np.arange(len(df)) > ti) & is_press & (df["onset"].values < window_end))[0]
+                total_targets += 1
+                if cand_idx.size == 0:
+                    continue
+                pi = cand_idx[0]
+                p_on = float(df.loc[pi, "onset"])
+                fb = str(df.loc[pi, "feedback"]) if pd.notna(df.loc[pi, "feedback"]) else None
+                val_t = str(df.loc[ti, "value"])  # left_target/right_target
+                val_p = str(df.loc[pi, "value"])  # left_buttonPress/right_buttonPress
+
+                correct = False
+                if fb in ("smiley_face",):
+                    correct = True
+                elif fb in ("sad_face", "non_target"):
+                    correct = False
+                else:
+                    # Fallback to side matching if feedback missing
+                    if (val_t.startswith("left") and val_p.startswith("left")) or (val_t.startswith("right") and val_p.startswith("right")):
+                        correct = True
+
+                if correct:
+                    hits += 1
+                    rt_hits.append(max(0.0, p_on - t_on))
+
+        if total_targets == 0:
+            return (None, None)
+        acc = 100.0 * hits / float(total_targets)
+        med_rt = float(np.median(rt_hits)) if rt_hits else None
+        return (acc, med_rt)
+
+    def _augment_ccd_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
+        df["ccd_accuracy"] = np.nan
+        df["ccd_response_time"] = np.nan
+
+        for idx, row in df.iterrows():
+            subj = str(row.get("participant_id"))
+            
+            disk_pairs = self._task_index.get(subj, [])
+            if not any(t == "contrastChangeDetection" for (t, r) in disk_pairs):
+                continue
+
+            rdir = self._release_by_number.get(str(row.get('release_number')))
+
+            acc, rt = self._compute_ccd_metrics(subj, rdir)
+            
+            if acc is not None:
+                if not pd.notna(df.at[idx, "ccd_accuracy"]) or df.at[idx, "ccd_accuracy"] != acc:
+                    df.at[idx, "ccd_accuracy"] = round(acc, 2)
+            if rt is not None:
+                if not pd.notna(df.at[idx, "ccd_response_time"]) or df.at[idx, "ccd_response_time"] != rt:
+                    df.at[idx, "ccd_response_time"] = round(rt, 3)
+
+        return df
+
     # ---------- combined TSV with validation ----------
     def _validate_participants_file(self, p_path: Path, release_dir: Path) -> pd.DataFrame:
         df = pd.read_csv(p_path, sep="\t")
@@ -128,7 +220,6 @@ class ParticipantManager:
                 if val != "available":
                     continue
 
-                # Split into base and optional index
                 base_match = re.match(r"^(.*?)(?:_(\d+))?$", c)
                 if base_match:
                     base = base_match.group(1)
@@ -136,9 +227,8 @@ class ParticipantManager:
                 else:
                     base, idx_str = c, None
 
-                # If we have an index suffix, require corresponding run
                 if idx_str is not None:
-                    run = idx_str  # e.g., col contrastChangeDetection_1 → run '1'
+                    run = idx_str 
                     has_match = any(t == base and r == run for (t, r) in subj_tasks)
                 else:
                     has_match = any(t == base for (t, r) in subj_tasks)
@@ -147,7 +237,6 @@ class ParticipantManager:
                     df.at[idx, c] = "missing"
 
         return df
-
 
     def _build_or_load_participants(self) -> pd.DataFrame:
         cp = self._combined_path
@@ -170,6 +259,7 @@ class ParticipantManager:
             raise FileNotFoundError('No participants.tsv found in cmi_bids_R* directories')
         combined = pd.concat(frames, ignore_index=True)
         combined['participant_id'] = combined['participant_id'].astype(str)
+        combined = self._augment_ccd_metrics(combined)
         combined.to_csv(cp, sep='\t', index=False)
         print("participants_combind saved at " + str(cp))
         return combined
