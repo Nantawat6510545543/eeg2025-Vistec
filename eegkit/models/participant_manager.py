@@ -24,18 +24,22 @@ class ParticipantManager:
     @property
     def subject_dirs(self):
         for rdir in self._release_dirs:
+            if rdir.name.lower().endswith("r5"):
+                continue
             for p in rdir.glob("sub-*"):
                 if p.is_dir():
                     yield p
 
     # ---------- discovery ----------
     def _discover_release_dirs(self) -> List[Path]:
-        return sorted([p for p in self._data_dir.glob("cmi_bids_R*") if p.is_dir()])
+        return sorted([p for p in self._data_dir.glob("cmi_bids_R*") if p.is_dir() and not p.name.lower().endswith("r5")])
 
     def _map_release_numbers(self) -> Dict[str, Path]:
         out: Dict[str, Path] = {}
         rx = re.compile(r"cmi_bids_(R\d+)$", re.IGNORECASE)
         for rdir in self._release_dirs:
+            if rdir.name.lower().endswith("r5"):
+                continue
             m = rx.search(rdir.name)
             if m:
                 out[m.group(1)] = rdir
@@ -110,21 +114,35 @@ class ParticipantManager:
         pattern = f"{subject}_task-contrastChangeDetection*_events.tsv"
         return sorted(eeg_dir.glob(pattern))
 
-    def _compute_ccd_metrics(self, subject: str, release_dir: Path) -> Tuple[Optional[float], Optional[float]]:
+    def _compute_ccd_metrics(self, subject: str, release_dir: Path):
         files = self._ccd_event_files(subject, release_dir)
         if not files:
-            return (None, None)
+            return {
+                "smiley_face": None,
+                "sad_face": None,
+                "non_target": None,
+                "miss_target": None,
+                "ccd_total_targets": None,
+                "ccd_accuracy": None,
+                "ccd_median_rt": None,
+                "smiley_response_time": [],
+                "sad_response_time": [],
+            }
+
         total_targets = 0
-        hits = 0
-        rt_hits: List[float] = []
+        smiley_count = 0
+        sad_count = 0
+        non_target_count = 0
+        miss_count = 0
+        smiley_rts: List[float] = []
+        sad_rts: List[float] = []
 
         for fpath in files:
             ev = pd.read_csv(fpath, sep="\t")
             df = ev.copy()
 
             df["onset"] = pd.to_numeric(df["onset"], errors="coerce")
-            df = df.dropna(subset=["onset"])  
-            df = df.sort_values("onset").reset_index(drop=True)
+            df = df.dropna(subset=["onset"]).sort_values("onset").reset_index(drop=True)
 
             is_target = df["value"].isin(["left_target", "right_target"]).values
             is_press = df["value"].isin(["left_buttonPress", "right_buttonPress"]).values
@@ -133,65 +151,76 @@ class ParticipantManager:
             idx_targets = np.where(is_target)[0]
             idx_trial_starts = np.where(is_trial_start)[0]
 
-            for i, ti in enumerate(idx_targets):
+            for ti in idx_targets:
                 t_on = float(df.loc[ti, "onset"])
-                # Find end of window: next trial start after this target (strictly after t_on)
                 next_ts = idx_trial_starts[idx_trial_starts > ti]
                 window_end = float(df.loc[next_ts[0], "onset"]) if next_ts.size > 0 else np.inf
-                # First press after target before end of window
                 cand_idx = np.where((np.arange(len(df)) > ti) & is_press & (df["onset"].values < window_end))[0]
                 total_targets += 1
                 if cand_idx.size == 0:
+                    miss_count += 1
                     continue
                 pi = cand_idx[0]
                 p_on = float(df.loc[pi, "onset"])
                 fb = str(df.loc[pi, "feedback"]) if pd.notna(df.loc[pi, "feedback"]) else None
-                val_t = str(df.loc[ti, "value"])  # left_target/right_target
-                val_p = str(df.loc[pi, "value"])  # left_buttonPress/right_buttonPress
 
-                correct = False
-                if fb in ("smiley_face",):
-                    correct = True
-                elif fb in ("sad_face", "non_target"):
-                    correct = False
+                if fb == "smiley_face":
+                    smiley_count += 1
+                    smiley_rts.append(round(max(0.0, p_on - t_on), 4))
+                elif fb == "sad_face":
+                    sad_count += 1
+                    sad_rts.append(round(max(0.0, p_on - t_on), 4))
+                elif fb == "non_target":
+                    non_target_count += 1
                 else:
-                    # Fallback to side matching if feedback missing
+                    val_t = str(df.loc[ti, "value"])
+                    val_p = str(df.loc[pi, "value"])
                     if (val_t.startswith("left") and val_p.startswith("left")) or (val_t.startswith("right") and val_p.startswith("right")):
-                        correct = True
+                        smiley_count += 1
+                        smiley_rts.append(round(max(0.0, p_on - t_on), 4))
 
-                if correct:
-                    hits += 1
-                    rt_hits.append(max(0.0, p_on - t_on))
+        acc = round(100.0 * smiley_count / float(total_targets), 4) if total_targets else None
+        mean_rt = round(float(np.mean(smiley_rts)), 4) if smiley_rts else None
 
-        if total_targets == 0:
-            return (None, None)
-        acc = 100.0 * hits / float(total_targets)
-        med_rt = float(np.median(rt_hits)) if rt_hits else None
-        return (acc, med_rt)
+        return {
+        "smiley_face": int(smiley_count) if smiley_count > 0 else None,
+        "sad_face": int(sad_count) if sad_count > 0 else None,
+        "non_target": int(non_target_count) if non_target_count > 0 else None,
+        "miss_target": int(miss_count) if miss_count > 0 else None,
+        "smiley_response_time": smiley_rts if smiley_rts else [],
+        "sad_response_time": sad_rts if sad_rts else [],
+        "ccd_total_targets": total_targets if total_targets > 0 else None,
+        "ccd_accuracy": acc,
+        "ccd_response_time": mean_rt,
+        }
 
     def _augment_ccd_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
-        df["ccd_accuracy"] = np.nan
-        df["ccd_response_time"] = np.nan
+        for col in [
+            "smiley_face","sad_face","non_target","miss_target",
+            "smiley_response_time","sad_response_time",
+            "ccd_total_targets","ccd_accuracy","ccd_median_rt"
+        ]:
+            if col not in df.columns:
+                if col.endswith("response_time"):
+                    df[col] = [[] for _ in range(len(df))]
+                else:
+                    df[col] = np.nan
 
         for idx, row in df.iterrows():
             subj = str(row.get("participant_id"))
-            
             disk_pairs = self._task_index.get(subj, [])
             if not any(t == "contrastChangeDetection" for (t, r) in disk_pairs):
                 continue
 
-            rdir = self._release_by_number.get(str(row.get('release_number')))
+            rdir = self._release_by_number.get(str(row.get("release_number")))
+            metrics = self._compute_ccd_metrics(subj, rdir)
 
-            acc, rt = self._compute_ccd_metrics(subj, rdir)
-            
-            if acc is not None:
-                if not pd.notna(df.at[idx, "ccd_accuracy"]) or df.at[idx, "ccd_accuracy"] != acc:
-                    df.at[idx, "ccd_accuracy"] = round(acc, 2)
-            if rt is not None:
-                if not pd.notna(df.at[idx, "ccd_response_time"]) or df.at[idx, "ccd_response_time"] != rt:
-                    df.at[idx, "ccd_response_time"] = round(rt, 3)
-
+            for k, v in metrics.items():
+                if v is None:
+                    continue
+                df.at[idx, k] = v
         return df
+
 
     # ---------- combined TSV with validation ----------
     def _validate_participants_file(self, p_path: Path, release_dir: Path) -> pd.DataFrame:
@@ -317,14 +346,12 @@ class ParticipantManager:
 
     def filter_subjects_by_dto(self, dto: SubjectFilterDTO) -> List[str]:
         df = self._participants().copy()
-        print(df['participant_id'].sort_values().tolist())
         task = dto.task
         if task in df.columns:
             df = df[df[task].str.lower() == 'available']
         else:
             prefix = f"{task}_"
             group_cols = [c for c in df.columns if c.startswith(prefix)]
-            print(group_cols)
             if group_cols:
                 mask = (
                     df[group_cols]
@@ -333,8 +360,6 @@ class ParticipantManager:
                     .any(axis=1)
                 )
                 df = df[mask]
-
-        print(df['participant_id'].sort_values().tolist())
             
         for name in dto.__dataclass_fields__.keys():
             if name in ('task','subject','run','subject_limit'):
@@ -359,7 +384,10 @@ class ParticipantManager:
                 else:
                     df = df[df[name] == val]
         subjects = df['participant_id'].dropna().tolist()
-        limit = getattr(dto, 'subject_limit', None)
-        if isinstance(limit, int) and limit > 0:
+        limit = dto.subject_limit
+        if limit and int(limit) > 0:
+            limit = int(limit)
             subjects = subjects[:limit]
+
+        print(sorted(subjects))
         return sorted(subjects)
