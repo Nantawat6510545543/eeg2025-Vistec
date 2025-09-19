@@ -89,7 +89,8 @@ class SubjectFilterDTO(BaseTaskDTO):
             ("P factor", self.p_factor_range),
             ("Attention", self.attention_range),
             ("Internalizing", self.internalizing_range),
-            ("Externalizing", self.externalizing_range),
+            ("ccd_accuracy", self.ccd_accuracy_range),
+            ("ccd_response_time", self.ccd_response_time_range),
         ]:
             fr = fmt_range(label, rng)
             if fr:
