@@ -44,56 +44,43 @@ class EEGTaskProcessor:
         self.task_dto = task_dto
         self.cache = cache
 
-        self._filtered_cache = {}
-        self._epochs_cache = {}
         self.preprocessors = _PREPROCESSORS
 
     def get_filtered(self, params: FilterParamsDTO):
-        key = (params.l_freq, params.h_freq)
-
-        # --- Check memory cache ---
-        if key in self._filtered_cache:
-            raw_out = self._filtered_cache[key]
+        ck = CacheKey(
+            subject=self.task_dto.subject,
+            task=self.task_dto.task,
+            run=self.task_dto.run,
+            stage="rawfilt",
+            params={"l_freq": params.l_freq, "h_freq": params.h_freq},
+            pipeline_ver=self.cache.pipeline_ver,
+        )
+        cached = self.cache.load_raw_filtered(ck)
+        if cached is not None:
+            raw_out = cached
         else:
-            # --- Check disk cache ---
-            ck = CacheKey(
-                subject=self.task_dto.subject,
-                task=self.task_dto.task,
-                run=self.task_dto.run,
-                stage="rawfilt",
-                params={"l_freq": params.l_freq, "h_freq": params.h_freq},
-                pipeline_ver=self.cache.pipeline_ver,
+            raw_copy = self.get_raw().copy()
+            raw_copy.load_data()
+            raw_copy.filter(
+                l_freq=params.l_freq,
+                h_freq=params.h_freq,
+                fir_design="firwin",
+                skip_by_annotation="edge"
             )
-            cached = self.cache.load_raw_filtered(ck)
-            if cached is not None:
-                self._filtered_cache[key] = cached
-                raw_out = cached
-            else:
-                raw_copy = self.get_raw().copy().load_data()
-                raw_copy.filter(
-                    l_freq=params.l_freq,
-                    h_freq=params.h_freq,
-                    fir_design="firwin",
-                    skip_by_annotation="edge"
-                )
-                self._filtered_cache[key] = raw_copy
-                raw_out = raw_copy
-                self.cache.save_raw_filtered(raw_copy, ck)
+            p = self.cache.save_raw_filtered(raw_copy, ck)
+            try:
+                del raw_copy
+            except Exception:
+                pass
+            raw_out = mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
 
-        return raw_out.copy()
+        return raw_out
 
     def get_epochs(self, params: EpochParamsDTO):
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
         if preprocess_fn is None:
             print(f"Unsupported task for epochs: '{self.task_dto.task}'")
             return None, "unavailable"
-
-        key = (params.l_freq, params.h_freq, params.tmin, params.tmax)
-
-        # --- Check memory cache ---
-        if key in self._epochs_cache:
-            epochs, labels = self._epochs_cache[key]
-            return epochs.copy(), labels
 
         ck = CacheKey(
             subject=self.task_dto.subject,
@@ -110,17 +97,15 @@ class EEGTaskProcessor:
         )
         epochs, labels = self.cache.load_epochs(ck)
         if epochs is not None:
-            self._epochs_cache[key] = (epochs, labels)
-            return epochs.copy(), labels
+            return epochs, labels
 
         epochs, labels = preprocess_fn(self, params)
         if epochs is None:
             return None, "unavailable"
-        self._epochs_cache[key] = (epochs, labels)
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
 
-        return epochs.copy(), labels
+        return epochs, labels
 
     @register_preprocessor("surroundSupp")
     def _sus_preprocess(self, params: EpochParamsDTO):
@@ -150,7 +135,7 @@ class EEGTaskProcessor:
         epochs = Epochs(
             filtered, events=events_array, event_id=event_id_sub,
             tmin=params.tmin, tmax=params.tmax, baseline=None, proj=True,
-            preload=True, detrend=1
+            preload=False, detrend=1
         )
         labels = stim_rows["label"].values[epochs.selection]
         return epochs, labels
@@ -192,7 +177,7 @@ class EEGTaskProcessor:
         epochs = Epochs(
             filtered, new_events, event_id=event_id_sub,
             tmin=params.tmin, tmax=params.tmax, baseline=None,
-            proj=True, preload=True
+            proj=True, preload=False
         )
         labels = list(event_id_sub.keys())
         return epochs, labels
@@ -215,7 +200,7 @@ class EEGTaskProcessor:
         epochs = Epochs(
             filtered, new_events, event_id=CCD_EVENT_ID,
             tmin=params.tmin, tmax=params.tmax, baseline=None,
-            proj=True, preload=True
+            proj=True, preload=False
         )
         labels = ['trial_start']
         return epochs, labels
