@@ -48,7 +48,7 @@ class LocalCache:
     def load_raw_filtered(self, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
         if p.exists():
-            return mne.io.read_raw_fif(p.as_posix(), preload=True, verbose="ERROR")
+            return mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
         return None
 
     def save_raw_filtered(self, raw, key: CacheKey):
@@ -60,7 +60,7 @@ class LocalCache:
         p = self._path_for(key, "epo", "fif")
         if not p.exists():
             return None, None
-        epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
+        epochs = mne.read_epochs(p.as_posix(), preload=False, verbose="ERROR")
         labels_file = p.with_suffix(".labels.json")
         labels = None
         if labels_file.exists():

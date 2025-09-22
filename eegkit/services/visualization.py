@@ -2,7 +2,7 @@ from ..models import *
 from ..utils import finalize_figure
 import matplotlib.pyplot as plt
 import numpy as np
-import mne  # added
+import mne 
 
 plt.ioff()
 
@@ -101,8 +101,8 @@ class EEGVisualization:
             condition_epochs = epochs[condition]
             if len(condition_epochs) == 0:
                 continue
-            psd = condition_epochs.compute_psd(fmin=params.fmin, fmax=params.fmax)
-            fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
+            psd = condition_epochs.compute_psd(fmin=params.fmin, fmax=params.fmax, average='mean')
+            fig = psd.plot(average=params.aaverageverage, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
             fig = finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Condition-wise PSD")
             fig_list.append(fig)
         return fig_list
@@ -168,6 +168,7 @@ class EEGVisualization:
             fmin=params.fmin,
             fmax=params.fmax,
             window="boxcar",
+            average='mean',
             verbose=False,
         )
         psds, freqs = spectrum.get_data(return_freqs=True)
