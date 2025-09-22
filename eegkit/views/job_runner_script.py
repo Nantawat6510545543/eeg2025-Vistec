@@ -1,4 +1,5 @@
 import json, matplotlib, sys
+import os, resource
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -37,6 +38,11 @@ def main(spec_path: str):
     print(f"[JOB] Starting {SPEC['job_id']} -> {SPEC['group']}/{SPEC['key']}", flush=True)
     print(f"[JOB] task_dto = {task_dto}", flush=True)
     print(f"[JOB] params    = {params_dto}", flush=True)
+    try:
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        print(f"[JOB][RSS] start: {usage.ru_maxrss} KB", flush=True)
+    except Exception:
+        pass
 
     try:
         result = controller.show(task_dto, SPEC['group'], SPEC['key'], params_dto)
@@ -84,6 +90,12 @@ def main(spec_path: str):
         out_txt.write_text(repr(result))
         print(f"[JOB] Saved repr -> {out_txt}")
         
+    try:
+        plt.close('all')
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        print(f"[JOB][RSS] end: {usage.ru_maxrss} KB", flush=True)
+    except Exception:
+        pass
     print('[JOB] Done.', flush=True)
 
 

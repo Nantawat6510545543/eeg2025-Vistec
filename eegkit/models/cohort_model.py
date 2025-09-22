@@ -62,6 +62,15 @@ class EEGCohortModel:
 
         print(f"concatenating {len(filtered_list)} raws")
         self.filtered_raw = concatenate_raws(filtered_list)
+        try:
+            for r in filtered_list:
+                if hasattr(r, 'close') and r is not self.filtered_raw:
+                    try:
+                        r.close()
+                    except Exception:
+                        pass
+        finally:
+            filtered_list.clear()
         return self.filtered_raw
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
@@ -90,5 +99,6 @@ class EEGCohortModel:
 
         print(f"concatenating {len(epochs_list)} epochs")
         self.epochs = concatenate_epochs(epochs_list)
+        epochs_list.clear()
         self.labels = sorted(labels_union)
         return self.epochs, self.labels
