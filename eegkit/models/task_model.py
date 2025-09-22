@@ -60,7 +60,10 @@ class EEGTaskModel:
 
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
         self._ensure_loader()
-        return self.processor.get_filtered(filter_params)
+        raw = self.processor.get_filtered(filter_params)
+        # Release original unfiltered raw to reduce memory
+        self._saw = None
+        return raw
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
         self._ensure_loader()
