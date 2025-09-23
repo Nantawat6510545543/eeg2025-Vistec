@@ -52,7 +52,7 @@ class EEGTaskProcessor:
             task=self.task_dto.task,
             run=self.task_dto.run,
             stage="rawfilt",
-            params={"l_freq": params.l_freq, "h_freq": params.h_freq},
+            params=params.key,
             pipeline_ver=self.cache.pipeline_ver,
         )
         cached = self.cache.load_raw_filtered(ck)
@@ -64,6 +64,11 @@ class EEGTaskProcessor:
             raw_copy.filter(
                 l_freq=params.l_freq,
                 h_freq=params.h_freq,
+                fir_design="firwin",
+                skip_by_annotation="edge"
+            )
+            raw_copy.notch_filter(
+                freqs=params.notch,
                 fir_design="firwin",
                 skip_by_annotation="edge"
             )
@@ -87,12 +92,7 @@ class EEGTaskProcessor:
             task=self.task_dto.task,
             run=self.task_dto.run,
             stage="epochs",
-            params={
-                "l_freq": params.l_freq,
-                "h_freq": params.h_freq,
-                "tmin": params.tmin,
-                "tmax": params.tmax,
-            },
+            params=params.key,
             pipeline_ver=self.cache.pipeline_ver,
         )
         epochs, labels = self.cache.load_epochs(ck)
