@@ -101,10 +101,20 @@ class SubjectFilterDTO(BaseTaskDTO):
 
 @dataclass
 class FilterParamsDTO:
-    l_freq: float = 3.0
+    l_freq: float = 0.5
     h_freq: float = 55.0
+    notch: float = 60.0
     channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
+
+    @property
+    def key(self):
+        key = {
+            "l_freq": self.l_freq,
+            "h_freq": self.h_freq,
+            "notch": self.notch,
+            }
+        return key
 
     @property
     def channels_list(self):
@@ -151,6 +161,17 @@ class EpochParamsDTO(FilterParamsDTO):
     tmax: float = 2.4
     stimulus: List[str] = field(default_factory=lambda: [None])
     only_labels: ClassVar[bool] = False
+
+    @property
+    def key(self):
+        key = {
+            "l_freq": self.l_freq,
+            "h_freq": self.h_freq,
+            "notch": self.notch,
+            "tmin": self.tmin,
+            "tmax": self.tmax,
+            }
+        return key
 
 
 @dataclass
