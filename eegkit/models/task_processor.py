@@ -107,6 +107,30 @@ class EEGTaskProcessor:
 
         return epochs, labels
 
+    def get_evoked(self, params: EpochParamsDTO):
+        ck = CacheKey(
+            subject=self.task_dto.subject,
+            task=self.task_dto.task,
+            run=self.task_dto.run,
+            stage="evoked",
+            params=params.key,
+            pipeline_ver=self.cache.pipeline_ver,
+        )
+
+        evk = self.cache.load_evoked(ck)
+        if evk is not None:
+            return evk
+
+        epochs, _labels = self.get_epochs(params)
+        if epochs is None:
+            return None
+
+        evoked = epochs.average()
+        if self.cache and ck:
+            self.cache.save_evoked(evoked, ck)
+
+        return evoked
+
     @register_preprocessor("surroundSupp")
     def _sus_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
@@ -132,10 +156,11 @@ class EEGTaskProcessor:
         present_labels = stim_rows["label"].unique()
         event_id_sub = {k: EVENT_ID[k] for k in present_labels}
 
+        baseline = (None, 0.0) if params.tmin < 0 else None
         epochs = Epochs(
             filtered, events=events_array, event_id=event_id_sub,
-            tmin=params.tmin, tmax=params.tmax, baseline=None, proj=True,
-            preload=False, detrend=1
+            tmin=params.tmin, tmax=params.tmax, baseline=baseline, proj=True,
+            preload=False
         )
         labels = stim_rows["label"].values[epochs.selection]
         return epochs, labels
@@ -174,9 +199,10 @@ class EEGTaskProcessor:
             return None, None
         new_events = np.array(sorted(new_events_list, key=lambda r: r[0]), dtype=int)
         event_id_sub = {k: RESTING_STATE_EVENT_ID[k] for k in present}
+        baseline = (None, 0.0) if params.tmin < 0 else None
         epochs = Epochs(
             filtered, new_events, event_id=event_id_sub,
-            tmin=params.tmin, tmax=params.tmax, baseline=None,
+            tmin=params.tmin, tmax=params.tmax, baseline=baseline,
             proj=True, preload=False
         )
         labels = list(event_id_sub.keys())
@@ -197,9 +223,10 @@ class EEGTaskProcessor:
             np.zeros(trial_rows.shape[0], dtype=int),
             np.full(trial_rows.shape[0], CCD_EVENT_ID['trial_start'], dtype=int)
         ])
+        baseline = (None, 0.0) if params.tmin < 0 else None
         epochs = Epochs(
             filtered, new_events, event_id=CCD_EVENT_ID,
-            tmin=params.tmin, tmax=params.tmax, baseline=None,
+            tmin=params.tmin, tmax=params.tmax, baseline=baseline,
             proj=True, preload=False
         )
         labels = ['trial_start']
