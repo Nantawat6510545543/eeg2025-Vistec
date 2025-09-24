@@ -157,7 +157,7 @@ class FilterParamsDTO:
 
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
-    tmin: float = 0.0
+    tmin: float = -0.2
     tmax: float = 2.4
     stimulus: List[str] = field(default_factory=lambda: [None])
     only_labels: ClassVar[bool] = False

@@ -31,7 +31,7 @@ class EEGDataService:
     def show_table(self, task_dto: BaseTaskDTO, table_info: TableInfoDTO):
         task_model = self.get_task(task_dto)
         df_map = {
-            'events': task_model.events,
+            'events': task_model.get_event(),
             'channels': task_model.channels,
             'electrodes': task_model.electrodes
         }

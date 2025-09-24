@@ -10,6 +10,7 @@ class EEGController:
         self.visualizer = EEGVisualization(
             get_raw_func=self.get_filtered_raw,
             get_epochs_func=self.get_epochs,
+            get_evoked_func=self.get_evoked,
             get_task_func=self.subject_model.get_task
         )
         self.data_service = EEGDataService(
@@ -30,6 +31,10 @@ class EEGController:
     def get_epochs(self, task_dto: BaseTaskDTO, epoch_params: EpochParamsDTO):
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_epochs(epoch_params)
+
+    def get_evoked(self, task_dto: BaseTaskDTO, epoch_params: EpochParamsDTO):
+        task_model = self.subject_model.get_task(task_dto)
+        return task_model.get_evoked(epoch_params)
 
     def list_subjects(self):
         return self.subject_model.list_subjects()

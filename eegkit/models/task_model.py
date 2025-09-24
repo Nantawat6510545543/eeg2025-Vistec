@@ -21,7 +21,7 @@ class EEGTaskModel:
         if self.loader is None:
             self.loader = EEGTaskLoader(self.task_dto, self._data_dir)
         if self.cache is None:
-            self.cache = LocalCache(pipeline_ver="v1")
+            self.cache = LocalCache(pipeline_ver="v2")
         if self.processor is None:
             self.processor = EEGTaskProcessor(self.get_raw, self.get_event, self.task_dto, self.cache)
 
@@ -61,10 +61,13 @@ class EEGTaskModel:
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
         self._ensure_loader()
         raw = self.processor.get_filtered(filter_params)
-        # Release original unfiltered raw to reduce memory
         self._saw = None
         return raw
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
         self._ensure_loader()
         return self.processor.get_epochs(epoch_params)
+
+    def get_evoked(self, epoch_params: EpochParamsDTO):
+        self._ensure_loader()
+        return self.processor.get_evoked(epoch_params)
