@@ -21,10 +21,11 @@ def register_plot(name, dto_cls):
 
 
 class EEGVisualization:
-    def __init__(self, get_raw_func, get_epochs_func, get_task_func):
+    def __init__(self, get_raw_func, get_epochs_func, get_task_func,get_evoked_func):
         self.get_raw = get_raw_func
         self.get_epochs = get_epochs_func
         self.get_task = get_task_func
+        self.get_evoked = get_evoked_func
         self.spec = plot_registry
         for key in self.spec:
             func = self.spec[key]["function"]
@@ -102,7 +103,7 @@ class EEGVisualization:
             if len(condition_epochs) == 0:
                 continue
             psd = condition_epochs.compute_psd(fmin=params.fmin, fmax=params.fmax, average='mean')
-            fig = psd.plot(average=params.aaverageverage, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
+            fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
             fig = finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Condition-wise PSD")
             fig_list.append(fig)
         return fig_list
@@ -110,6 +111,8 @@ class EEGVisualization:
     @register_plot("Epoch Plot", EpochParamsDTO)
     def plot_epochs(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
         if params.stimulus and params.stimulus in epochs.event_id:
             epochs = epochs[params.stimulus]
         epochs = self._prepare_channels(epochs, params)
@@ -118,33 +121,30 @@ class EEGVisualization:
 
     @register_plot("Evoked Plot", EvokedParamsDTO)
     def plot_evoked(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
-        epochs, labels = self.get_epochs(task_dto, params)
-        if params.stimulus and params.stimulus in epochs.event_id:
-            epochs = epochs[params.stimulus]
-        epochs = self._prepare_channels(epochs, params)
-        evoked = epochs.average()
+        evoked = self.get_evoked(task_dto, params)
+        if evoked is None:
+            return None
+        evoked = self._prepare_channels(evoked, params)
         fig = evoked.plot(gfp=params.gfp, spatial_colors=params.spatial_colors, show=False)
         return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Plot")]
 
     @register_plot("Evoked Topo Plot", EvokedTopoParamsDTO)
     def plot_evoked_topo(self, task_dto: BaseTaskDTO, params: EvokedTopoParamsDTO):
         params.combine_channels = False
-        epochs, labels = self.get_epochs(task_dto, params)
-        epochs = self._prepare_channels(epochs, params)
-        if params.stimulus and params.stimulus in epochs.event_id:
-            epochs = epochs[params.stimulus]
-        evoked = epochs.average()
+        evoked = self.get_evoked(task_dto, params)
+        if evoked is None:
+            return None
+        evoked = self._prepare_channels(evoked, params)
         fig = evoked.plot_topomap(times=params.get_times, show=False)
         return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Topo")]
 
     @register_plot("Evoked Plot Joint", EvokedJointParamsDTO)
     def plot_evoked_joint(self, task_dto: BaseTaskDTO, params: EvokedJointParamsDTO):
         params.combine_channels = False
-        epochs, labels = self.get_epochs(task_dto, params)
-        epochs = self._prepare_channels(epochs, params)
-        if params.stimulus and params.stimulus in epochs.event_id:
-            epochs = epochs[params.stimulus]
-        evoked = epochs.average()
+        evoked = self.get_evoked(task_dto, params)
+        if evoked is None:
+            return None
+        evoked = self._prepare_channels(evoked, params)
         fig = evoked.plot_joint(
             times=params.get_times,
             topomap_args={},
