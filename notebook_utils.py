@@ -38,3 +38,14 @@ def get_model():
     importlib.reload(eegkit.services.ai_services)
 
     return eegkit.services.ai_services
+
+def reload_lagacy():
+    import importlib
+
+    import eegkit.views.legacy_gui
+
+    importlib.reload(eegkit.views.legacy_gui)
+
+    from eegkit.views.legacy_gui import Legacy_EEGUI
+
+    return Legacy_EEGUI
