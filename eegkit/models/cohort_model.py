@@ -1,5 +1,5 @@
 import pandas as pd
-from mne import concatenate_raws, concatenate_epochs
+from mne import concatenate_raws, concatenate_epochs, grand_average
 
 from .dtos import SubjectFilterDTO, FilterParamsDTO, EpochParamsDTO
 from .task_model import EEGTaskModel
@@ -14,6 +14,7 @@ class EEGCohortModel:
         self.filtered_raw = None
         self.epochs = None
         self.labels = None
+        self.evoked = None
         self._electrodes = None
         self._metadata = None
         self._channels = None
@@ -102,3 +103,51 @@ class EEGCohortModel:
         epochs_list.clear()
         self.labels = sorted(labels_union)
         return self.epochs, self.labels
+
+    def get_evoked(self, epoch_params: EpochParamsDTO):
+        if self.evoked is not None:
+            return self.evoked
+
+        # 1) Get evoked for each task_model
+        evokeds_by_subject: dict[str, list] = {}
+        for task_model in tqdm(self.task_model_list,
+                               total=len(self.task_model_list),
+                               desc="Computing evoked",
+                               leave=False):
+            evk = task_model.get_evoked(epoch_params)
+            if evk is None:
+                continue
+            subj = getattr(task_model.task_dto, 'subject', None)
+            if subj is None:
+                continue
+            evokeds_by_subject.setdefault(subj, []).append(evk)
+
+        if not evokeds_by_subject:
+            return None
+
+        # 2) For same subject: average runs first (nave-weighted)
+        per_subject_evoked = []
+        for subj, evk_list in evokeds_by_subject.items():
+            if not evk_list:
+                continue
+            if len(evk_list) == 1:
+                per_subject_evoked.append(evk_list[0])
+            else:
+                try:
+                    per_subject_evoked.append(grand_average(evk_list, weights='nave'))
+                except Exception:
+                    per_subject_evoked.append(grand_average(evk_list))
+
+        if not per_subject_evoked:
+            return None
+
+        # 3) Grand-average across subjects (nave-weighted)
+        if len(per_subject_evoked) == 1:
+            self.evoked = per_subject_evoked[0]
+        else:
+            try:
+                self.evoked = grand_average(per_subject_evoked, weights='nave')
+            except Exception:
+                self.evoked = grand_average(per_subject_evoked)
+
+        return self.evoked

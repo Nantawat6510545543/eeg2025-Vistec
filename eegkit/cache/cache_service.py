@@ -87,3 +87,22 @@ class LocalCache:
                 except Exception:
                     json.dump(str(labels), f)
         return p
+
+    def load_evoked(self, key: CacheKey):
+        p = self._path_for(key, "ave", "fif")
+        if not p.exists():
+            return None
+        try:
+            evk_list = mne.read_evokeds(p.as_posix(), condition=0, verbose="ERROR")
+            return evk_list
+        except Exception:
+            try:
+                evk_list = mne.read_evokeds(p.as_posix(), verbose="ERROR")
+                return evk_list[0] if evk_list else None
+            except Exception:
+                return None
+
+    def save_evoked(self, evoked, key: CacheKey):
+        p = self._path_for(key, "ave", "fif")
+        evoked.save(p.as_posix(), overwrite=True)
+        return p

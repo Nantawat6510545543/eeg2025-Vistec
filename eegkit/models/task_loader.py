@@ -13,7 +13,11 @@ class EEGTaskLoader:
     def load_raw(self):
         path = self.get_file("eeg.set")
         raw = mne.io.read_raw_eeglab(path, preload=False, montage_units='cm')
-        raw.drop_channels(['Cz'])
+        try:
+            if 'Cz' in raw.ch_names:
+                raw.drop_channels(['Cz'])
+        except Exception:
+            pass
         raw.set_montage(mne.channels.make_standard_montage("GSN-HydroCel-128"), match_case=False)
         return raw
 
