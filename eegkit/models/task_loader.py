@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 import pandas as pd
 import mne
+import warnings
 from .dtos import BaseTaskDTO
 
 
@@ -12,12 +13,13 @@ class EEGTaskLoader:
 
     def load_raw(self):
         path = self.get_file("eeg.set")
-        raw = mne.io.read_raw_eeglab(path, preload=False, montage_units='cm')
-        try:
-            if 'Cz' in raw.ch_names:
-                raw.drop_channels(['Cz'])
-        except Exception:
-            pass
+        fdt_path = path.with_suffix('.fdt')
+        preload = not fdt_path.exists()
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*boundary.*data discontinuities.*")
+            raw = mne.io.read_raw_eeglab(path, preload=preload, montage_units='cm')
+        if 'Cz' in raw.ch_names:
+            raw.drop_channels(['Cz'])
         raw.set_montage(mne.channels.make_standard_montage("GSN-HydroCel-128"), match_case=False)
         return raw
 
