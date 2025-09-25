@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, fields
-from typing import Optional, List, Tuple, ClassVar
+from typing import Optional, List, Tuple, ClassVar, Dict
 import re
 
 NumberRange = Tuple[float, float]
@@ -108,7 +108,7 @@ class FilterParamsDTO:
     combine_channels: bool = False
 
     @property
-    def key(self):
+    def filter_key(self) -> Dict[str, float]:
         key = {
             "l_freq": self.l_freq,
             "h_freq": self.h_freq,
@@ -154,7 +154,6 @@ class FilterParamsDTO:
 
         return parsed_channel_names or [f"E{i}" for i in range(1, 129)]
 
-
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
     tmin: float = -0.2
@@ -163,11 +162,9 @@ class EpochParamsDTO(FilterParamsDTO):
     only_labels: ClassVar[bool] = False
 
     @property
-    def key(self):
+    def epochs_key(self) -> Dict[str, float]:
         key = {
-            "l_freq": self.l_freq,
-            "h_freq": self.h_freq,
-            "notch": self.notch,
+            **self.filter_key,
             "tmin": self.tmin,
             "tmax": self.tmax,
             }
@@ -191,6 +188,14 @@ class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
 class EvokedParamsDTO(EpochParamsDTO):
     spatial_colors: bool = True
     gfp: List[Optional[str]] = field(default_factory=lambda: [True, False, "only"])
+
+    @property
+    def evoked_key(self):
+        key = {
+            **self.epochs_key,
+            "stimulus": self.stimulus,
+            }
+        return key
 
 @dataclass
 class EvokedTopoParamsDTO(EpochParamsDTO):

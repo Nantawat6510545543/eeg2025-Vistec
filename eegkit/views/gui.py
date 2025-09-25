@@ -141,17 +141,21 @@ class EEGUI:
             rows, wmap = [], {}
             subject_schema = self._is_subject_schema(schema_dto)
 
-            for f in fields(schema_dto):
-                name = f.name
-                label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='200px'))
+            schema_fields = list(fields(schema_dto))
+            if subject_schema:
+                schema_fields.sort(key=lambda f: (0 if f.name == 'subject' else (1 if f.name == 'task' else 2)))
 
+            for f in schema_fields:
+                name = f.name
+                if subject_schema and name == 'run':
+                    continue
+
+                label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='200px'))
                 if subject_schema and name == "subject":
                     w = widgets.Dropdown(options=all_subjects, layout=widgets.Layout(width='220px'))
-                    w.observe(lambda change, _w=w: self._on_subject_changed(schema_dto), names="value")
+                    w.observe(lambda change, _w=w, _schema=schema_dto: self._on_subject_changed(_schema), names="value")
                 elif subject_schema and name == "task":
                     w = widgets.Dropdown(options=[], layout=widgets.Layout(width='220px'))
-                elif subject_schema and name == "run":
-                    continue
                 elif (not subject_schema) and name == "task":
                     w = widgets.Dropdown(options=all_tasks, layout=widgets.Layout(width='220px'))
                 elif (schema_dto is SubjectFilterDTO) and name.endswith('_range'):
@@ -184,6 +188,8 @@ class EEGUI:
     def _refresh_task_options(self, schema_dto: BaseTaskDTO, init=False):
         wmap = self.schema_widgets.get(schema_dto)
         subj_w, task_w = wmap.get("subject"), wmap.get("task")
+        if subj_w is None or task_w is None:
+            return
         subj = subj_w.value
         tasks = self.controller.list_tasks(subj)
         opts = []
@@ -191,7 +197,13 @@ class EEGUI:
             label = f"{t} (Run {r})" if r else f"{t}"
             opts.append((label, (t, r)))
         task_w.options = opts
-        if opts and (init or task_w.value not in [v for _, v in opts]):
+        if not opts:
+            task_w.value = None
+            return
+        if init:
+            if task_w.value not in [v for _, v in opts]:
+                task_w.value = opts[0][1]
+        else:
             task_w.value = opts[0][1]
 
     # action params

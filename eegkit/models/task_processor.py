@@ -1,7 +1,7 @@
 import numpy as np
 import mne
 from mne import Epochs, events_from_annotations
-from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO
+from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ..cache import CacheKey
 
 mne.set_log_level('WARNING')
@@ -52,7 +52,7 @@ class EEGTaskProcessor:
             task=self.task_dto.task,
             run=self.task_dto.run,
             stage="rawfilt",
-            params=params.key,
+            params=params.filter_key,
             pipeline_ver=self.cache.pipeline_ver,
         )
         cached = self.cache.load_raw_filtered(ck)
@@ -92,7 +92,7 @@ class EEGTaskProcessor:
             task=self.task_dto.task,
             run=self.task_dto.run,
             stage="epochs",
-            params=params.key,
+            params=params.epochs_key,
             pipeline_ver=self.cache.pipeline_ver,
         )
         epochs, labels = self.cache.load_epochs(ck)
@@ -107,13 +107,13 @@ class EEGTaskProcessor:
 
         return epochs, labels
 
-    def get_evoked(self, params: EpochParamsDTO):
+    def get_evoked(self, params: EvokedParamsDTO):
         ck = CacheKey(
             subject=self.task_dto.subject,
             task=self.task_dto.task,
             run=self.task_dto.run,
             stage="evoked",
-            params=params.key,
+            params=params.evoked_key,
             pipeline_ver=self.cache.pipeline_ver,
         )
 
