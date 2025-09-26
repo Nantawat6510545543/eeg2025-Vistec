@@ -1,5 +1,5 @@
 from ..models import (
-    FilterParamsDTO, EpochParamsDTO, BaseTaskDTO
+    FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO, TaskDTO
 )
 from ..services import EEGVisualization, EEGDataService
 
@@ -55,5 +55,15 @@ class EEGController:
             return {}
 
     def show(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
+        # Per-subject expansion mode
+        if isinstance(task_dto, SubjectFilterDTO) and getattr(task_dto, 'per_subject', False):
+            dtos = self.subject_model.get_filter_subjects_dto(task_dto)
+            out = {}
+            for single_dto in dtos:
+                res = self.specs[group][key]["function"](single_dto, params_dto)
+                out[single_dto.subject] = res
+            return out
+
+        # Default / existing behavior
         result = self.specs[group][key]["function"](task_dto, params_dto)
         return result

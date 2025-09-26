@@ -8,6 +8,68 @@ from eegkit import *
 
 matplotlib.use('Agg')
 
+def save_output(result, out_dir: Path):
+    """Save controller result to disk under out_dir.
+    Supports DataFrame, single Figure, list of Figures, JSON-serializable,
+    text, and generic repr fallback. Returns a brief summary dict.
+    """
+    out_dir.mkdir(exist_ok=True, parents=True)
+    summary = {"dir": str(out_dir)}
+    import pandas as _pd
+    import matplotlib.pyplot as _plt
+    
+    if isinstance(result, _pd.DataFrame):
+        fp = out_dir / 'dataframe.csv'
+        result.to_csv(fp, index=False)
+        summary.update({"type": "dataframe", "path": str(fp)})
+        return summary
+
+    # Single matplotlib Figure
+    if hasattr(result, 'savefig'):
+        fp = out_dir / 'figure.png'
+        result.savefig(fp, dpi=150, bbox_inches='tight')
+        try:
+            _plt.close(result)
+        except Exception:
+            pass
+        summary.update({"type": "figure", "path": str(fp)})
+        return summary
+
+    # List of Figures
+    if isinstance(result, list) and result and all(hasattr(f, 'savefig') for f in result):
+        mdir = out_dir / 'multi'
+        mdir.mkdir(exist_ok=True)
+        for i, fig in enumerate(result, start=1):
+            fp = mdir / f'fig_{i:02d}.png'
+            fig.savefig(fp, dpi=150, bbox_inches='tight')
+            try:
+                _plt.close(fig)
+            except Exception:
+                pass
+        summary.update({"type": "figures", "count": len(result), "path": str(mdir)})
+        return summary
+
+    # JSON-like (dict/list)
+    if isinstance(result, (dict, list)):
+        fp = out_dir / 'output.json'
+        with open(fp, 'w') as f:
+            json.dump(result, f, indent=2, default=str)
+        summary.update({"type": "json", "path": str(fp)})
+        return summary
+
+    # Plain text
+    if isinstance(result, str):
+        fp = out_dir / 'output.txt'
+        fp.write_text(result)
+        summary.update({"type": "text", "path": str(fp)})
+        return summary
+
+    # Fallback repr
+    fp = out_dir / 'repr.txt'
+    fp.write_text(repr(result))
+    summary.update({"type": "repr", "path": str(fp)})
+    return summary
+
 def main(spec_path: str):
     with open(spec_path, 'r') as f:
         SPEC = json.load(f)
@@ -58,37 +120,22 @@ def main(spec_path: str):
         (JOB_DIR / 'error.json').write_text(json.dumps(error_json, indent=2))
         sys.exit(1)
 
-    if isinstance(result, pd.DataFrame):
-        out_csv = JOB_DIR / 'dataframe.csv'
-        result.to_csv(out_csv, index=False)
-        print(f"[JOB] Saved DataFrame -> {out_csv}")
-    elif isinstance(result, list) and result and all(hasattr(f, 'savefig') for f in result):
-        if len(result) > 1:
-            multi_dir = JOB_DIR / 'multi'
-            multi_dir.mkdir(exist_ok=True)
-            for i, fig in enumerate(result, start=1):
-                fpath = multi_dir / f'fig_{i:02d}.png'
-                fig.savefig(fpath, dpi=150, bbox_inches='tight')
-                plt.close(fig)
-            print(f"[JOB] Saved {len(result)} figures in {multi_dir}")
-        else:
-            fpath = JOB_DIR / 'figure.png'
-            result[0].savefig(fpath, dpi=150, bbox_inches='tight')
-            plt.close(result[0])
-            print(f"[JOB] Saved single figure -> {fpath}")
-    elif isinstance(result, (dict, list)):
-        out_json = JOB_DIR / 'output.json'
-        with open(out_json, 'w') as f:
-            json.dump(result, f, indent=2)
-        print(f"[JOB] Saved JSON -> {out_json}")
-    elif isinstance(result, str):
-        out_txt = JOB_DIR / 'output.txt'
-        out_txt.write_text(result)
-        print(f"[JOB] Saved text -> {out_txt}")
-    elif result is not None:
-        out_txt = JOB_DIR / 'repr.txt'
-        out_txt.write_text(repr(result))
-        print(f"[JOB] Saved repr -> {out_txt}")
+    # Per-subject batch dict handling (subject -> result)
+    if isinstance(result, dict) and result and all(isinstance(k, str) for k in result.keys()):
+        manifest = {"subjects": [], "errors": {}}
+        for subj, value in result.items():
+            subj_dir = JOB_DIR / subj
+            if isinstance(value, dict) and 'error' in value:
+                manifest['errors'][subj] = value['error']
+                (subj_dir / 'error.json').write_text(json.dumps(value, indent=2))
+            else:
+                save_output(value, subj_dir)
+            manifest['subjects'].append(subj)
+        (JOB_DIR / 'batch_manifest.json').write_text(json.dumps(manifest, indent=2))
+        print(f"[JOB] Saved per-subject batch outputs for {len(manifest['subjects'])} subjects")
+    else:
+        info = save_output(result, JOB_DIR)
+        print(f"[JOB] Saved output -> {info.get('path', info.get('dir'))}")
         
     try:
         plt.close('all')

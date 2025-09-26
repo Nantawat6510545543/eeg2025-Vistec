@@ -116,8 +116,8 @@ class EEGVisualization:
         if params.stimulus and params.stimulus in epochs.event_id:
             epochs = epochs[params.stimulus]
         epochs = self._prepare_channels(epochs, params)
-        fig = epochs.plot(events=False, n_channels=params.n_channels, show=False)
-        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epoch Plot")]
+        fig = epochs.plot(events=False, show=False)
+        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epoch Plot")
 
     @register_plot("Evoked Plot", EvokedParamsDTO)
     def plot_evoked(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
@@ -126,7 +126,7 @@ class EEGVisualization:
             return None
         evoked = self._prepare_channels(evoked, params)
         fig = evoked.plot(gfp=params.gfp, spatial_colors=params.spatial_colors, show=False)
-        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Plot")]
+        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Plot")
 
     @register_plot("Evoked Topo Plot", EvokedTopoParamsDTO)
     def plot_evoked_topo(self, task_dto: BaseTaskDTO, params: EvokedTopoParamsDTO):
@@ -136,7 +136,7 @@ class EEGVisualization:
             return None
         evoked = self._prepare_channels(evoked, params)
         fig = evoked.plot_topomap(times=params.get_times, show=False)
-        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Topo")]
+        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Topo")
 
     @register_plot("Evoked Plot Joint", EvokedJointParamsDTO)
     def plot_evoked_joint(self, task_dto: BaseTaskDTO, params: EvokedJointParamsDTO):
@@ -151,7 +151,7 @@ class EEGVisualization:
             ts_args={"gfp": params.gfp, "spatial_colors": params.spatial_colors},
             show=False,
         )
-        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Joint")]
+        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Joint")
 
     @register_plot("SNR Spectrum", EpochPSDParamsDTO)
     def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
@@ -222,4 +222,4 @@ class EEGVisualization:
             ylim=[-2, 30],
             xlim=[params.fmin, params.fmax],
         )
-        return [finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="SNR Spectrum")]
+        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="SNR Spectrum")
