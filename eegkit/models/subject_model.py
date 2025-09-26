@@ -27,7 +27,6 @@ class EEGSubjectModel:
 
         # cohort
         subjects = self._participants.filter_subjects_by_dto(task_dto)
-        print(f"{len(subjects)} subjects found")
         task = task_dto.task
         models = []
         for subj in subjects:
@@ -41,4 +40,14 @@ class EEGSubjectModel:
         cohort = EEGCohortModel(task_dto, models, len(subjects))
         return cohort
 
-
+    def get_filter_subjects_dto(self, task_dto: SubjectFilterDTO):
+        subjects = self._participants.filter_subjects_by_dto(task_dto)
+        task = task_dto.task
+        dtos = []
+        for subj in subjects:
+            subj_tasks = self._participants.list_tasks(subj)
+            runs = [r for (t, r) in subj_tasks if t == task] or [None]
+            for run in runs:
+                dtos.append(TaskDTO(subject=subj, task=task, run=run))
+                
+        return dtos

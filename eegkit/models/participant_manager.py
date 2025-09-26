@@ -362,7 +362,7 @@ class ParticipantManager:
                 df = df[mask]
             
         for name in dto.__dataclass_fields__.keys():
-            if name in ('task','subject','run','subject_limit'):
+            if name in ('task','subject','run','subject_limit','per_subject'):
                 continue
             val = getattr(dto, name, None)
             if val is None:
@@ -389,5 +389,6 @@ class ParticipantManager:
             limit = int(limit)
             subjects = subjects[:limit]
 
+        print(f"{len(subjects)} subjects found")
         print(sorted(subjects))
         return sorted(subjects)
