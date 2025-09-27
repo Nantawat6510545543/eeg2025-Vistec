@@ -123,15 +123,31 @@ def main(spec_path: str):
     # Per-subject batch dict handling (subject -> result)
     if isinstance(result, dict) and result and all(isinstance(k, str) for k in result.keys()):
         manifest = {"subjects": [], "errors": {}}
+        summary_rows = []
         for subj, value in result.items():
             subj_dir = JOB_DIR / subj
+            row = {"subject": subj, "status": "ok", "path": str(subj_dir), "error": None}
             if isinstance(value, dict) and 'error' in value:
                 manifest['errors'][subj] = value['error']
                 (subj_dir / 'error.json').write_text(json.dumps(value, indent=2))
+                row["status"] = "error"
+                row["error"] = value['error']
             else:
                 save_output(value, subj_dir)
             manifest['subjects'].append(subj)
+            summary_rows.append(row)
         (JOB_DIR / 'batch_manifest.json').write_text(json.dumps(manifest, indent=2))
+        try:
+            pd.DataFrame(summary_rows).to_csv(JOB_DIR / 'subjects.csv', index=False)
+        except Exception as e:
+            (JOB_DIR / 'subjects.json').write_text(json.dumps(summary_rows, indent=2))
+        try:
+            meta_df = subject_model.get_subjects_metadata(manifest['subjects'])
+            meta_fp = JOB_DIR / 'participants_selected.csv'
+            meta_df.to_csv(meta_fp, index=False)
+            print(f"[JOB] Wrote metadata table -> {meta_fp}")
+        except Exception as e:
+            print(f"[JOB][WARN] Failed to write participants_selected.csv: {e}")
         print(f"[JOB] Saved per-subject batch outputs for {len(manifest['subjects'])} subjects")
     else:
         info = save_output(result, JOB_DIR)
