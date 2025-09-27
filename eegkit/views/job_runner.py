@@ -23,7 +23,6 @@ class JobRunner:
         runner_path = self._write_runner(job_dir, spec_path)
         self._log_run(job_dir, group, key, dto, params_dto)
         self._launch(job_dir, runner_path)
-        return job_dir
 
     def _safe_name(self, value: str, default: str = "na") -> str:
         if not value:
@@ -155,9 +154,16 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
                 self._append_session_log(session_name, job_dir)
                 print(f"[INFO] Launched tmux session: {session_name}")
                 print(f"[INFO] Job directory: {job_dir}")
-                print("\n--- To inspect logs ---")
-                print(f"tmux attach -t {session_name}")
-                print("------------------------------------------------\n")
+                try:
+                    ls_proc = subprocess.run([tmux_path, 'ls'], capture_output=True, text=True)
+                    ls_out = (ls_proc.stdout or '').strip()
+                    if not ls_out and ls_proc.stderr:
+                        ls_out = ls_proc.stderr.strip()
+                    if ls_out:
+                        print("\n[INFO] tmux sessions list:\n" + ls_out + "\n")
+                except Exception as _e:
+                    print(f"[WARN] Unable to list tmux sessions: {_e}")
+                print("\n[INFO] To inspect logs: tmux attach -t {session_name}")
                 return
             except Exception as e:
                 print(f"[WARN] Failed to start tmux session ({e}). Falling back to background process...")
