@@ -51,3 +51,6 @@ class EEGSubjectModel:
                 dtos.append(TaskDTO(subject=subj, task=task, run=run))
                 
         return dtos
+
+    def get_subjects_metadata(self, subject_ids, columns=None):
+        return self._participants.get_subjects_metadata(subject_ids, columns)

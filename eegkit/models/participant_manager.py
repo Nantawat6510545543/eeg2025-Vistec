@@ -392,3 +392,8 @@ class ParticipantManager:
         print(f"{len(subjects)} subjects found")
         print(sorted(subjects))
         return sorted(subjects)
+
+    def get_subjects_metadata(self, subject_ids: List[str], columns: Optional[List[str]] = None) -> pd.DataFrame:
+        df = self._participants()
+        sub_df = df[df['participant_id'].astype(str).isin([str(s) for s in subject_ids])].copy()
+        return sub_df.sort_values('participant_id').reset_index(drop=True)
