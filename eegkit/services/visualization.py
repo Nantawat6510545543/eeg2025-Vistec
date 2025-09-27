@@ -161,13 +161,15 @@ class EEGVisualization:
             return None
         fig_list = []
         for condition in epochs.event_id:
-            params.stimulus = condition
-            evk = self.get_evoked(task_dto, params)
+            # Use a copy so we don't mutate the original params; enables proper cache keys per condition
+            _p = copy.deepcopy(params)
+            _p.stimulus = condition
+            evk = self.get_evoked(task_dto, _p)
             if evk is None:
                 continue
-            evk = self._prepare_channels(evk, params)
-            fig = evk.plot(gfp=params.gfp, spatial_colors=params.spatial_colors, show=False)
-            fig = finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Evoked per Condition")
+            evk = self._prepare_channels(evk, _p)
+            fig = evk.plot(gfp=_p.gfp, spatial_colors=_p.spatial_colors, show=False)
+            fig = finalize_figure(fig, task_dto, condition, caption=vars(_p), plot_name="Evoked per Condition")
             fig_list.append(fig)
         return fig_list
 

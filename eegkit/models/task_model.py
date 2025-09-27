@@ -11,7 +11,7 @@ class EEGTaskModel:
         self._electrodes = None
         self._metadata = None
         self._channels = None
-        self._saw = None
+        self._raw = None
         self._events = None
         self.loader = None
         self.cache = None
@@ -27,9 +27,9 @@ class EEGTaskModel:
 
     def get_raw(self):
         self._ensure_loader()
-        if not self._saw:
-            self._saw = self.loader.load_raw()
-        return self._saw
+        if not self._raw:
+            self._raw = self.loader.load_raw()
+        return self._raw
 
     def get_event(self):
         self._ensure_loader()
