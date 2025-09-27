@@ -1,3 +1,16 @@
+"""EEG ipywidgets-based GUI
+
+Provides a lightweight interface to:
+- Choose input type (single subject or meta filter)
+- Select mode (plot/data) and an action
+- Adjust parameters and schedule a job via JobRunner
+
+Notes:
+- SubjectFilterDTO supports open-ended numeric ranges via min/max text boxes.
+- If exposed in the form, the per-subject batch option runs the chosen action
+    separately for each subject matched by the filter (subject limit respected).
+"""
+
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 from dataclasses import fields, MISSING
@@ -11,7 +24,14 @@ plt.ioff()
 
 
 class EEGUI:
+    """Interactive UI wrapper around EEGController.
+
+    Builds dynamic forms from DTO definitions and available specs, and queues
+    asynchronous jobs that render plots or export data. Designed for use in
+    notebooks (ipywidgets).
+    """
     def __init__(self, controller):
+        """Initialize the GUI with a controller and build all widget layouts."""
         self.controller = controller
         self.specs = self.controller.get_specs()
 
@@ -61,9 +81,11 @@ class EEGUI:
         self._update_param_inputs()
 
     def _is_subject_schema(self, schema_dto: BaseTaskDTO):
+        """Return True if the DTO schema includes a 'subject' field (single-subject mode)."""
         return any(f.name == "subject" for f in fields(schema_dto))
 
     def _field_default(self, f):
+        """Resolve the default value for a dataclass field, honoring default_factory."""
         if f.default is not MISSING:
             return f.default
         if getattr(f, "default_factory", MISSING) is not MISSING:
@@ -74,6 +96,7 @@ class EEGUI:
         return None
 
     def _make_widget(self, value):
+        """Create a widget appropriate for the given default value type."""
         if isinstance(value, tuple) and len(value) == 2 and all(isinstance(x, (int, float)) for x in value):
             vmin, vmax = float(value[0]), float(value[1])
             return {
@@ -91,8 +114,9 @@ class EEGUI:
         return widgets.Text(value="" if value is None else str(value), layout=widgets.Layout(width='500'))
 
     def _make_range_widget(self, default_value):
-        """Create a range widget supporting open-ended bounds.
-        default_value expected: (lower, upper) where each may be None.
+        """Create a (min,max) text widget pair supporting open-ended bounds (None).
+
+        default_value is expected to be a tuple (lower, upper), each possibly None.
         """
         if isinstance(default_value, (tuple, list)) and len(default_value) == 2:
             lower, upper = default_value
@@ -104,14 +128,18 @@ class EEGUI:
         }
 
     def _read_widget(self, widget, default, wrap_list=False):
+        """Read current widget value(s) and coerce to the expected type/shape.
+
+        - For range dicts, returns a (lower, upper) with blanks mapped to None.
+        - For primitives, casts to bool/int/float when default indicates type.
+        - If wrap_list=True and default is a list, wraps the value in a list.
+        """
         if isinstance(widget, dict):
             vmin = widget["min"].value
             vmax = widget["max"].value
-            # Interpret blanks as open bounds
             lower = None if vmin in (None, "") else float(vmin)
             upper = None if vmax in (None, "") else float(vmax)
             if isinstance(default, (tuple, list)) and len(default) == 2:
-                # If both open and default is open, keep open
                 if lower is None and upper is None:
                     return (None, None)
             return (lower, upper)
@@ -134,6 +162,7 @@ class EEGUI:
     
     # schema panels
     def _build_all_schema_layouts(self):
+        """Construct UI rows for each DTO schema and cache their widget maps."""
         all_subjects = self.controller.list_subjects()
         all_tasks = self.controller.list_all_tasks()
 
@@ -182,10 +211,12 @@ class EEGUI:
                 self._refresh_task_options(schema_dto, init=True)
 
     def _on_subject_changed(self, schema_dto: BaseTaskDTO):
+        """Handle subject dropdown changes by refreshing task options and params."""
         self._refresh_task_options(schema_dto, init=False)
         self._update_param_inputs()
 
     def _refresh_task_options(self, schema_dto: BaseTaskDTO, init=False):
+        """Populate the task dropdown for the selected subject; preserve selection on init when possible."""
         wmap = self.schema_widgets.get(schema_dto)
         subj_w, task_w = wmap.get("subject"), wmap.get("task")
         if subj_w is None or task_w is None:
@@ -206,8 +237,8 @@ class EEGUI:
         else:
             task_w.value = opts[0][1]
 
-    # action params
     def _build_all_param_layouts(self):
+        """Build parameter input widgets for every registered action in specs."""
         for group in self.specs:
             for key, spec in self.specs[group].items():
                 params_cls = spec["params"]
@@ -240,8 +271,8 @@ class EEGUI:
                 self.param_layouts[layout_key] = rows
                 self.param_widgets[layout_key] = widgets_dict
 
-    # switching & updates
     def _on_schema_change(self, *_):
+        """Switch schema panel when the input type toggle changes."""
         schema_dto = self.schema_selector.value
         self.schema_box.children = self.schema_layouts.get(schema_dto, [])
         self.schema_box.layout.display = None if self.schema_box.children else "none"
@@ -250,15 +281,17 @@ class EEGUI:
         self._update_param_inputs()
 
     def _current_subject_schema_dto_for_prepare(self):
+        """Return a TaskDTO-like instance for prepare() when in single-subject mode."""
         schema_dto = self.schema_selector.value
         if not self._is_subject_schema(schema_dto):
             return None
         wmap = self.schema_widgets.get(schema_dto, {})
         subject = wmap["subject"].value
-        task, run = wmap["task"].value  # combined selection
+        task, run = wmap["task"].value
         return schema_dto(subject=subject, task=task, run=run)
 
     def _update_actions(self, *_):
+        """Refresh actions list based on selected mode and pick the first action."""
         group = self.mode_selector.value
         self.action_selector.options = list(self.specs[group].keys())
         if self.action_selector.options:
@@ -266,6 +299,7 @@ class EEGUI:
         self._update_param_inputs()
 
     def _update_param_inputs(self, *_):
+        """Rebuild the parameter panel and apply dynamic defaults via controller.prepare."""
         group = self.mode_selector.value
         key = self.action_selector.value
         if not group or not key:
@@ -289,6 +323,7 @@ class EEGUI:
                 w.value = new_val
 
     def _build_active_dto(self):
+        """Create the active DTO instance by reading all schema widgets."""
         schema_dto = self.schema_selector.value
         wmap = self.schema_widgets[schema_dto]
         kwargs = {}
@@ -312,6 +347,7 @@ class EEGUI:
         return schema_dto(**kwargs)
 
     def _execute(self, _):
+        """Schedule the selected action as a background job using JobRunner."""
         with self.output:
             clear_output(wait=True)
             print("Scheduling job...")
@@ -333,12 +369,10 @@ class EEGUI:
                 params_dto = params_cls(**params_values)
 
             runner = JobRunner(self.controller, self.jobs_root)
-            job_dir = runner.schedule(group, key, built_dto, params_dto)
-
-            print(f"Queued: {group}/{key} for subject={getattr(built_dto, 'subject', None)}, task={getattr(built_dto, 'task', None)}")
-            print(f"Job directory: {job_dir}")
+            runner.schedule(group, key, built_dto, params_dto)
 
             self._update_param_inputs()
 
     def show(self):
+        """Display the assembled UI in the current notebook output cell."""
         display(self.ui)

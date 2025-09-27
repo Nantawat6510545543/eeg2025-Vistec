@@ -3,6 +3,7 @@ from ..utils import finalize_figure
 import matplotlib.pyplot as plt
 import numpy as np
 import mne 
+import copy
 
 plt.ioff()
 
@@ -152,6 +153,23 @@ class EEGVisualization:
             show=False,
         )
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Joint")
+
+    @register_plot("Evoked per Condition", EvokedParamsDTO)
+    def plot_evoked_per_condition(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
+        epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
+        fig_list = []
+        for condition in epochs.event_id:
+            params.stimulus = condition
+            evk = self.get_evoked(task_dto, params)
+            if evk is None:
+                continue
+            evk = self._prepare_channels(evk, params)
+            fig = evk.plot(gfp=params.gfp, spatial_colors=params.spatial_colors, show=False)
+            fig = finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Evoked per Condition")
+            fig_list.append(fig)
+        return fig_list
 
     @register_plot("SNR Spectrum", EpochPSDParamsDTO)
     def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):

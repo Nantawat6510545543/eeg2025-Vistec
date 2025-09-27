@@ -125,6 +125,16 @@ class EEGTaskProcessor:
         if epochs is None:
             return None
 
+        stim = params.stimulus
+        if isinstance(stim, (list, tuple)):
+            stim = stim[0] if len(stim) > 0 else None
+        if stim:
+            if stim in epochs.event_id:
+                epochs = epochs[stim]
+            else:
+                print(f"{stim} not in {list(epochs.event_id.keys())}")
+                return None
+
         evoked = epochs.average()
         if self.cache and ck:
             self.cache.save_evoked(evoked, ck)
