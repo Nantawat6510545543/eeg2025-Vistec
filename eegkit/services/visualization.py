@@ -161,21 +161,22 @@ class EEGVisualization:
             return None
         fig_list = []
         for condition in epochs.event_id:
-            # Use a copy so we don't mutate the original params; enables proper cache keys per condition
-            _p = copy.deepcopy(params)
-            _p.stimulus = condition
-            evk = self.get_evoked(task_dto, _p)
+            copy_params = copy.deepcopy(params)
+            copy_params.stimulus = condition
+            evk = self.get_evoked(task_dto, copy_params)
             if evk is None:
                 continue
-            evk = self._prepare_channels(evk, _p)
-            fig = evk.plot(gfp=_p.gfp, spatial_colors=_p.spatial_colors, show=False)
-            fig = finalize_figure(fig, task_dto, condition, caption=vars(_p), plot_name="Evoked per Condition")
+            evk = self._prepare_channels(evk, copy_params)
+            fig = evk.plot(gfp=copy_params.gfp, spatial_colors=copy_params.spatial_colors, show=False)
+            fig = finalize_figure(fig, task_dto, condition, caption=vars(copy_params), plot_name="Evoked per Condition")
             fig_list.append(fig)
         return fig_list
 
     @register_plot("SNR Spectrum", EpochPSDParamsDTO)
     def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
         epochs = self._prepare_channels(epochs, params)
         sfreq = epochs.info["sfreq"]
         spectrum = epochs.compute_psd(

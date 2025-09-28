@@ -2,9 +2,10 @@ from .task_loader import EEGTaskLoader
 from .task_processor import EEGTaskProcessor
 from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
 from ..cache import LocalCache
+from .interfaces import TaskLike
 
 
-class EEGTaskModel:
+class EEGTaskModel(TaskLike):
     def __init__(self, task_dto: TaskDTO, data_dir):
         self.task_dto = task_dto
         self._data_dir = data_dir
@@ -61,7 +62,7 @@ class EEGTaskModel:
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
         self._ensure_loader()
         raw = self.processor.get_filtered(filter_params)
-        self._saw = None
+        self._raw = None
         return raw
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
