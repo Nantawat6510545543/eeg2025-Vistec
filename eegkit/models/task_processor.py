@@ -3,6 +3,7 @@ import mne
 from mne import Epochs, events_from_annotations
 from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ..cache import CacheKey
+import logging
 
 mne.set_log_level('WARNING')
 import itertools
@@ -45,6 +46,7 @@ class EEGTaskProcessor:
         self.cache = cache
 
         self.preprocessors = _PREPROCESSORS
+        self._log = logging.getLogger(__name__)
 
     def get_filtered(self, params: FilterParamsDTO):
         ck = CacheKey(
@@ -61,17 +63,24 @@ class EEGTaskProcessor:
         else:
             raw_copy = self.get_raw().copy()
             raw_copy.load_data()
+
             raw_copy.filter(
                 l_freq=params.l_freq,
                 h_freq=params.h_freq,
                 fir_design="firwin",
                 skip_by_annotation="edge"
             )
+
+            target_fs = params.resample_fs
+            if target_fs > 0 and target_fs != 500 and abs(raw_copy.info.get('sfreq', 0) - target_fs) > 1e-6:
+                raw_copy.resample(target_fs)
+                
             raw_copy.notch_filter(
                 freqs=params.notch,
                 fir_design="firwin",
                 skip_by_annotation="edge"
             )
+
             p = self.cache.save_raw_filtered(raw_copy, ck)
             try:
                 del raw_copy
@@ -84,7 +93,7 @@ class EEGTaskProcessor:
     def get_epochs(self, params: EpochParamsDTO):
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
         if preprocess_fn is None:
-            print(f"Unsupported task for epochs: '{self.task_dto.task}'")
+            self._log.warning("Unsupported task for epochs: '%s'", self.task_dto.task)
             return None, "unavailable"
 
         ck = CacheKey(
@@ -132,7 +141,7 @@ class EEGTaskProcessor:
             if stim in epochs.event_id:
                 epochs = epochs[stim]
             else:
-                print(f"{stim} not in {list(epochs.event_id.keys())}")
+                self._log.warning("stim '%s' not in available event IDs %s", stim, list(epochs.event_id.keys()))
                 return None
 
         evoked = epochs.average()

@@ -4,9 +4,11 @@ from mne import concatenate_raws, concatenate_epochs, grand_average
 from .dtos import SubjectFilterDTO, FilterParamsDTO, EpochParamsDTO
 from .task_model import EEGTaskModel
 from tqdm.auto import tqdm
+from .interfaces import TaskLike
+import logging
 
 
-class EEGCohortModel:
+class EEGCohortModel(TaskLike):
     def __init__(self, task_dto: SubjectFilterDTO, task_model_list: list[EEGTaskModel], subject_length: int):
         self.task_dto = task_dto
         self.task_model_list = task_model_list
@@ -19,6 +21,7 @@ class EEGCohortModel:
         self._metadata = None
         self._channels = None
         self._events_concat = None 
+        self._log = logging.getLogger(__name__)
 
     @property
     def events(self):
@@ -61,7 +64,7 @@ class EEGCohortModel:
         if not filtered_list:
             return None
 
-        print(f"concatenating {len(filtered_list)} raws")
+        self._log.info("concatenating %d raws", len(filtered_list))
         self.filtered_raw = concatenate_raws(filtered_list)
         try:
             for r in filtered_list:
@@ -98,7 +101,7 @@ class EEGCohortModel:
         if not epochs_list:
             return None
 
-        print(f"concatenating {len(epochs_list)} epochs")
+        self._log.info("concatenating %d epochs", len(epochs_list))
         self.epochs = concatenate_epochs(epochs_list)
         epochs_list.clear()
         self.labels = sorted(labels_union)

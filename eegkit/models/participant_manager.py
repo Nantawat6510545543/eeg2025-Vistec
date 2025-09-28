@@ -4,6 +4,7 @@ from collections import defaultdict
 from typing import List, Tuple, Optional, Dict, Set
 import pandas as pd
 import numpy as np
+import logging
 
 from .dtos import SubjectFilterDTO
 
@@ -15,6 +16,7 @@ class ParticipantManager:
         self._release_by_number = self._map_release_numbers()
         self._task_index = self._discover_tasks() 
         self._participants_df: Optional[pd.DataFrame] = None 
+        self._log = logging.getLogger(__name__)
 
     # ---------- paths ----------
     @property
@@ -269,17 +271,17 @@ class ParticipantManager:
 
     def _build_or_load_participants(self) -> pd.DataFrame:
         cp = self._combined_path
-        print("Finding participants_combind.tsv on " + str(cp))
+        self._log.info("Finding participants_combind.tsv on %s", cp)
         if cp.exists():
-            print("Found")
+            self._log.info("Found participants_combind.tsv")
             df = pd.read_csv(cp, sep='\t')
             return df
-        print("Not found")
+        self._log.info("Not found participants_combind.tsv; will build a new one")
         
         frames: List[pd.DataFrame] = []
         for rdir in self._release_dirs:
             p = rdir / 'participants.tsv'
-            print("Loadding" + str(p))
+            self._log.info("Loading %s", p)
             if p.exists():
                 vdf = self._validate_participants_file(p, rdir)
                 if not vdf.empty:
@@ -290,7 +292,7 @@ class ParticipantManager:
         combined['participant_id'] = combined['participant_id'].astype(str)
         combined = self._augment_ccd_metrics(combined)
         combined.to_csv(cp, sep='\t', index=False)
-        print("participants_combind saved at " + str(cp))
+        self._log.info("participants_combind saved at %s", cp)
         return combined
 
     def _participants(self) -> pd.DataFrame:
@@ -389,8 +391,8 @@ class ParticipantManager:
             limit = int(limit)
             subjects = subjects[:limit]
 
-        print(f"{len(subjects)} subjects found")
-        print(sorted(subjects))
+        self._log.info("%d subjects found", len(subjects))
+        self._log.debug("Subjects: %s", sorted(subjects))
         return sorted(subjects)
 
     def get_subjects_metadata(self, subject_ids: List[str], columns: Optional[List[str]] = None) -> pd.DataFrame:
