@@ -105,6 +105,7 @@ class FilterParamsDTO:
     l_freq: float = 0.5
     h_freq: float = 55.0
     notch: float = 60.0
+    resample_fs: float = 500.0
     channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
 
@@ -114,6 +115,7 @@ class FilterParamsDTO:
             "l_freq": self.l_freq,
             "h_freq": self.h_freq,
             "notch": self.notch,
+            "resample_fs": self.resample_fs,
             }
         return key
 

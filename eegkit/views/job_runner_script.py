@@ -3,8 +3,10 @@ import os, resource
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
+import logging
 
 from eegkit import *
+from eegkit.utils.logging_utils import configure_logging
 
 matplotlib.use('Agg')
 
@@ -71,6 +73,8 @@ def save_output(result, out_dir: Path):
     return summary
 
 def main(spec_path: str):
+    configure_logging()
+    log = logging.getLogger(__name__)
     with open(spec_path, 'r') as f:
         SPEC = json.load(f)
     JOB_DIR = Path(SPEC['job_dir'])
@@ -97,12 +101,12 @@ def main(spec_path: str):
     subject_model = EEGSubjectModel(SPEC['data_dir'])
     controller = EEGController(subject_model)
 
-    print(f"[JOB] Starting {SPEC['job_id']} -> {SPEC['group']}/{SPEC['key']}", flush=True)
-    print(f"[JOB] task_dto = {task_dto}", flush=True)
-    print(f"[JOB] params    = {params_dto}", flush=True)
+    log.info("[JOB] Starting %s -> %s/%s", SPEC['job_id'], SPEC['group'], SPEC['key'])
+    log.info("[JOB] task_dto = %s", task_dto)
+    log.info("[JOB] params    = %s", params_dto)
     try:
         usage = resource.getrusage(resource.RUSAGE_SELF)
-        print(f"[JOB][RSS] start: {usage.ru_maxrss} KB", flush=True)
+        log.info("[JOB][RSS] start: %s KB", usage.ru_maxrss)
     except Exception:
         pass
 
@@ -110,8 +114,7 @@ def main(spec_path: str):
         result = controller.show(task_dto, SPEC['group'], SPEC['key'], params_dto)
     except Exception as e:
         import traceback
-        print('[JOB][ERROR]', e, file=sys.stderr)
-        traceback.print_exc()
+        log.exception('[JOB][ERROR] %s', e)
         (JOB_DIR / 'ERROR').write_text(str(e))
         error_json = {
             'error': str(e),
@@ -145,21 +148,21 @@ def main(spec_path: str):
             meta_df = subject_model.get_subjects_metadata(manifest['subjects'])
             meta_fp = JOB_DIR / 'participants_selected.csv'
             meta_df.to_csv(meta_fp, index=False)
-            print(f"[JOB] Wrote metadata table -> {meta_fp}")
+            log.info("[JOB] Wrote metadata table -> %s", meta_fp)
         except Exception as e:
-            print(f"[JOB][WARN] Failed to write participants_selected.csv: {e}")
-        print(f"[JOB] Saved per-subject batch outputs for {len(manifest['subjects'])} subjects")
+            log.warning("[JOB][WARN] Failed to write participants_selected.csv: %s", e)
+        log.info("[JOB] Saved per-subject batch outputs for %d subjects", len(manifest['subjects']))
     else:
         info = save_output(result, JOB_DIR)
-        print(f"[JOB] Saved output -> {info.get('path', info.get('dir'))}")
+        log.info("[JOB] Saved output -> %s", info.get('path', info.get('dir')))
         
     try:
         plt.close('all')
         usage = resource.getrusage(resource.RUSAGE_SELF)
-        print(f"[JOB][RSS] end: {usage.ru_maxrss} KB", flush=True)
+        log.info("[JOB][RSS] end: %s KB", usage.ru_maxrss)
     except Exception:
         pass
-    print('[JOB] Done.', flush=True)
+    log.info('[JOB] Done.')
 
 
 if __name__ == "__main__":

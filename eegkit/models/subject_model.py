@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 from .task_model import EEGTaskModel
 from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 from .cohort_model import EEGCohortModel
 from .participant_manager import ParticipantManager
+from .interfaces import TaskLike
 
 
 class EEGSubjectModel:
@@ -19,7 +22,7 @@ class EEGSubjectModel:
     def list_tasks(self, subject):
         return self._participants.list_tasks(subject)
 
-    def get_task(self, task_dto: BaseTaskDTO):
+    def get_task(self, task_dto: BaseTaskDTO) -> TaskLike:
         # single
         if getattr(task_dto, "subject", None):
             subj_dir = self._participants.subject_data_dir(task_dto.subject)
