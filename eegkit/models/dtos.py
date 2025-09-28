@@ -173,6 +173,14 @@ class EpochParamsDTO(FilterParamsDTO):
             }
         return key
 
+    @property
+    def evoked_key(self):
+        key = {
+            **self.epochs_key,
+            "stimulus": self.stimulus,
+            }
+        return key
+
 
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
@@ -191,14 +199,6 @@ class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
 class EvokedParamsDTO(EpochParamsDTO):
     spatial_colors: bool = True
     gfp: List[Optional[str]] = field(default_factory=lambda: [True, False, "only"])
-
-    @property
-    def evoked_key(self):
-        key = {
-            **self.epochs_key,
-            "stimulus": self.stimulus,
-            }
-        return key
 
 @dataclass
 class EvokedTopoParamsDTO(EpochParamsDTO):
