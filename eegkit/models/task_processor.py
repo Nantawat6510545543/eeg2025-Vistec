@@ -90,6 +90,17 @@ class EEGTaskProcessor:
 
         return raw_out
 
+    def _apply_stimulus_filter(self, epochs: Epochs, params: EpochParamsDTO):
+        stim = params.stimulus
+        if isinstance(stim, (list, tuple)):
+            stim = stim[0] if len(stim) > 0 else None
+        if stim:
+            if stim in epochs.event_id:
+                return epochs[stim]
+            self._log.warning("stim '%s' not in available event IDs %s", stim, list(epochs.event_id.keys()))
+            return None
+        return epochs
+
     def get_epochs(self, params: EpochParamsDTO):
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
         if preprocess_fn is None:
@@ -106,15 +117,23 @@ class EEGTaskProcessor:
         )
         epochs, labels = self.cache.load_epochs(ck)
         if epochs is not None:
-            return epochs, labels
+            epochs_sel = self._apply_stimulus_filter(epochs, params)
+            if epochs_sel is None:
+                return None, "unavailable"
+            return epochs_sel, labels
 
         epochs, labels = preprocess_fn(self, params)
+        epochs.apply_baseline()
         if epochs is None:
             return None, "unavailable"
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
 
-        return epochs, labels
+        epochs_sel = self._apply_stimulus_filter(epochs, params)
+        if epochs_sel is None:
+            return None, "unavailable"
+
+        return epochs_sel, labels
 
     def get_evoked(self, params: EvokedParamsDTO):
         ck = CacheKey(
@@ -133,16 +152,6 @@ class EEGTaskProcessor:
         epochs, _labels = self.get_epochs(params)
         if epochs is None:
             return None
-
-        stim = params.stimulus
-        if isinstance(stim, (list, tuple)):
-            stim = stim[0] if len(stim) > 0 else None
-        if stim:
-            if stim in epochs.event_id:
-                epochs = epochs[stim]
-            else:
-                self._log.warning("stim '%s' not in available event IDs %s", stim, list(epochs.event_id.keys()))
-                return None
 
         evoked = epochs.average()
         if self.cache and ck:
@@ -175,7 +184,7 @@ class EEGTaskProcessor:
         present_labels = stim_rows["label"].unique()
         event_id_sub = {k: EVENT_ID[k] for k in present_labels}
 
-        baseline = (None, 0.0) if params.tmin < 0 else None
+        baseline = (None, 0.0)
         epochs = Epochs(
             filtered, events=events_array, event_id=event_id_sub,
             tmin=params.tmin, tmax=params.tmax, baseline=baseline, proj=True,
@@ -218,7 +227,7 @@ class EEGTaskProcessor:
             return None, None
         new_events = np.array(sorted(new_events_list, key=lambda r: r[0]), dtype=int)
         event_id_sub = {k: RESTING_STATE_EVENT_ID[k] for k in present}
-        baseline = (None, 0.0) if params.tmin < 0 else None
+        baseline = (None, 0.0)
         epochs = Epochs(
             filtered, new_events, event_id=event_id_sub,
             tmin=params.tmin, tmax=params.tmax, baseline=baseline,
@@ -242,7 +251,7 @@ class EEGTaskProcessor:
             np.zeros(trial_rows.shape[0], dtype=int),
             np.full(trial_rows.shape[0], CCD_EVENT_ID['trial_start'], dtype=int)
         ])
-        baseline = (None, 0.0) if params.tmin < 0 else None
+        baseline = (None, 0.0)
         epochs = Epochs(
             filtered, new_events, event_id=CCD_EVENT_ID,
             tmin=params.tmin, tmax=params.tmax, baseline=baseline,
