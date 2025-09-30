@@ -171,7 +171,8 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
         # fallback: non-blocking background process with stdout/err redirected
         print("[DEBUG] subprocess launch command: python", runner_path.as_posix())
         with open(log_path, 'a') as log_file:
-            proc = subprocess.Popen(["python", runner_path.as_posix()], stdout=log_file, stderr=subprocess.STDOUT, close_fds=True)
+            proc = subprocess.Popen(["python", runner_path.as_posix()], stdout=log_file, stderr=subprocess.STDOUT,
+                                    close_fds=True)
         (job_dir / 'pid').write_text(str(proc.pid))
         self._append_session_log(f"pid_{proc.pid}", job_dir)
         print("[INFO] Started background process PID", proc.pid)
@@ -185,12 +186,10 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
             "job_dir": str(job_dir),
             "job_id": job_dir.name,
             "task": job_dir.parent.parent.name,  # task dir
-            "plot_type": job_dir.parent.name,    # plot type dir
+            "plot_type": job_dir.parent.name,  # plot type dir
         }
         try:
             with self._runs_log_path.open('a') as f:
                 f.write(json.dumps(record, sort_keys=True) + '\n')
         except Exception:
             pass
-
-
