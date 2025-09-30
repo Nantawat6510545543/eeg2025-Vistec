@@ -4,7 +4,7 @@
 - compute_axes_values: infer (page, col, row) token values for grid dimensions.
 - map_cells_to_labels: map a (page, col, row) triple to a concrete label.
 - reshape_axes_array: normalize plt.subplots return to a 2D array.
-- draw_evoked_response: draw per-channel traces and/or GFP with reference lines.
+- draw_evoked_response: draw per-channel traces, optional average line, and GFP with reference lines.
 """
 from __future__ import annotations
 
@@ -50,14 +50,34 @@ def reshape_axes_array(axes, num_rows: int, num_cols: int):
 
 
 def draw_evoked_response(axis, evoked, params):
+    """Draw evoked time series onto a Matplotlib axis.
+
+    - Per-channel traces (grey) unless GFP is set to "only".
+    - Optional channel-average line (orange) when params.average_line is True.
+    - GFP in black when params.gfp is True or "only".
+    - Vertical (t=0) and horizontal (y=0) reference lines.
+    """
     times = evoked.times
     data_microvolts = evoked.data * 1e6
+
+    # Per-channel traces (skip if GFP-only)
     if getattr(params, 'gfp', None) != "only":
         for ch in range(data_microvolts.shape[0]):
             axis.plot(times, data_microvolts[ch], color='0.75', linewidth=0.6, zorder=1)
+
+    # Optional average line across channels
+    if getattr(params, 'average_line', False):
+        if data_microvolts.ndim == 2 and data_microvolts.shape[0] > 1:
+            mean_signal = np.nanmean(data_microvolts, axis=0)
+        else:
+            mean_signal = data_microvolts[0] if data_microvolts.ndim == 2 else np.asarray(data_microvolts)
+        axis.plot(times, mean_signal, color='tab:orange', linewidth=1.2, zorder=2.4, alpha=0.95)
+
+    # GFP
     if getattr(params, 'gfp', None) is True or getattr(params, 'gfp', None) == "only":
         gfp_signal = np.std(data_microvolts, axis=0) if data_microvolts.shape[0] > 1 else data_microvolts[0]
-        axis.plot(times, gfp_signal, color='k', linewidth=1.2, zorder=2)
+        axis.plot(times, gfp_signal, color='k', linewidth=1.2, zorder=2.6)
+
+    # Reference lines
     axis.axvline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
     axis.axhline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
-

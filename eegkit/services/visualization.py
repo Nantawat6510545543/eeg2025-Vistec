@@ -255,10 +255,10 @@ class EEGVisualization:
         )
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="SNR Spectrum")
 
-    # complete v3
+    # complete v4
     @register_plot("Evoked Grid", EvokedParamsDTO)
     def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
-        """Render a grid of evoked responses organized by label tokens.
+        """Render a grid of evoked responses organized by label tokens, with two scale modes.
 
         Behavior:
         - Labels are split by '_' into tokens; the grid uses up to 3 tokens as (page, column, row).
@@ -266,11 +266,20 @@ class EEGVisualization:
         - Cells with no corresponding label or evoked data are left as empty plots with visible axes.
         - The bottom row always shows the time axis labels. All cells share x-limits [tmin, tmax].
         - All subplots within a page share the same y-limits (computed from available data, in µV).
+
+        scale_mode:
+        - "per-plot" (default): each cell autoscale; add a small per-cell y-scale label.
+        - "uniform-grid": compute a global y-range (µV) per page and apply to all cells.
         """
         # 1) Discover available labels (from epochs) to infer the grid shape
         epochs, available_labels = self.get_epochs(task_dto, params)
         if epochs is None or not available_labels:
             return None
+
+        # Determine scaling mode (Dropdown returns a single selected string)
+        scale_mode = getattr(params, 'scale_mode', 'per-plot')
+        if isinstance(scale_mode, (list, tuple)) and scale_mode:
+            scale_mode = scale_mode[0]
 
         # --- tokenization ----------------------------------------------------
         tokens_by_label = {label: split_tokens(label) for label in available_labels}
@@ -287,7 +296,7 @@ class EEGVisualization:
         # --- fetch evoked helper --------------------------------------------
         def _fetch_evoked_response(label: str):
             params_copy = copy.deepcopy(params)
-            params_copy.stimulus = label
+            params_copy.stimulus = [label]
             evoked = self.get_evoked(task_dto, params_copy)
             return (prepare_channels(evoked, params_copy), params_copy) if evoked is not None else (None, params_copy)
 
@@ -298,15 +307,20 @@ class EEGVisualization:
             if col_idx == 0:
                 ylabel = f"{row_token} (\u00b5V)" if (row_token is not None and row_token != "") else "\u00b5V"
                 axis.set_ylabel(ylabel)
+                axis.tick_params(labelleft=True)
             else:
-                axis.tick_params(labelleft=False)
+                # Per user request: in per-plot mode show numeric ticks on all subplots; otherwise hide
+                if scale_mode == 'per-plot':
+                    axis.tick_params(labelleft=True)
+                else:
+                    axis.tick_params(labelleft=False)
 
         # --- build figures --------------------------------------------------
         for page_token in page_values:
             fig, axes = plt.subplots(num_rows, num_cols, sharex=False, sharey=False)
             axes_2d = reshape_axes_array(axes, num_rows, num_cols)
 
-            # Track global y-range across this page
+            # Track global y-range across this page for uniform-grid mode
             y_min, y_max = None, None
 
             for row_idx, row_token in enumerate(row_values):
@@ -318,10 +332,11 @@ class EEGVisualization:
                         pass
 
                     label = cell_to_label_map.get((page_token, col_token, row_token))
+                    did_plot = False
                     if label is not None:
                         evoked, effective_params = _fetch_evoked_response(label)
                         if evoked is not None:
-                            # Update global y-range from channel data in µV
+                            # Update global y-range from channel data in µV for uniform-grid
                             try:
                                 data_uv = evoked.data * 1e6
                                 if data_uv.size:
@@ -334,6 +349,7 @@ class EEGVisualization:
                                 pass
                             # Draw actual evoked traces
                             draw_evoked_response(axis, evoked, effective_params)
+                            did_plot = True
 
                     # set labels and axis limits
                     _label_cell(axis, row_idx, col_idx, row_token, col_token)
@@ -342,8 +358,9 @@ class EEGVisualization:
                     except Exception:
                         pass
 
-            # Harmonize y-limits across all subplots in this page
-            if y_min is not None and y_max is not None:
+
+            # Harmonize y-limits across all subplots in this page when requested
+            if scale_mode == 'uniform-grid' and y_min is not None and y_max is not None:
                 if not np.isfinite(y_min) or not np.isfinite(y_max) or y_min == y_max:
                     pad = 1.0
                     y_min, y_max = (y_min or -pad) - pad, (y_max or pad) + pad
