@@ -255,7 +255,7 @@ class EEGVisualization:
         )
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="SNR Spectrum")
 
-    # complete v2
+    # complete v3
     @register_plot("Evoked Grid", EvokedParamsDTO)
     def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
         """Render a grid of evoked responses organized by label tokens.
@@ -265,6 +265,7 @@ class EEGVisualization:
         - Titles (top row) and y-labels (first column) are always drawn.
         - Cells with no corresponding label or evoked data are left as empty plots with visible axes.
         - The bottom row always shows the time axis labels. All cells share x-limits [tmin, tmax].
+        - All subplots within a page share the same y-limits (computed from available data, in µV).
         """
         # 1) Discover available labels (from epochs) to infer the grid shape
         epochs, available_labels = self.get_epochs(task_dto, params)
@@ -305,6 +306,9 @@ class EEGVisualization:
             fig, axes = plt.subplots(num_rows, num_cols, sharex=False, sharey=False)
             axes_2d = reshape_axes_array(axes, num_rows, num_cols)
 
+            # Track global y-range across this page
+            y_min, y_max = None, None
+
             for row_idx, row_token in enumerate(row_values):
                 for col_idx, col_token in enumerate(column_values):
                     axis = axes_2d[row_idx, col_idx]
@@ -317,6 +321,18 @@ class EEGVisualization:
                     if label is not None:
                         evoked, effective_params = _fetch_evoked_response(label)
                         if evoked is not None:
+                            # Update global y-range from channel data in µV
+                            try:
+                                data_uv = evoked.data * 1e6
+                                if data_uv.size:
+                                    dmin = float(np.nanmin(data_uv))
+                                    dmax = float(np.nanmax(data_uv))
+                                    if np.isfinite(dmin) and np.isfinite(dmax):
+                                        y_min = dmin if y_min is None else min(y_min, dmin)
+                                        y_max = dmax if y_max is None else max(y_max, dmax)
+                            except Exception:
+                                pass
+                            # Draw actual evoked traces
                             draw_evoked_response(axis, evoked, effective_params)
 
                     # set labels and axis limits
@@ -325,6 +341,18 @@ class EEGVisualization:
                         axis.set_xlim(params.tmin, params.tmax)
                     except Exception:
                         pass
+
+            # Harmonize y-limits across all subplots in this page
+            if y_min is not None and y_max is not None:
+                if not np.isfinite(y_min) or not np.isfinite(y_max) or y_min == y_max:
+                    pad = 1.0
+                    y_min, y_max = (y_min or -pad) - pad, (y_max or pad) + pad
+                for r in range(num_rows):
+                    for c in range(num_cols):
+                        try:
+                            axes_2d[r, c].set_ylim(y_min, y_max)
+                        except Exception:
+                            pass
 
             # x-ticks only on bottom row
             last_row_idx = num_rows - 1
