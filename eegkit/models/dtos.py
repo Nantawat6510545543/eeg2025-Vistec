@@ -203,6 +203,8 @@ class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
 class EvokedParamsDTO(EpochParamsDTO):
     spatial_colors: bool = True
     gfp: List[Optional[str]] = field(default_factory=lambda: [True, False, "only"])
+    average_line: bool = False
+    scale_mode: List[str] = field(default_factory=lambda: ["per-plot", "uniform-grid"])
 
 
 @dataclass
