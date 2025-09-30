@@ -20,7 +20,7 @@ class EEGCohortModel(TaskLike):
         self._electrodes = None
         self._metadata = None
         self._channels = None
-        self._events_concat = None 
+        self._events_concat = None
         self._log = logging.getLogger(__name__)
 
     @property
@@ -136,10 +136,7 @@ class EEGCohortModel(TaskLike):
             if len(evk_list) == 1:
                 per_subject_evoked.append(evk_list[0])
             else:
-                try:
-                    per_subject_evoked.append(grand_average(evk_list, weights='nave'))
-                except Exception:
-                    per_subject_evoked.append(grand_average(evk_list))
+                per_subject_evoked.append(grand_average(evk_list))
 
         if not per_subject_evoked:
             return None
@@ -148,9 +145,6 @@ class EEGCohortModel(TaskLike):
         if len(per_subject_evoked) == 1:
             self.evoked = per_subject_evoked[0]
         else:
-            try:
-                self.evoked = grand_average(per_subject_evoked, weights='nave')
-            except Exception:
-                self.evoked = grand_average(per_subject_evoked)
+            self.evoked = grand_average(per_subject_evoked)
 
         return self.evoked

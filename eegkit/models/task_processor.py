@@ -17,12 +17,12 @@ EVENT_ID = {
     for i, (b, f, s) in enumerate(itertools.product(BACKGROUND, FOREGROUND, STIM))
 }
 
-RESTING_STATE_EVENT_ID = {  
+RESTING_STATE_EVENT_ID = {
     'open': 1,
     'close': 2,
 }
 
-CCD_EVENT_ID = {  
+CCD_EVENT_ID = {
     'trial_start': 1,
 }
 
@@ -74,7 +74,7 @@ class EEGTaskProcessor:
             target_fs = params.resample_fs
             if target_fs > 0 and target_fs != 500 and abs(raw_copy.info.get('sfreq', 0) - target_fs) > 1e-6:
                 raw_copy.resample(target_fs)
-                
+
             raw_copy.notch_filter(
                 freqs=params.notch,
                 fir_design="firwin",

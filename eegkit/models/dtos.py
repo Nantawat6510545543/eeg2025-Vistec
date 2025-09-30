@@ -43,7 +43,7 @@ class TaskDTO(BaseTaskDTO):
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):
     task: str
-    subject_limit: Optional[int] = None 
+    subject_limit: Optional[int] = None
     per_subject: bool = False
     age_range: Optional[NumberRange] = (None, None)
     sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
@@ -67,10 +67,12 @@ class SubjectFilterDTO(BaseTaskDTO):
             lo, hi = rng
             if lo is None and hi is None:
                 return None
+
             def _n(v):
                 if v is None:
                     return None
                 return int(v) if isinstance(v, (int, float)) and float(v).is_integer() else v
+
             lo, hi = _n(lo), _n(hi)
             if lo is None:
                 return f"{label} <= {hi}"
@@ -116,7 +118,7 @@ class FilterParamsDTO:
             "h_freq": self.h_freq,
             "notch": self.notch,
             "resample_fs": self.resample_fs,
-            }
+        }
         return key
 
     @property
@@ -131,7 +133,7 @@ class FilterParamsDTO:
         seen_channel_names = set()
         parsed_channel_names: list[str] = []
 
-        def add_channel_name(channel_name: int) -> None:
+        def add_channel_name(channel_name: str) -> None:
             if channel_name not in seen_channel_names:
                 seen_channel_names.add(channel_name)
                 parsed_channel_names.append(channel_name)
@@ -157,6 +159,7 @@ class FilterParamsDTO:
 
         return parsed_channel_names or [f"E{i}" for i in range(1, 129)]
 
+
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
     tmin: float = -0.2
@@ -170,7 +173,7 @@ class EpochParamsDTO(FilterParamsDTO):
             **self.filter_key,
             "tmin": self.tmin,
             "tmax": self.tmax,
-            }
+        }
         return key
 
     @property
@@ -178,7 +181,7 @@ class EpochParamsDTO(FilterParamsDTO):
         key = {
             **self.epochs_key,
             "stimulus": self.stimulus,
-            }
+        }
         return key
 
 
@@ -195,10 +198,12 @@ class PSDParamsDTO(FilterParamsDTO):
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
     pass
 
+
 @dataclass
 class EvokedParamsDTO(EpochParamsDTO):
     spatial_colors: bool = True
     gfp: List[Optional[str]] = field(default_factory=lambda: [True, False, "only"])
+
 
 @dataclass
 class EvokedTopoParamsDTO(EpochParamsDTO):
@@ -219,8 +224,9 @@ class EvokedTopoParamsDTO(EpochParamsDTO):
         filtered = [x for x in numbers if self.tmin <= x <= self.tmax]
         return filtered if filtered else 'auto'
 
+
 @dataclass
-class EvokedJointParamsDTO(EvokedParamsDTO,EvokedTopoParamsDTO):
+class EvokedJointParamsDTO(EvokedParamsDTO, EvokedTopoParamsDTO):
     pass
 
 

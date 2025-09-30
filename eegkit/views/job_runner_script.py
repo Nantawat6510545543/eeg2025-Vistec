@@ -1,5 +1,5 @@
 import json, matplotlib, sys
-import os, resource
+import resource
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,6 +10,7 @@ from eegkit.utils.logging_utils import configure_logging
 
 matplotlib.use('Agg')
 
+
 def save_output(result, out_dir: Path):
     """Save controller result to disk under out_dir.
     Supports DataFrame, single Figure, list of Figures, JSON-serializable,
@@ -19,7 +20,7 @@ def save_output(result, out_dir: Path):
     summary = {"dir": str(out_dir)}
     import pandas as _pd
     import matplotlib.pyplot as _plt
-    
+
     if isinstance(result, _pd.DataFrame):
         fp = out_dir / 'dataframe.csv'
         result.to_csv(fp, index=False)
@@ -71,6 +72,7 @@ def save_output(result, out_dir: Path):
     fp.write_text(repr(result))
     summary.update({"type": "repr", "path": str(fp)})
     return summary
+
 
 def main(spec_path: str):
     configure_logging()
@@ -155,7 +157,7 @@ def main(spec_path: str):
     else:
         info = save_output(result, JOB_DIR)
         log.info("[JOB] Saved output -> %s", info.get('path', info.get('dir')))
-        
+
     try:
         plt.close('all')
         usage = resource.getrusage(resource.RUSAGE_SELF)
