@@ -2,7 +2,7 @@ from ..models import *
 from ..utils import finalize_figure
 import matplotlib.pyplot as plt
 import numpy as np
-import mne 
+import mne
 import copy
 
 plt.ioff()
@@ -21,8 +21,21 @@ def register_plot(name, dto_cls):
     return decorator
 
 
+def prepare_channels(inst, params):
+    ch = params.channels_list
+    picks = mne.pick_channels(inst.ch_names, include=ch)
+    if params.combine_channels:
+        inst = mne.channels.combine_channels(
+            inst, groups={"combined": list(picks)}, method="mean"
+        )
+    else:
+        inst = inst.copy().pick(picks)
+
+    return inst
+
+
 class EEGVisualization:
-    def __init__(self, get_raw_func, get_epochs_func, get_task_func,get_evoked_func):
+    def __init__(self, get_raw_func, get_epochs_func, get_task_func, get_evoked_func):
         self.get_raw = get_raw_func
         self.get_epochs = get_epochs_func
         self.get_task = get_task_func
@@ -52,18 +65,6 @@ class EEGVisualization:
 
         return {}
 
-    def _prepare_channels(self, inst, params):
-        ch = params.channels_list
-        picks = mne.pick_channels(inst.ch_names, include=ch) 
-        if params.combine_channels:
-            inst = mne.channels.combine_channels(
-                inst, groups={"combined": list(picks)}, method="mean"
-            )
-        else:
-            inst = inst.copy().pick(picks)
-
-        return inst
-
     @register_plot("Sensor Layout", FilterParamsDTO)
     def plot_sensors(self, task_dto: BaseTaskDTO, params: FilterParamsDTO):
         raw = self.get_raw(task_dto, params)
@@ -74,7 +75,7 @@ class EEGVisualization:
     @register_plot("Time Domain Plot", TimeDomainParamsDTO)
     def plot_time(self, task_dto: BaseTaskDTO, params: TimeDomainParamsDTO):
         raw = self.get_raw(task_dto, params)
-        raw = self._prepare_channels(raw, params)
+        raw = prepare_channels(raw, params)
         fig = raw.plot(
             duration=params.duration,
             start=params.start,
@@ -87,7 +88,7 @@ class EEGVisualization:
     @register_plot("Frequency Domain", PSDParamsDTO)
     def plot_frequency(self, task_dto: BaseTaskDTO, params: PSDParamsDTO):
         raw = self.get_raw(task_dto, params)
-        raw = self._prepare_channels(raw, params)
+        raw = prepare_channels(raw, params)
         psd = raw.compute_psd(fmin=params.fmin, fmax=params.fmax)
         fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
         return [finalize_figure(fig, task_dto, caption=vars(params), plot_name="Frequency Domain")]
@@ -97,7 +98,7 @@ class EEGVisualization:
         epochs, labels = self.get_epochs(task_dto, params)
         if epochs is None:
             return None
-        epochs = self._prepare_channels(epochs, params)
+        epochs = prepare_channels(epochs, params)
         fig_list = []
         for condition in epochs.event_id:
             condition_epochs = epochs[condition]
@@ -116,7 +117,7 @@ class EEGVisualization:
             return None
         if params.stimulus and params.stimulus in epochs.event_id:
             epochs = epochs[params.stimulus]
-        epochs = self._prepare_channels(epochs, params)
+        epochs = prepare_channels(epochs, params)
         fig = epochs.plot(events=False, show=False)
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epoch Plot")
 
@@ -125,7 +126,7 @@ class EEGVisualization:
         evoked = self.get_evoked(task_dto, params)
         if evoked is None:
             return None
-        evoked = self._prepare_channels(evoked, params)
+        evoked = prepare_channels(evoked, params)
         fig = evoked.plot(gfp=params.gfp, spatial_colors=params.spatial_colors, show=False)
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Plot")
 
@@ -135,7 +136,7 @@ class EEGVisualization:
         evoked = self.get_evoked(task_dto, params)
         if evoked is None:
             return None
-        evoked = self._prepare_channels(evoked, params)
+        evoked = prepare_channels(evoked, params)
         fig = evoked.plot_topomap(times=params.get_times, show=False)
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Topo")
 
@@ -145,7 +146,7 @@ class EEGVisualization:
         evoked = self.get_evoked(task_dto, params)
         if evoked is None:
             return None
-        evoked = self._prepare_channels(evoked, params)
+        evoked = prepare_channels(evoked, params)
         fig = evoked.plot_joint(
             times=params.get_times,
             topomap_args={},
@@ -166,7 +167,7 @@ class EEGVisualization:
             evk = self.get_evoked(task_dto, copy_params)
             if evk is None:
                 continue
-            evk = self._prepare_channels(evk, copy_params)
+            evk = prepare_channels(evk, copy_params)
             fig = evk.plot(gfp=copy_params.gfp, spatial_colors=copy_params.spatial_colors, show=False)
             fig = finalize_figure(fig, task_dto, condition, caption=vars(copy_params), plot_name="Evoked per Condition")
             fig_list.append(fig)
@@ -177,7 +178,7 @@ class EEGVisualization:
         epochs, labels = self.get_epochs(task_dto, params)
         if epochs is None:
             return None
-        epochs = self._prepare_channels(epochs, params)
+        epochs = prepare_channels(epochs, params)
         sfreq = epochs.info["sfreq"]
         spectrum = epochs.compute_psd(
             method="welch",
@@ -193,6 +194,7 @@ class EEGVisualization:
             verbose=False,
         )
         psds, freqs = spectrum.get_data(return_freqs=True)
+
         def snr_spectrum(psd, noise_n_neighbor_freqs=3, noise_skip_neighbor_freqs=1):
             averaging_kernel = np.concatenate((
                 np.ones(noise_n_neighbor_freqs),
@@ -209,6 +211,7 @@ class EEGVisualization:
             pad_width = [(0, 0)] * (mean_noise.ndim - 1) + [(edge_width, edge_width)]
             mean_noise = np.pad(mean_noise, pad_width=pad_width, constant_values=np.nan)
             return psd / mean_noise
+
         snrs = snr_spectrum(psds)
         fig, axes = plt.subplots(2, 1, sharex="all", figsize=(8, 5))
         try:
@@ -245,6 +248,7 @@ class EEGVisualization:
         )
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="SNR Spectrum")
 
+    # complete v1
     @register_plot("Evoked Grid", EvokedParamsDTO)
     def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
         # Discover labels from epochs
@@ -306,78 +310,67 @@ class EEGVisualization:
             fig, axs = plt.subplots(n_rows, n_cols, sharex=False, sharey=False)
             axs2d = to_2d_axes(axs, n_rows, n_cols)
 
-            col_title_set = [False] * n_cols
-            row_label_set = [False] * n_rows
-            has_data = np.zeros((n_rows, n_cols), dtype=bool)
-
-            # Precompute which rows will have any data to decide bottom label row later
             for r_idx, r_token in enumerate(rows_vals):
                 for c_idx, c_token in enumerate(cols_vals):
                     key = (page, c_token, r_token)
                     lbl = cell_to_label.get(key)
                     ax = axs2d[r_idx, c_idx]
-                    if lbl is None:
-                        # No matching label -> N/A cell
-                        ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=10)
-                        ax.axis('off')
-                        continue
 
-                    # Fetch evoked and apply channel selection/combination
-                    p = copy.deepcopy(params)
-                    p.stimulus = lbl
-                    evk = self.get_evoked(task_dto, p)
-                    if evk is None:
-                        ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=10)
-                        ax.axis('off')
-                        continue
-                    evk = self._prepare_channels(evk, p)
+                    # Always start from a clean axes so previous content doesn't leak
+                    try:
+                        ax.cla()
+                    except Exception:
+                        pass
 
-                    times = evk.times
-                    data_uv = evk.data * 1e6  # (n_channels, n_times)
+                    # Plot data if available
+                    has_content = False
+                    if lbl is not None:
+                        p = copy.deepcopy(params)
+                        p.stimulus = lbl
+                        evk = self.get_evoked(task_dto, p)
+                        if evk is not None:
+                            evk = prepare_channels(evk, p)
+                            times = evk.times
+                            data_uv = evk.data * 1e6  # (n_channels, n_times)
 
-                    gfp_mode = p.gfp
-                    if gfp_mode != "only":
-                        for ch in range(data_uv.shape[0]):
-                            ax.plot(times, data_uv[ch], color='0.75', linewidth=0.6, zorder=1)
+                            gfp_mode = p.gfp
+                            if gfp_mode != "only":
+                                for ch in range(data_uv.shape[0]):
+                                    ax.plot(times, data_uv[ch], color='0.75', linewidth=0.6, zorder=1)
 
-                    if gfp_mode is True or gfp_mode == "only":
-                        if data_uv.shape[0] > 1:
-                            gfp_signal = np.std(data_uv, axis=0)
-                        else:
-                            gfp_signal = data_uv[0]
-                        ax.plot(times, gfp_signal, color='k', linewidth=1.2, zorder=2)
+                            if gfp_mode is True or gfp_mode == "only":
+                                if data_uv.shape[0] > 1:
+                                    gfp_signal = np.std(data_uv, axis=0)
+                                else:
+                                    gfp_signal = data_uv[0]
+                                ax.plot(times, gfp_signal, color='k', linewidth=1.2, zorder=2)
 
-                    # Reference lines
-                    ax.axvline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
-                    ax.axhline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
+                            # Reference lines for non-empty content
+                            ax.axvline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
+                            ax.axhline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
+                            has_content = True
 
-                    has_data[r_idx, c_idx] = True
-
-                    # Titles/labels
-                    if not col_title_set[c_idx] and (c_token is not None and c_token != ""):
+                    # Apply titles/labels after clearing/plotting so they persist
+                    if r_idx == 0 and (c_token is not None and c_token != ""):
                         ax.set_title(c_token)
-                        col_title_set[c_idx] = True
-                    if not row_label_set[r_idx]:
-                        ylabel = f"{r_token} (µV)" if (r_token is not None and r_token != "") else "µV"
+                    if c_idx == 0:
+                        ylabel = f"{r_token} (\u00b5V)" if (r_token is not None and r_token != "") else "\u00b5V"
                         ax.set_ylabel(ylabel)
-                        row_label_set[r_idx] = True
                     else:
                         ax.tick_params(labelleft=False)
 
-            # Determine bottom-most row index that has any data
-            bottom_row_idx = None
-            for r_idx in range(n_rows - 1, -1, -1):
-                if has_data[r_idx, :].any():
-                    bottom_row_idx = r_idx
-                    break
+                    # Keep consistent time axis for both empty and non-empty cells
+                    try:
+                        ax.set_xlim(params.tmin, params.tmax)
+                    except Exception:
+                        pass
 
-            # Hide interior x tick labels; show only on the labeled bottom row
+            # Always treat the last row as the bottom for x labels
+            bottom_row_idx = n_rows - 1
             for r_idx in range(n_rows):
                 for c_idx in range(n_cols):
                     ax = axs2d[r_idx, c_idx]
-                    if not has_data[r_idx, c_idx]:
-                        continue
-                    if bottom_row_idx is not None and r_idx == bottom_row_idx:
+                    if r_idx == bottom_row_idx:
                         ax.set_xlabel("Time [s]")
                         ax.tick_params(labelbottom=True)
                     else:
