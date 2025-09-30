@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 plt.ioff()
 
 
-class Legacy_EEGUI:
+class LegacyEEGUI:
     def __init__(self, controller):
         self.controller = controller
         self.specs = self.controller.get_specs()
@@ -150,48 +150,36 @@ class Legacy_EEGUI:
         with self.output:
             clear_output(wait=True)
 
-            try:
-                group = self.mode_selector.value
-                key = self.action_selector.value
-                spec = self.specs[group][key]
-                params_cls = spec["params"]
+            group = self.mode_selector.value
+            key = self.action_selector.value
+            spec = self.specs[group][key]
+            params_cls = spec["params"]
 
-                subject = self.subject_dropdown.value
-                task, run = self.task_dropdown.value
-                task_dto = TaskDTO(subject=subject, task=task, run=run)
+            subject = self.subject_dropdown.value
+            task, run = self.task_dropdown.value
+            task_dto = TaskDTO(subject=subject, task=task, run=run)
 
-                if params_cls is None:
-                    params_dto = None
-                else:
-                    try:
-                        params_dto = self._build_dto(params_cls)
-                    except Exception as param_err:
-                        print(f"[Error] Invalid parameter values: {param_err}")
-                        return
+            if params_cls is None:
+                params_dto = None
+            else:
+                params_dto = self._build_dto(params_cls)
 
-                try:
-                    result = self.controller.show(task_dto, group, key, params_dto)
-                except Exception as func_err:
-                    print(f"[Error] Failed to execute function: {func_err}")
-                    return
+            result = self.controller.show(task_dto, group, key, params_dto)
 
-                if isinstance(result, pd.DataFrame):
-                    display(result)
-                elif isinstance(result, plt.Figure):
-                    display(result)
-                elif isinstance(result, list) and all(isinstance(fig, plt.Figure) for fig in result):
-                    for fig in result:
-                        display(fig)
-                elif isinstance(result, (dict, list)):
-                    import json
-                    print(json.dumps(result, indent=2))
-                elif isinstance(result, str):
-                    print(result)
-                elif result is not None:
-                    print("Output:", result)
-
-            except Exception as e:
-                print("[Unexpected Error]", e)
+            if isinstance(result, pd.DataFrame):
+                display(result)
+            elif isinstance(result, plt.Figure):
+                display(result)
+            elif isinstance(result, list) and all(isinstance(fig, plt.Figure) for fig in result):
+                for fig in result:
+                    display(fig)
+            elif isinstance(result, (dict, list)):
+                import json
+                print(json.dumps(result, indent=2))
+            elif isinstance(result, str):
+                print(result)
+            elif result is not None:
+                print("Output:", result)
 
             self._update_param_inputs()
 
