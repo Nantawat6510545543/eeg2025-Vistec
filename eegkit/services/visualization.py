@@ -244,3 +244,148 @@ class EEGVisualization:
             xlim=[params.fmin, params.fmax],
         )
         return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="SNR Spectrum")
+
+    @register_plot("Evoked Grid", EvokedParamsDTO)
+    def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
+        # Discover labels from epochs
+        epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
+
+        # Decide grid dimensionality based on max number of tokens across labels
+        def split_tokens(lbl: str):
+            return [t for t in (lbl or '').split('_') if t != '']
+
+        tokens_by_label = {lbl: split_tokens(lbl) for lbl in labels}
+        max_parts = max(len(toks) for toks in tokens_by_label.values())
+        mode = 3 if max_parts >= 3 else (2 if max_parts == 2 else 1)
+
+        # Build unique axes for pages/cols/rows
+        if mode == 1:
+            pages_vals = [None]
+            cols_vals = [None]
+            rows_vals = sorted({toks[0] for toks in tokens_by_label.values() if len(toks) >= 1})
+        elif mode == 2:
+            pages_vals = [None]
+            cols_vals = sorted({toks[0] for toks in tokens_by_label.values() if len(toks) >= 1})
+            rows_vals = sorted({toks[1] for toks in tokens_by_label.values() if len(toks) >= 2})
+        else:  # mode >= 3
+            pages_vals = sorted({toks[0] for toks in tokens_by_label.values() if len(toks) >= 1})
+            cols_vals = sorted({toks[1] for toks in tokens_by_label.values() if len(toks) >= 2})
+            rows_vals = sorted({toks[2] for toks in tokens_by_label.values() if len(toks) >= 3})
+
+        # Map (page, col, row) -> exact label string if available
+        cell_to_label = {}
+        for lbl, toks in tokens_by_label.items():
+            if mode == 1 and len(toks) >= 1:
+                key = (None, None, toks[0])
+            elif mode == 2 and len(toks) >= 2:
+                key = (None, toks[0], toks[1])
+            elif mode == 3 and len(toks) >= 3:
+                key = (toks[0], toks[1], toks[2])
+            else:
+                continue
+            # first-come keeps mapping; ensures determinism
+            cell_to_label.setdefault(key, lbl)
+
+        figures = []
+        n_rows, n_cols = len(rows_vals), len(cols_vals)
+
+        # Helper to normalize axes array
+        def to_2d_axes(axs, R, C):
+            if R == 1 and C == 1:
+                return np.array([[axs]])
+            if R == 1:
+                return np.array([axs])
+            if C == 1:
+                return np.array([[a] for a in axs])
+            return axs
+
+        # Iterate pages (or single None page)
+        for page in pages_vals:
+            fig, axs = plt.subplots(n_rows, n_cols, sharex=False, sharey=False)
+            axs2d = to_2d_axes(axs, n_rows, n_cols)
+
+            col_title_set = [False] * n_cols
+            row_label_set = [False] * n_rows
+            has_data = np.zeros((n_rows, n_cols), dtype=bool)
+
+            # Precompute which rows will have any data to decide bottom label row later
+            for r_idx, r_token in enumerate(rows_vals):
+                for c_idx, c_token in enumerate(cols_vals):
+                    key = (page, c_token, r_token)
+                    lbl = cell_to_label.get(key)
+                    ax = axs2d[r_idx, c_idx]
+                    if lbl is None:
+                        # No matching label -> N/A cell
+                        ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=10)
+                        ax.axis('off')
+                        continue
+
+                    # Fetch evoked and apply channel selection/combination
+                    p = copy.deepcopy(params)
+                    p.stimulus = lbl
+                    evk = self.get_evoked(task_dto, p)
+                    if evk is None:
+                        ax.text(0.5, 0.5, "N/A", ha="center", va="center", transform=ax.transAxes, fontsize=10)
+                        ax.axis('off')
+                        continue
+                    evk = self._prepare_channels(evk, p)
+
+                    times = evk.times
+                    data_uv = evk.data * 1e6  # (n_channels, n_times)
+
+                    gfp_mode = p.gfp
+                    if gfp_mode != "only":
+                        for ch in range(data_uv.shape[0]):
+                            ax.plot(times, data_uv[ch], color='0.75', linewidth=0.6, zorder=1)
+
+                    if gfp_mode is True or gfp_mode == "only":
+                        if data_uv.shape[0] > 1:
+                            gfp_signal = np.std(data_uv, axis=0)
+                        else:
+                            gfp_signal = data_uv[0]
+                        ax.plot(times, gfp_signal, color='k', linewidth=1.2, zorder=2)
+
+                    # Reference lines
+                    ax.axvline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
+                    ax.axhline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
+
+                    has_data[r_idx, c_idx] = True
+
+                    # Titles/labels
+                    if not col_title_set[c_idx] and (c_token is not None and c_token != ""):
+                        ax.set_title(c_token)
+                        col_title_set[c_idx] = True
+                    if not row_label_set[r_idx]:
+                        ylabel = f"{r_token} (µV)" if (r_token is not None and r_token != "") else "µV"
+                        ax.set_ylabel(ylabel)
+                        row_label_set[r_idx] = True
+                    else:
+                        ax.tick_params(labelleft=False)
+
+            # Determine bottom-most row index that has any data
+            bottom_row_idx = None
+            for r_idx in range(n_rows - 1, -1, -1):
+                if has_data[r_idx, :].any():
+                    bottom_row_idx = r_idx
+                    break
+
+            # Hide interior x tick labels; show only on the labeled bottom row
+            for r_idx in range(n_rows):
+                for c_idx in range(n_cols):
+                    ax = axs2d[r_idx, c_idx]
+                    if not has_data[r_idx, c_idx]:
+                        continue
+                    if bottom_row_idx is not None and r_idx == bottom_row_idx:
+                        ax.set_xlabel("Time [s]")
+                        ax.tick_params(labelbottom=True)
+                    else:
+                        ax.tick_params(labelbottom=False)
+
+            # Finalize per-page figure with header and caption
+            page_stimulus = page if (mode == 3 and page is not None) else None
+            fig = finalize_figure(fig, task_dto, stimulus=page_stimulus, caption=vars(params), plot_name="Evoked Grid")
+            figures.append(fig)
+
+        return figures

@@ -22,7 +22,7 @@ class EEGTaskModel(TaskLike):
         if self.loader is None:
             self.loader = EEGTaskLoader(self.task_dto, self._data_dir)
         if self.cache is None:
-            self.cache = LocalCache(pipeline_ver="v2")
+            self.cache = LocalCache(pipeline_ver="v3")
         if self.processor is None:
             self.processor = EEGTaskProcessor(self.get_raw, self.get_event, self.task_dto, self.cache)
 
