@@ -177,6 +177,8 @@ class Legacy_EEGUI:
 
                 if isinstance(result, pd.DataFrame):
                     display(result)
+                elif isinstance(result, plt.Figure):
+                    display(result)
                 elif isinstance(result, list) and all(isinstance(fig, plt.Figure) for fig in result):
                     for fig in result:
                         display(fig)
