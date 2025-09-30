@@ -1,5 +1,5 @@
 from ..models import (
-    FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO, TaskDTO
+    FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
 from ..services import EEGVisualization, EEGDataService
 

@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 from collections import defaultdict
-from typing import List, Tuple, Optional, Dict, Set
+from typing import List, Optional, Dict, Set
 import pandas as pd
 import numpy as np
 import logging
@@ -14,14 +14,14 @@ class ParticipantManager:
         self._data_dir = Path(data_dir)
         self._release_dirs = self._discover_release_dirs()
         self._release_by_number = self._map_release_numbers()
-        self._task_index = self._discover_tasks() 
-        self._participants_df: Optional[pd.DataFrame] = None 
+        self._task_index = self._discover_tasks()
+        self._participants_df: Optional[pd.DataFrame] = None
         self._log = logging.getLogger(__name__)
 
     # ---------- paths ----------
     @property
     def _combined_path(self) -> Path:
-        return self._data_dir / "participants_combind.tsv"
+        return self._data_dir / "participants_combine.tsv"
 
     @property
     def subject_dirs(self):
@@ -34,7 +34,8 @@ class ParticipantManager:
 
     # ---------- discovery ----------
     def _discover_release_dirs(self) -> List[Path]:
-        return sorted([p for p in self._data_dir.glob("cmi_bids_R*") if p.is_dir() and not p.name.lower().endswith("r5")])
+        return sorted(
+            [p for p in self._data_dir.glob("cmi_bids_R*") if p.is_dir() and not p.name.lower().endswith("r5")])
 
     def _map_release_numbers(self) -> Dict[str, Path]:
         out: Dict[str, Path] = {}
@@ -49,7 +50,8 @@ class ParticipantManager:
 
     def _discover_tasks(self):
         task_map = defaultdict(list)
-        pat = re.compile(r"(sub-(?P<subject>[^_]+))_task-(?P<task>[^_]+)(?:_run-(?P<run>\d+))?_eeg\.set$", re.IGNORECASE)
+        pat = re.compile(r"(sub-(?P<subject>[^_]+))_task-(?P<task>[^_]+)(?:_run-(?P<run>\d+))?_eeg\.set$",
+                         re.IGNORECASE)
         for subj_dir in self.subject_dirs:
             eeg_dir = subj_dir / "eeg"
             if not eeg_dir.exists():
@@ -105,7 +107,8 @@ class ParticipantManager:
             name_match = any(b in seen for b in self._norm_bases(col))
             if statusy or name_match:
                 cols.append(col)
-        meta = {"participant_id","release_number","age","sex","ehq_total","commercial_use","full_pheno","p_factor","attention","internalizing","externalizing"}
+        meta = {"participant_id", "release_number", "age", "sex", "ehq_total", "commercial_use", "full_pheno",
+                "p_factor", "attention", "internalizing", "externalizing"}
         return [c for c in cols if c not in meta]
 
     # ---------- CCD metrics helpers ----------
@@ -177,7 +180,8 @@ class ParticipantManager:
                 else:
                     val_t = str(df.loc[ti, "value"])
                     val_p = str(df.loc[pi, "value"])
-                    if (val_t.startswith("left") and val_p.startswith("left")) or (val_t.startswith("right") and val_p.startswith("right")):
+                    if (val_t.startswith("left") and val_p.startswith("left")) or (
+                            val_t.startswith("right") and val_p.startswith("right")):
                         smiley_count += 1
                         smiley_rts.append(round(max(0.0, p_on - t_on), 4))
 
@@ -185,22 +189,22 @@ class ParticipantManager:
         mean_rt = round(float(np.mean(smiley_rts)), 4) if smiley_rts else None
 
         return {
-        "smiley_face": int(smiley_count) if smiley_count > 0 else None,
-        "sad_face": int(sad_count) if sad_count > 0 else None,
-        "non_target": int(non_target_count) if non_target_count > 0 else None,
-        "miss_target": int(miss_count) if miss_count > 0 else None,
-        "smiley_response_time": smiley_rts if smiley_rts else [],
-        "sad_response_time": sad_rts if sad_rts else [],
-        "ccd_total_targets": total_targets if total_targets > 0 else None,
-        "ccd_accuracy": acc,
-        "ccd_response_time": mean_rt,
+            "smiley_face": int(smiley_count) if smiley_count > 0 else None,
+            "sad_face": int(sad_count) if sad_count > 0 else None,
+            "non_target": int(non_target_count) if non_target_count > 0 else None,
+            "miss_target": int(miss_count) if miss_count > 0 else None,
+            "smiley_response_time": smiley_rts if smiley_rts else [],
+            "sad_response_time": sad_rts if sad_rts else [],
+            "ccd_total_targets": total_targets if total_targets > 0 else None,
+            "ccd_accuracy": acc,
+            "ccd_response_time": mean_rt,
         }
 
     def _augment_ccd_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
         for col in [
-            "smiley_face","sad_face","non_target","miss_target",
-            "smiley_response_time","sad_response_time",
-            "ccd_total_targets","ccd_accuracy","ccd_median_rt"
+            "smiley_face", "sad_face", "non_target", "miss_target",
+            "smiley_response_time", "sad_response_time",
+            "ccd_total_targets", "ccd_accuracy", "ccd_median_rt"
         ]:
             if col not in df.columns:
                 if col.endswith("response_time"):
@@ -222,7 +226,6 @@ class ParticipantManager:
                     continue
                 df.at[idx, k] = v
         return df
-
 
     # ---------- combined TSV with validation ----------
     def _validate_participants_file(self, p_path: Path, release_dir: Path) -> pd.DataFrame:
@@ -259,7 +262,7 @@ class ParticipantManager:
                     base, idx_str = c, None
 
                 if idx_str is not None:
-                    run = idx_str 
+                    run = idx_str
                     has_match = any(t == base and r == run for (t, r) in subj_tasks)
                 else:
                     has_match = any(t == base for (t, r) in subj_tasks)
@@ -271,13 +274,13 @@ class ParticipantManager:
 
     def _build_or_load_participants(self) -> pd.DataFrame:
         cp = self._combined_path
-        self._log.info("Finding participants_combind.tsv on %s", cp)
+        self._log.info("Finding participants_combine.tsv on %s", cp)
         if cp.exists():
-            self._log.info("Found participants_combind.tsv")
+            self._log.info("Found participants_combine.tsv")
             df = pd.read_csv(cp, sep='\t')
             return df
-        self._log.info("Not found participants_combind.tsv; will build a new one")
-        
+        self._log.info("Not found participants_combine.tsv; will build a new one")
+
         frames: List[pd.DataFrame] = []
         for rdir in self._release_dirs:
             p = rdir / 'participants.tsv'
@@ -292,7 +295,7 @@ class ParticipantManager:
         combined['participant_id'] = combined['participant_id'].astype(str)
         combined = self._augment_ccd_metrics(combined)
         combined.to_csv(cp, sep='\t', index=False)
-        self._log.info("participants_combind saved at %s", cp)
+        self._log.info("participants_combine saved at %s", cp)
         return combined
 
     def _participants(self) -> pd.DataFrame:
@@ -303,7 +306,7 @@ class ParticipantManager:
     # ---------- public API ----------
     def subject_data_dir(self, subject: str) -> Path:
         df = self._participants()
-        rows = df[df['participant_id']== str(subject)]
+        rows = df[df['participant_id'] == str(subject)]
         if not rows.empty and 'release_number' in rows.columns:
             rn = str(rows.iloc[0]['release_number'])
             rdir = self._release_by_number.get(rn)
@@ -326,7 +329,7 @@ class ParticipantManager:
             ser = df[col]
             if ser.dtype == object and ser.dropna().str.lower().isin(status).any():
                 task_cols.append(col)
-                
+
         merged = set()
         for col in task_cols:
             base = re.sub(r"_\d+$", "", col)
@@ -362,9 +365,9 @@ class ParticipantManager:
                     .any(axis=1)
                 )
                 df = df[mask]
-            
+
         for name in dto.__dataclass_fields__.keys():
-            if name in ('task','subject','run','subject_limit','per_subject'):
+            if name in ('task', 'subject', 'run', 'subject_limit', 'per_subject'):
                 continue
             val = getattr(dto, name, None)
             if val is None:
