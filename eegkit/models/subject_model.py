@@ -52,7 +52,7 @@ class EEGSubjectModel:
             runs = [r for (t, r) in subj_tasks if t == task] or [None]
             for run in runs:
                 dtos.append(TaskDTO(subject=subj, task=task, run=run))
-                
+
         return dtos
 
     def get_subjects_metadata(self, subject_ids, columns=None):
