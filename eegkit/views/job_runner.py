@@ -163,7 +163,7 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
                         print("\n[INFO] tmux sessions list:\n" + ls_out + "\n")
                 except Exception as _e:
                     print(f"[WARN] Unable to list tmux sessions: {_e}")
-                print("\n[INFO] To inspect logs: tmux attach -t {session_name}")
+                print(f"[INFO] To inspect logs: tmux attach -t {session_name}")
                 return
             except Exception as e:
                 print(f"[WARN] Failed to start tmux session ({e}). Falling back to background process...")

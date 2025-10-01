@@ -10,16 +10,18 @@ Notes:
 - If exposed in the form, the per-subject batch option runs the chosen action
     separately for each subject matched by the filter (subject limit respected).
 """
+import json
+from dataclasses import fields
 
 import ipywidgets as widgets
+import pandas as pd
 from IPython.display import display, clear_output
-from dataclasses import fields
 import matplotlib.pyplot as plt
 from .job_runner import JobRunner
 from pathlib import Path
 
 from ..models import BaseTaskDTO, TaskDTO, SubjectFilterDTO
-from ..utils.ui_utils import is_subject_schema, field_default, make_widget, make_range_widget, read_widget
+from ..utils import is_subject_schema, field_default, make_widget, make_range_widget, read_widget, ordered_fields
 
 plt.ioff()
 
@@ -47,7 +49,8 @@ class EEGUI:
         self.mode_selector = widgets.ToggleButtons(options=list(self.specs.keys()), description="Mode:")
         self.action_selector = widgets.ToggleButtons(description="Action:")
         self.param_box = widgets.VBox()
-        self.run_button = widgets.Button(description="Run", button_style="success")
+        self.tmux_run_button = widgets.Button(description="Run on Tmux", button_style="success")
+        self.inline_run_button = widgets.Button(description="Run Inline", button_style="success")
         self.output = widgets.Output()
 
         self.jobs_root = Path("jobs")
@@ -66,7 +69,8 @@ class EEGUI:
         self.schema_selector.observe(self._on_schema_change, names="value")
         self.mode_selector.observe(self._update_actions, names="value")
         self.action_selector.observe(self._update_param_inputs, names="value")
-        self.run_button.on_click(self._execute)
+        self.tmux_run_button.on_click(self._tmux_execute)
+        self.inline_run_button.on_click(self._inline_execute)
 
         self.ui = widgets.VBox([
             self.schema_selector,
@@ -74,7 +78,8 @@ class EEGUI:
             self.mode_selector,
             self.action_selector,
             self.param_box,
-            self.run_button,
+            self.tmux_run_button,
+            self.inline_run_button,
             self.output,
         ])
 
@@ -170,7 +175,7 @@ class EEGUI:
                 rows, pair_buf = [], []
                 if params_cls:
                     params_obj = params_cls() if callable(params_cls) else params_cls
-                    for f in fields(params_obj):
+                    for f in ordered_fields(params_obj):
                         val = getattr(params_obj, f.name)
                         w = make_widget(val)
                         widgets_dict[f.name] = w
@@ -269,30 +274,66 @@ class EEGUI:
                 kwargs[name] = val
         return schema_dto(**kwargs)
 
-    def _execute(self, _):
+    def _collect_params(self, group: str, key: str, spec: dict):
+        """Construct params DTO from widgets and defaults."""
+        params_cls = spec.get("params")
+        if not params_cls:
+            return None
+
+        defaults = params_cls()
+        widgets_map = self.param_widgets.get((group, key), {})
+        values = {
+            f.name: read_widget(
+                widgets_map.get(f.name), getattr(defaults, f.name), wrap_list=False
+            )
+            for f in fields(defaults)
+        }
+        return params_cls(**values)
+
+    def _prepare_execution(self):
+        """Builds all required inputs for execution (dto, group, key, params)."""
+        group = self.mode_selector.value
+        key = self.action_selector.value
+        spec = self.specs[group][key]
+        dto = self._build_active_dto()
+        params_dto = self._collect_params(group, key, spec)
+        return dto, group, key, params_dto
+
+    def _tmux_execute(self, _):
         """Schedule the selected action as a background job using JobRunner."""
         with self.output:
             clear_output(wait=True)
             print("Scheduling job...")
 
-            group = self.mode_selector.value
-            key = self.action_selector.value
-            spec = self.specs[group][key]
-            params_cls = spec["params"]
-
-            built_dto = self._build_active_dto()
-            params_dto = None
-            if params_cls:
-                defaults = params_cls()
-                widgets_map = self.param_widgets.get((group, key), {})
-                params_values = {
-                    f.name: read_widget(widgets_map[f.name], getattr(defaults, f.name), wrap_list=False)
-                    for f in fields(defaults)
-                }
-                params_dto = params_cls(**params_values)
-
+            dto, group, key, params_dto = self._prepare_execution()
             runner = JobRunner(self.controller, self.jobs_root)
-            runner.schedule(group, key, built_dto, params_dto)
+            runner.schedule(group, key, dto, params_dto)
+
+            self._update_param_inputs()
+
+    def _inline_execute(self, _):
+        """Execute synchronously in the notebook."""
+        with self.output:
+            clear_output(wait=True)
+            print("Execute job...")
+
+            dto, group, key, params_dto = self._prepare_execution()
+            result = self.controller.show(dto, group, key, params_dto)
+
+            # Unified display handling
+            if isinstance(result, pd.DataFrame):
+                display(result)
+            elif isinstance(result, plt.Figure):
+                display(result)
+            elif isinstance(result, list) and all(isinstance(fig, plt.Figure) for fig in result):
+                for fig in result:
+                    display(fig)
+            elif isinstance(result, (dict, list)):
+                print(json.dumps(result, indent=2))
+            elif isinstance(result, str):
+                print(result)
+            elif result is not None:
+                print("Output:", result)
 
             self._update_param_inputs()
 
