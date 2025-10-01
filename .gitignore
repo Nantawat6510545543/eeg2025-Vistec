@@ -1,6 +1,8 @@
 # Project
 .eegcache/
+.idea/
 jobs/
+.github/copilot-instructions.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
