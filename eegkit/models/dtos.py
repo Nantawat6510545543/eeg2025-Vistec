@@ -45,8 +45,8 @@ class SubjectFilterDTO(BaseTaskDTO):
     task: str
     subject_limit: Optional[int] = None
     per_subject: bool = False
-    age_range: Optional[NumberRange] = (None, None)
     sex: List[Optional[str]] = field(default_factory=lambda: [None, "M", "F"])
+    age_range: Optional[NumberRange] = (None, None)
     ehq_total_range: Optional[NumberRange] = (None, None)
     p_factor_range: Optional[NumberRange] = (None, None)
     attention_range: Optional[NumberRange] = (None, None)
@@ -202,15 +202,14 @@ class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
 @dataclass
 class EvokedParamsDTO(EpochParamsDTO):
     spatial_colors: bool = True
-    gfp: List[Optional[str]] = field(default_factory=lambda: [True, False, "only"])
-    average_line: bool = False
+    gfp: List[Optional[str]] = field(default_factory=lambda: [False, True, "only"])
+    average_line: bool = True
     scale_mode: List[str] = field(default_factory=lambda: ["per-plot", "uniform-grid"])
 
 
 @dataclass
 class EvokedTopoParamsDTO(EpochParamsDTO):
-    times: Optional[str] = 'auto'
-    average: Optional[float] = None
+    times: str = 'auto'
 
     @property
     def get_times(self):

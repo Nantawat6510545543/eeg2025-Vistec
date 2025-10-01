@@ -1,4 +1,5 @@
 from dataclasses import fields, MISSING
+from typing import get_origin
 
 import ipywidgets as widgets
 
@@ -81,3 +82,45 @@ def read_widget(widget, default, wrap_list=False):
     if isinstance(default, float):
         return float(val)
     return val
+
+
+def ordered_fields(dto_cls):
+    """
+    Return dataclass fields sorted by custom priority:
+    int/float -> dropdown(list/enum) -> str -> bool -> others.
+    """
+
+    def priority(f):
+        t = f.type
+        origin = get_origin(t) or t
+
+        # 1. Numeric first
+        if origin in (int, float):
+            return 0
+
+        # 2. Dropdown-like (default is list or type is list/Enum)
+        default = None
+        if f.default is not MISSING:
+            default = f.default
+        elif getattr(f, "default_factory", MISSING) is not MISSING:
+            try:
+                default = f.default_factory()
+            except Exception:
+                pass
+        if isinstance(default, list) or origin is list:
+            return 1
+
+        # 3. Strings
+        if origin is str:
+            return 2
+
+        # 4. Booleans
+        if origin is bool:
+            return 3
+
+        # 5. Everything else last
+        return 4
+
+    return sorted(fields(dto_cls), key=priority)
+
+

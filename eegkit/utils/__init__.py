@@ -6,3 +6,11 @@ from .plot_utills import (
     reshape_axes_array,
     draw_evoked_response,
 )
+from .ui_utils import (
+    is_subject_schema,
+    field_default,
+    make_widget,
+    make_range_widget,
+    read_widget,
+    ordered_fields,
+)

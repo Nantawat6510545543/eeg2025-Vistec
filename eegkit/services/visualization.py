@@ -262,14 +262,15 @@ class EEGVisualization:
 
         Behavior:
         - Labels are split by '_' into tokens; the grid uses up to 3 tokens as (page, column, row).
-        - Titles (top row) and y-labels (first column) are always drawn.
+        - Titles (top row) are always drawn.
         - Cells with no corresponding label or evoked data are left as empty plots with visible axes.
         - The bottom row always shows the time axis labels. All cells share x-limits [tmin, tmax].
         - Each subplot shows a small "µV" unit tag at its top-left.
+        - Each non-empty subplot shows the epoch count used in averaging at top-right as "n=..".
 
         scale_mode:
-        - "per-plot" (default): each cell autoscale; add a small per-cell y-scale label.
-        - "uniform-grid": compute a global y-range (µV) per page and apply to all cells.
+        - "per-plot" (default): each cell autoscales; all cells show their own y-tick numbers (no row text labels).
+        - "uniform-grid": compute a global symmetric y-range (µV) per page and apply to all cells; inner columns hide y-tick labels.
         """
         # 1) Discover available labels (from epochs) to infer the grid shape
         epochs, available_labels = self.get_epochs(task_dto, params)
@@ -314,7 +315,7 @@ class EEGVisualization:
                 else:
                     axis.tick_params(labelleft=False)
 
-            axis.text(0.01, 0.98, "µV", transform=axis.transAxes, ha='left', va='top', fontsize=8, color='0.4')
+            axis.text(0.01, 1, "µV", transform=axis.transAxes, ha='left', va='bottom', fontsize=8, color='0.4')
 
         # --- build figures --------------------------------------------------
         for page_token in page_values:
@@ -341,8 +342,15 @@ class EEGVisualization:
                                     y_min = dmin if y_min is None else min(y_min, dmin)
                                     y_max = dmax if y_max is None else max(y_max, dmax)
 
-                            # Draw actual evoked traces
                             draw_evoked_response(axis, evoked, effective_params)
+                            # Annotate epoch count (nave) on top-right
+                            try:
+                                nave = getattr(evoked, 'nave', None)
+                                if nave is not None:
+                                    axis.text(1, 1, f"n={int(nave)}", transform=axis.transAxes,
+                                              ha='right', va='bottom', fontsize=8, color='0.4')
+                            except Exception:
+                                pass
 
                     # set labels and axis limits for every cell, even if empty
                     _label_cell(axis, row_idx, col_idx, row_token, col_token)
