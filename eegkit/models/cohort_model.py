@@ -6,6 +6,7 @@ from .task_model import EEGTaskModel
 from tqdm.auto import tqdm
 from .interfaces import TaskLike
 import logging
+import time
 
 
 class EEGCohortModel(TaskLike):
@@ -26,8 +27,14 @@ class EEGCohortModel(TaskLike):
     @property
     def events(self):
         if self._events_concat is None:
-            events_list = [tm.get_event() for tm in self.task_model_list]
-            self._events_concat = pd.concat(events_list, ignore_index=True)
+            t0 = time.perf_counter()
+            events_list = []
+            for tm in tqdm(self.task_model_list, total=len(self.task_model_list), desc="Collect events", leave=False):
+                ev = tm.get_event()
+                if ev is not None:
+                    events_list.append(ev)
+            self._events_concat = pd.concat(events_list, ignore_index=True) if events_list else pd.DataFrame()
+            self._log.info("Concatenated events from %d tasks in %.2fs", len(events_list), time.perf_counter() - t0)
         return self._events_concat
 
     @property
@@ -53,6 +60,7 @@ class EEGCohortModel(TaskLike):
             return self.filtered_raw
 
         filtered_list = []
+        t0 = time.perf_counter()
         for task_model in tqdm(self.task_model_list,
                                total=len(self.task_model_list),
                                desc="Filtering raws",
@@ -60,12 +68,16 @@ class EEGCohortModel(TaskLike):
             raw = task_model.get_filtered_raw(filter_params)
             if raw is not None:
                 filtered_list.append(raw)
-
+        t_loop = time.perf_counter() - t0
         if not filtered_list:
+            self._log.info("No raws produced (loop took %.2fs)", t_loop)
             return None
 
-        self._log.info("concatenating %d raws", len(filtered_list))
+        self._log.info("Concatenating %d raws (filter loop %.2fs)", len(filtered_list), t_loop)
+        t_cat0 = time.perf_counter()
         self.filtered_raw = concatenate_raws(filtered_list)
+        t_cat = time.perf_counter() - t_cat0
+        self._log.info("Concatenated raws in %.2fs", t_cat)
         try:
             for r in filtered_list:
                 if hasattr(r, 'close') and r is not self.filtered_raw:
@@ -84,11 +96,11 @@ class EEGCohortModel(TaskLike):
         epochs_list = []
         labels_union = set()
 
+        t0 = time.perf_counter()
         for task_model in tqdm(self.task_model_list,
                                total=len(self.task_model_list),
                                desc="Building epochs",
                                leave=False):
-
             epochs, labels = task_model.get_epochs(epoch_params)
             if epochs is None:
                 continue
@@ -97,12 +109,17 @@ class EEGCohortModel(TaskLike):
                 return None
             if labels is not None:
                 labels_union.update(labels)
+        t_loop = time.perf_counter() - t0
 
         if not epochs_list:
+            self._log.info("No epochs produced (loop took %.2fs)", t_loop)
             return None
 
-        self._log.info("concatenating %d epochs", len(epochs_list))
+        self._log.info("Concatenating %d epochs (build loop %.2fs)", len(epochs_list), t_loop)
+        t_cat0 = time.perf_counter()
         self.epochs = concatenate_epochs(epochs_list)
+        t_cat = time.perf_counter() - t_cat0
+        self._log.info("Concatenated epochs in %.2fs", t_cat)
         epochs_list.clear()
         self.labels = sorted(labels_union)
         return self.epochs, self.labels
@@ -113,6 +130,7 @@ class EEGCohortModel(TaskLike):
 
         # 1) Get evoked for each task_model
         evokeds_by_subject: dict[str, list] = {}
+        t0 = time.perf_counter()
         for task_model in tqdm(self.task_model_list,
                                total=len(self.task_model_list),
                                desc="Computing evoked",
@@ -124,12 +142,15 @@ class EEGCohortModel(TaskLike):
             if subj is None:
                 continue
             evokeds_by_subject.setdefault(subj, []).append(evk)
+        t_evoked_loop = time.perf_counter() - t0
 
         if not evokeds_by_subject:
+            self._log.info("No evoked responses computed (loop took %.2fs)", t_evoked_loop)
             return None
 
         # 2) For same subject: average runs first (nave-weighted)
         per_subject_evoked = []
+        t_sub0 = time.perf_counter()
         for subj, evk_list in evokeds_by_subject.items():
             if not evk_list:
                 continue
@@ -137,14 +158,20 @@ class EEGCohortModel(TaskLike):
                 per_subject_evoked.append(evk_list[0])
             else:
                 per_subject_evoked.append(grand_average(evk_list))
+        t_sub = time.perf_counter() - t_sub0
+        self._log.info("Per-subject averaging: %d subjects in %.2fs", len(evokeds_by_subject), t_sub)
 
         if not per_subject_evoked:
             return None
 
         # 3) Grand-average across subjects (nave-weighted)
+        t_ga0 = time.perf_counter()
         if len(per_subject_evoked) == 1:
             self.evoked = per_subject_evoked[0]
         else:
             self.evoked = grand_average(per_subject_evoked)
+        t_ga = time.perf_counter() - t_ga0
+        self._log.info("Grand average across %d subjects in %.2fs (compute loop %.2fs)",
+                       len(per_subject_evoked), t_ga, t_evoked_loop)
 
         return self.evoked

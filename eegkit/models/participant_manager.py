@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import time
 from dataclasses import fields as dc_fields
+from tqdm.auto import tqdm
 
 from .dtos import SubjectFilterDTO
 
@@ -15,10 +16,30 @@ class ParticipantManager:
     def __init__(self, data_dir: Path):
         self._log = logging.getLogger(__name__)
         self._data_dir = Path(data_dir)
-        self._release_dirs = self._discover_release_dirs()
-        self._release_by_number = self._map_release_numbers()
-        self._task_index = self._discover_tasks()
+        # Lazy caches
+        self.__release_dirs: Optional[List[Path]] = None
+        self.__release_by_number: Optional[Dict[str, Path]] = None
+        self.__task_index: Optional[Dict[str, List[tuple]]] = None
         self._participants_df: Optional[pd.DataFrame] = None
+
+    # ---------- lazy accessors ----------
+    @property
+    def release_dirs(self) -> List[Path]:
+        if self.__release_dirs is None:
+            self.__release_dirs = self._discover_release_dirs()
+        return self.__release_dirs
+
+    @property
+    def release_by_number(self) -> Dict[str, Path]:
+        if self.__release_by_number is None:
+            self.__release_by_number = self._map_release_numbers()
+        return self.__release_by_number
+
+    @property
+    def task_index(self) -> Dict[str, List[tuple]]:
+        if self.__task_index is None:
+            self.__task_index = self._discover_tasks()
+        return self.__task_index
 
     # ---------- paths ----------
     @property
@@ -27,7 +48,7 @@ class ParticipantManager:
 
     @property
     def subject_dirs(self):
-        for rdir in self._release_dirs:
+        for rdir in self.release_dirs:
             if rdir.name.lower().endswith("r5"):
                 continue
             for p in rdir.glob("sub-*"):
@@ -46,7 +67,7 @@ class ParticipantManager:
         t0 = time.perf_counter()
         out: Dict[str, Path] = {}
         rx = re.compile(r"cmi_bids_(R\d+)$", re.IGNORECASE)
-        for rdir in self._release_dirs:
+        for rdir in self.release_dirs:
             if rdir.name.lower().endswith("r5"):
                 continue
             m = rx.search(rdir.name)
@@ -63,7 +84,8 @@ class ParticipantManager:
                          re.IGNORECASE)
         subjects_scanned = 0
         files_scanned = 0
-        for subj_dir in self.subject_dirs:
+        subj_dirs = [p for p in self.subject_dirs]
+        for subj_dir in tqdm(subj_dirs, total=len(subj_dirs), desc="Discover tasks: subjects", leave=False):
             eeg_dir = subj_dir / "eeg"
             if not eeg_dir.exists():
                 continue
@@ -115,9 +137,9 @@ class ParticipantManager:
 
     def _detect_task_columns(self, df: pd.DataFrame, release_dir: Path) -> List[str]:
         seen: Set[str] = set()
-        for subj_dir in release_dir.glob("sub-*"):
-            if subj_dir.is_dir():
-                seen |= self._subject_task_name_set(subj_dir.name, release_dir)
+        subj_list = [p for p in release_dir.glob("sub-*") if p.is_dir()]
+        for subj_dir in tqdm(subj_list, total=len(subj_list), desc=f"Scan tasks in {release_dir.name}", leave=False):
+            seen |= self._subject_task_name_set(subj_dir.name, release_dir)
         cols: List[str] = []
         for col in df.columns:
             ser = df[col]
@@ -160,7 +182,7 @@ class ParticipantManager:
         smiley_rts: List[float] = []
         sad_rts: List[float] = []
 
-        for fpath in files:
+        for fpath in tqdm(files, total=len(files), desc=f"CCD events {subject}", leave=False):
             ev = pd.read_csv(fpath, sep="\t")
             df = ev.copy()
 
@@ -230,19 +252,21 @@ class ParticipantManager:
                 else:
                     df[col] = np.nan
 
-        for idx, row in df.iterrows():
+        t0 = time.perf_counter()
+        for idx, row in tqdm(df.iterrows(), total=len(df), desc="Augment CCD metrics", leave=False):
             subj = str(row.get("participant_id"))
-            disk_pairs = self._task_index.get(subj, [])
+            disk_pairs = self.task_index.get(subj, [])
             if not any(t == "contrastChangeDetection" for (t, r) in disk_pairs):
                 continue
 
-            rdir = self._release_by_number.get(str(row.get("release_number")))
+            rdir = self.release_by_number.get(str(row.get("release_number")))
             metrics = self._compute_ccd_metrics(subj, rdir)
 
             for k, v in metrics.items():
                 if v is None:
                     continue
                 df.at[idx, k] = v
+        self._log.info("CCD metrics augmented for %d subjects in %.2fs", len(df), time.perf_counter() - t0)
         return df
 
     # ---------- combined TSV with validation ----------
@@ -259,7 +283,7 @@ class ParticipantManager:
             pid = str(row["participant_id"])
             subj_dir = release_dir / pid
             exists = subj_dir.exists() and subj_dir.is_dir()
-            subj_tasks = set(self._task_index.get(pid, [])) if exists else set()
+            subj_tasks = set(self.task_index.get(pid, [])) if exists else set()
 
             if not exists:
                 for c in task_cols:
@@ -304,7 +328,7 @@ class ParticipantManager:
 
         frames: List[pd.DataFrame] = []
         t_build0 = time.perf_counter()
-        for rdir in self._release_dirs:
+        for rdir in tqdm(self.release_dirs, total=len(self.release_dirs), desc="Validate releases", leave=False):
             p = rdir / 'participants.tsv'
             t0 = time.perf_counter()
             self._log.info("Loading %s", p)
@@ -339,13 +363,13 @@ class ParticipantManager:
         rows = df[df['participant_id'] == str(subject)]
         if not rows.empty and 'release_number' in rows.columns:
             rn = str(rows.iloc[0]['release_number'])
-            rdir = self._release_by_number.get(rn)
+            rdir = self.release_by_number.get(rn)
             if rdir:
                 return rdir
-        for rdir in self._release_dirs:
+        for rdir in self.release_dirs:
             if (rdir / subject).exists():
                 return rdir
-        return self._release_dirs[0] if self._release_dirs else self._data_dir
+        return self.release_dirs[0] if self.release_dirs else self._data_dir
 
     def list_subjects(self) -> List[str]:
         df = self._participants()
@@ -376,10 +400,11 @@ class ParticipantManager:
             val = rows.iloc[0].get(col)
             if isinstance(val, str) and val.lower() == 'available':
                 avail_bases |= self._norm_bases(col)
-        disk = self._task_index.get(subject, [])
+        disk = self.task_index.get(subject, [])
         return sorted([(t, r) for (t, r) in disk if self._norm(t) in avail_bases])
 
     def filter_subjects_by_dto(self, dto: SubjectFilterDTO) -> List[str]:
+        t0 = time.perf_counter()
         df = self._participants().copy()
         task = dto.task
         if task in df.columns:
@@ -425,7 +450,7 @@ class ParticipantManager:
             limit = int(limit)
             subjects = subjects[:limit]
 
-        self._log.info("%d subjects found", len(subjects))
+        self._log.info("%d subjects found (filter in %.2fs)", len(subjects), time.perf_counter() - t0)
         self._log.debug("Subjects: %s", sorted(subjects))
         return sorted(subjects)
 
