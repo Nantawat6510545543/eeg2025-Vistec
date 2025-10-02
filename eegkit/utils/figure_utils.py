@@ -3,7 +3,7 @@ from ..models import BaseTaskDTO
 import textwrap
 
 
-def finalize_figure(fig: plt.Figure, task_dto: BaseTaskDTO, stimulus=None, caption: dict = None,
+def finalize_figure(fig: plt.Figure, task_dto: BaseTaskDTO, stimulus=None, caption_line: str = None,
                     plot_name="EEG Plot", x=15, y=10, max_line_chars: int = 110,
                     title_y: float = 0.995, gap_under_title: float = 0.030,
                     subject_line_spacing: float = 0.022, caption_line_spacing: float = 0.016,
@@ -15,10 +15,6 @@ def finalize_figure(fig: plt.Figure, task_dto: BaseTaskDTO, stimulus=None, capti
     """
     fig.set_size_inches(x, y)
     subject_line = f"{task_dto}" + (f" - {stimulus}" if stimulus else "")
-    caption_line = ", ".join(
-        f"{k} = {v:.1f}" if isinstance(v, (float, int)) else f"{k} = {v}"
-        for k, v in (caption or {}).items()
-    )
 
     def _wrap(text: str) -> str:
         if not text:
