@@ -123,7 +123,7 @@ class EEGTaskProcessor:
             return epochs_sel, labels
 
         epochs, labels = preprocess_fn(self, params)
-        epochs.apply_baseline()
+        epochs.apply_baseline(baseline=(None, 0.0))
         if epochs is None:
             return None, "unavailable"
         if self.cache and ck:
@@ -184,10 +184,9 @@ class EEGTaskProcessor:
         present_labels = stim_rows["label"].unique()
         event_id_sub = {k: EVENT_ID[k] for k in present_labels}
 
-        baseline = (None, 0.0)
         epochs = Epochs(
             filtered, events=events_array, event_id=event_id_sub,
-            tmin=params.tmin, tmax=params.tmax, baseline=baseline, proj=True,
+            tmin=params.tmin, tmax=params.tmax, proj=True,
             preload=False
         )
         labels = stim_rows["label"].values[epochs.selection]
@@ -227,10 +226,9 @@ class EEGTaskProcessor:
             return None, None
         new_events = np.array(sorted(new_events_list, key=lambda r: r[0]), dtype=int)
         event_id_sub = {k: RESTING_STATE_EVENT_ID[k] for k in present}
-        baseline = (None, 0.0)
         epochs = Epochs(
             filtered, new_events, event_id=event_id_sub,
-            tmin=params.tmin, tmax=params.tmax, baseline=baseline,
+            tmin=params.tmin, tmax=params.tmax,
             proj=True, preload=False
         )
         labels = list(event_id_sub.keys())
@@ -251,10 +249,9 @@ class EEGTaskProcessor:
             np.zeros(trial_rows.shape[0], dtype=int),
             np.full(trial_rows.shape[0], CCD_EVENT_ID['trial_start'], dtype=int)
         ])
-        baseline = (None, 0.0)
         epochs = Epochs(
             filtered, new_events, event_id=CCD_EVENT_ID,
-            tmin=params.tmin, tmax=params.tmax, baseline=baseline,
+            tmin=params.tmin, tmax=params.tmax,
             proj=True, preload=False
         )
         labels = ['trial_start']
