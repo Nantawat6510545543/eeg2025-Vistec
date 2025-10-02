@@ -5,18 +5,20 @@ from typing import List, Optional, Dict, Set
 import pandas as pd
 import numpy as np
 import logging
+import time
+from dataclasses import fields as dc_fields
 
 from .dtos import SubjectFilterDTO
 
 
 class ParticipantManager:
     def __init__(self, data_dir: Path):
+        self._log = logging.getLogger(__name__)
         self._data_dir = Path(data_dir)
         self._release_dirs = self._discover_release_dirs()
         self._release_by_number = self._map_release_numbers()
         self._task_index = self._discover_tasks()
         self._participants_df: Optional[pd.DataFrame] = None
-        self._log = logging.getLogger(__name__)
 
     # ---------- paths ----------
     @property
@@ -34,10 +36,14 @@ class ParticipantManager:
 
     # ---------- discovery ----------
     def _discover_release_dirs(self) -> List[Path]:
-        return sorted(
+        t0 = time.perf_counter()
+        dirs = sorted(
             [p for p in self._data_dir.glob("cmi_bids_R*") if p.is_dir() and not p.name.lower().endswith("r5")])
+        self._log.info("Discovered %d release dirs in %.2fs", len(dirs), time.perf_counter() - t0)
+        return dirs
 
     def _map_release_numbers(self) -> Dict[str, Path]:
+        t0 = time.perf_counter()
         out: Dict[str, Path] = {}
         rx = re.compile(r"cmi_bids_(R\d+)$", re.IGNORECASE)
         for rdir in self._release_dirs:
@@ -46,17 +52,24 @@ class ParticipantManager:
             m = rx.search(rdir.name)
             if m:
                 out[m.group(1)] = rdir
+        self._log.debug("Mapped release numbers: %s", sorted(out.keys()))
+        self._log.info("Release number map built in %.2fs", time.perf_counter() - t0)
         return out
 
     def _discover_tasks(self):
+        t0 = time.perf_counter()
         task_map = defaultdict(list)
         pat = re.compile(r"(sub-(?P<subject>[^_]+))_task-(?P<task>[^_]+)(?:_run-(?P<run>\d+))?_eeg\.set$",
                          re.IGNORECASE)
+        subjects_scanned = 0
+        files_scanned = 0
         for subj_dir in self.subject_dirs:
             eeg_dir = subj_dir / "eeg"
             if not eeg_dir.exists():
                 continue
+            subjects_scanned += 1
             for f in eeg_dir.glob("sub-*_task-*_eeg.set"):
+                files_scanned += 1
                 m = pat.match(f.name)
                 if not m:
                     continue
@@ -65,6 +78,11 @@ class ParticipantManager:
                 pair = (task, run)
                 if pair not in task_map[subj]:
                     task_map[subj].append(pair)
+        elapsed = time.perf_counter() - t0
+        self._log.info(
+            "Discovered tasks for %d subjects; scanned %d files in %.2fs",
+            len(task_map), files_scanned, elapsed
+        )
         return dict(task_map)
 
     # ---------- normalization ----------
@@ -276,26 +294,38 @@ class ParticipantManager:
         cp = self._combined_path
         self._log.info("Finding participants_combine.tsv on %s", cp)
         if cp.exists():
+            t0 = time.perf_counter()
             self._log.info("Found participants_combine.tsv")
             df = pd.read_csv(cp, sep='\t')
+            self._log.info("Loaded participants_combine.tsv in %.2fs (rows=%d, cols=%d)",
+                           time.perf_counter() - t0, df.shape[0], df.shape[1])
             return df
         self._log.info("Not found participants_combine.tsv; will build a new one")
 
         frames: List[pd.DataFrame] = []
+        t_build0 = time.perf_counter()
         for rdir in self._release_dirs:
             p = rdir / 'participants.tsv'
+            t0 = time.perf_counter()
             self._log.info("Loading %s", p)
             if p.exists():
                 vdf = self._validate_participants_file(p, rdir)
+                dt = time.perf_counter() - t0
+                self._log.info("Validated participants.tsv for %s in %.2fs (rows=%d)", rdir.name, dt, len(vdf))
                 if not vdf.empty:
                     frames.append(vdf)
         if not frames:
             raise FileNotFoundError('No participants.tsv found in cmi_bids_R* directories')
         combined = pd.concat(frames, ignore_index=True)
         combined['participant_id'] = combined['participant_id'].astype(str)
+        t_aug0 = time.perf_counter()
         combined = self._augment_ccd_metrics(combined)
+        self._log.info("Augmented CCD metrics in %.2fs", time.perf_counter() - t_aug0)
+        t_save0 = time.perf_counter()
         combined.to_csv(cp, sep='\t', index=False)
-        self._log.info("participants_combine saved at %s", cp)
+        self._log.info("participants_combine saved at %s (%.2fs)", cp, time.perf_counter() - t_save0)
+        self._log.info("Built participants_combine in total %.2fs (rows=%d, cols=%d)",
+                       time.perf_counter() - t_build0, combined.shape[0], combined.shape[1])
         return combined
 
     def _participants(self) -> pd.DataFrame:
@@ -366,7 +396,8 @@ class ParticipantManager:
                 )
                 df = df[mask]
 
-        for name in dto.__dataclass_fields__.keys():
+        for f in dc_fields(dto):
+            name = f.name
             if name in ('task', 'subject', 'run', 'subject_limit', 'per_subject'):
                 continue
             val = getattr(dto, name, None)
