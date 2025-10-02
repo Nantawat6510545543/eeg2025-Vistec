@@ -5,13 +5,19 @@ from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 from .cohort_model import EEGCohortModel
 from .participant_manager import ParticipantManager
 from .interfaces import TaskLike
+import logging
+import time
 
 
 class EEGSubjectModel:
     def __init__(self, data_dir):
+        self._log = logging.getLogger(__name__)
         self.data_dir = data_dir
+        t0 = time.perf_counter()
         self._participants = ParticipantManager(data_dir)
+        t1 = time.perf_counter()
         self._cache = {}
+        self._log.info("EEGSubjectModel initialized (ParticipantManager: %.2fs)", (t1 - t0))
 
     def list_subjects(self):
         return self._participants.list_subjects()
