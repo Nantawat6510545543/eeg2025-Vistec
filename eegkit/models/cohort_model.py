@@ -131,10 +131,7 @@ class EEGCohortModel(TaskLike):
         # 1) Get evoked for each task_model
         evokeds_by_subject: dict[str, list] = {}
         t0 = time.perf_counter()
-        for task_model in tqdm(self.task_model_list,
-                               total=len(self.task_model_list),
-                               desc="Computing evoked",
-                               leave=False):
+        for task_model in self.task_model_list:
             evk = task_model.get_evoked(epoch_params)
             if evk is None:
                 continue

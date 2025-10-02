@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import mne
 import copy
+from tqdm.auto import tqdm
 
 plt.ioff()
 
@@ -172,7 +173,7 @@ class EEGVisualization:
             scalings='auto',
             show=False,
         )
-        return [finalize_figure(fig, task_dto, caption=vars(params), plot_name="Time Domain")]
+        return [finalize_figure(fig, task_dto, caption=str(params), plot_name="Time Domain")]
 
     @register_plot("Frequency Domain", PSDParamsDTO)
     def plot_frequency(self, task_dto: BaseTaskDTO, params: PSDParamsDTO):
@@ -180,7 +181,7 @@ class EEGVisualization:
         raw = prepare_channels(raw, params)
         psd = raw.compute_psd(fmin=params.fmin, fmax=params.fmax)
         fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
-        return [finalize_figure(fig, task_dto, caption=vars(params), plot_name="Frequency Domain")]
+        return [finalize_figure(fig, task_dto, caption=str(params), plot_name="Frequency Domain")]
 
     @register_plot("Condition-wise PSD", EpochPSDParamsDTO)
     def plot_conditionwise_psd(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
@@ -195,7 +196,7 @@ class EEGVisualization:
                 continue
             psd = condition_epochs.compute_psd(fmin=params.fmin, fmax=params.fmax, average='mean')
             fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
-            fig = finalize_figure(fig, task_dto, condition, caption=vars(params), plot_name="Condition-wise PSD")
+            fig = finalize_figure(fig, task_dto, condition, caption=str(params), plot_name="Condition-wise PSD")
             fig_list.append(fig)
         return fig_list
 
@@ -208,7 +209,7 @@ class EEGVisualization:
             epochs = epochs[params.stimulus]
         epochs = prepare_channels(epochs, params)
         fig = epochs.plot(events=False, show=False)
-        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Epoch Plot")
+        return finalize_figure(fig, task_dto, params.stimulus, caption=str(params), plot_name="Epoch Plot")
 
     @register_plot("Evoked Plot", EvokedParamsDTO)
     def plot_evoked(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
@@ -217,7 +218,7 @@ class EEGVisualization:
             return None
         evoked = prepare_channels(evoked, params)
         fig = evoked.plot(gfp=params.gfp, spatial_colors=params.spatial_colors, show=False)
-        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Plot")
+        return finalize_figure(fig, task_dto, params.stimulus, caption=str(params), plot_name="Evoked Plot")
 
     @register_plot("Evoked Topo Plot", EvokedTopoParamsDTO)
     def plot_evoked_topo(self, task_dto: BaseTaskDTO, params: EvokedTopoParamsDTO):
@@ -227,7 +228,7 @@ class EEGVisualization:
             return None
         evoked = prepare_channels(evoked, params)
         fig = evoked.plot_topomap(times=params.get_times, show=False)
-        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Topo")
+        return finalize_figure(fig, task_dto, params.stimulus, caption=str(params), plot_name="Evoked Topo")
 
     @register_plot("Evoked Plot Joint", EvokedJointParamsDTO)
     def plot_evoked_joint(self, task_dto: BaseTaskDTO, params: EvokedJointParamsDTO):
@@ -242,7 +243,7 @@ class EEGVisualization:
             ts_args={"gfp": params.gfp, "spatial_colors": params.spatial_colors},
             show=False,
         )
-        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="Evoked Joint")
+        return finalize_figure(fig, task_dto, params.stimulus, caption=str(params), plot_name="Evoked Joint")
 
     @register_plot("Evoked per Condition", EvokedParamsDTO)
     def plot_evoked_per_condition(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
@@ -335,7 +336,7 @@ class EEGVisualization:
             ylim=[-2, 30],
             xlim=[params.fmin, params.fmax],
         )
-        return finalize_figure(fig, task_dto, params.stimulus, caption=vars(params), plot_name="SNR Spectrum")
+        return finalize_figure(fig, task_dto, params.stimulus, caption=str(params), plot_name="SNR Spectrum")
 
     # complete v5
     @register_plot("Evoked Grid", EvokedParamsDTO)
@@ -400,29 +401,31 @@ class EEGVisualization:
             axis.text(0.01, 1, "µV", transform=axis.transAxes, ha='left', va='bottom', fontsize=8, color='0.4')
 
         # --- build figures --------------------------------------------------
-        for page_token in page_values:
-            fig, axes = plt.subplots(num_rows, num_cols, sharex=False, sharey=False)
-            axes_2d = reshape_axes_array(axes, num_rows, num_cols)
+        total_cells = len(page_values) * num_rows * num_cols
+        with tqdm(total=total_cells, desc="Evoked Grid cells", leave=False) as pbar:
+            for page_token in page_values:
+                fig, axes = plt.subplots(num_rows, num_cols, sharex=False, sharey=False)
+                axes_2d = reshape_axes_array(axes, num_rows, num_cols)
 
-            # Track global y-range across this page for uniform-grid mode
-            y_min, y_max = None, None
+                # Track global y-range across this page for uniform-grid mode
+                y_min, y_max = None, None
 
-            for row_idx, row_token in enumerate(row_values):
-                for col_idx, col_token in enumerate(column_values):
-                    axis = axes_2d[row_idx, col_idx]
-                    axis.cla()
+                for row_idx, row_token in enumerate(row_values):
+                    for col_idx, col_token in enumerate(column_values):
+                        axis = axes_2d[row_idx, col_idx]
+                        axis.cla()
 
-                    label = cell_to_label_map.get((page_token, col_token, row_token))
-                    if label is not None:
-                        evoked, effective_params = _fetch_evoked_response(label)
-                        if evoked is not None:
-                            data_uv = evoked.data * 1e6
-                            if data_uv.size:
-                                dmin = float(np.nanmin(data_uv))
-                                dmax = float(np.nanmax(data_uv))
-                                if np.isfinite(dmin) and np.isfinite(dmax):
-                                    y_min = dmin if y_min is None else min(y_min, dmin)
-                                    y_max = dmax if y_max is None else max(y_max, dmax)
+                        label = cell_to_label_map.get((page_token, col_token, row_token))
+                        if label is not None:
+                            evoked, effective_params = _fetch_evoked_response(label)
+                            if evoked is not None:
+                                data_uv = evoked.data * 1e6
+                                if data_uv.size:
+                                    dmin = float(np.nanmin(data_uv))
+                                    dmax = float(np.nanmax(data_uv))
+                                    if np.isfinite(dmin) and np.isfinite(dmax):
+                                        y_min = dmin if y_min is None else min(y_min, dmin)
+                                        y_max = dmax if y_max is None else max(y_max, dmax)
 
                             draw_evoked_response(axis, evoked, effective_params)
                             # Annotate epoch count (nave) on top-right
@@ -434,41 +437,43 @@ class EEGVisualization:
                             except Exception:
                                 pass
 
-                    # set labels and axis limits for every cell, even if empty
-                    _label_cell(axis, row_idx, col_idx, row_token, col_token)
-                    axis.set_xlim(params.tmin, params.tmax)
+                        # set labels and axis limits for every cell, even if empty
+                        _label_cell(axis, row_idx, col_idx, row_token, col_token)
+                        axis.set_xlim(params.tmin, params.tmax)
 
-            # Harmonize y-limits across all subplots in this page when requested
-            if scale_mode == 'uniform-grid' and y_min is not None and y_max is not None:
-                # symmetric around 0 using max absolute amplitude
-                y_abs = float(max(abs(y_min), abs(y_max)))
-                if not (y_abs and np.isfinite(y_abs) and y_abs > 0):
-                    y_abs = 1.0
-                y_lo, y_hi = -y_abs, y_abs
+                        pbar.update(1)
+
+                # Harmonize y-limits across all subplots in this page when requested
+                if scale_mode == 'uniform-grid' and y_min is not None and y_max is not None:
+                    # symmetric around 0 using max absolute amplitude
+                    y_abs = float(max(abs(y_min), abs(y_max)))
+                    if not (y_abs and np.isfinite(y_abs) and y_abs > 0):
+                        y_abs = 1.0
+                    y_lo, y_hi = -y_abs, y_abs
+                    for r in range(num_rows):
+                        for c in range(num_cols):
+                            axes_2d[r, c].set_ylim(y_lo, y_hi)
+
+                # x-ticks only on bottom row
+                last_row_idx = num_rows - 1
                 for r in range(num_rows):
                     for c in range(num_cols):
-                        axes_2d[r, c].set_ylim(y_lo, y_hi)
+                        axis = axes_2d[r, c]
+                        if r == last_row_idx:
+                            axis.set_xlabel("Time [s]")
+                            axis.tick_params(labelbottom=True)
+                        else:
+                            axis.tick_params(labelbottom=False)
 
-            # x-ticks only on bottom row
-            last_row_idx = num_rows - 1
-            for r in range(num_rows):
-                for c in range(num_cols):
-                    axis = axes_2d[r, c]
-                    if r == last_row_idx:
-                        axis.set_xlabel("Time [s]")
-                        axis.tick_params(labelbottom=True)
-                    else:
-                        axis.tick_params(labelbottom=False)
-
-            # finalize and caption
-            page_stimulus = page_token if (grid_mode == 3 and page_token is not None) else None
-            fig = finalize_figure(
-                fig,
-                task_dto,
-                stimulus=page_stimulus,
-                caption=vars(params),
-                plot_name="Evoked Grid",
-            )
-            figures.append(fig)
+                # finalize and caption
+                page_stimulus = page_token if (grid_mode == 3 and page_token is not None) else None
+                fig = finalize_figure(
+                    fig,
+                    task_dto,
+                    stimulus=page_stimulus,
+                    caption_line=str(params),
+                    plot_name="Evoked Grid",
+                )
+                figures.append(fig)
 
         return figures

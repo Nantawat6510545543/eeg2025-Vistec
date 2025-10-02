@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import logging
 import time
+import os
 from dataclasses import fields as dc_fields
 from tqdm.auto import tqdm
 
@@ -21,6 +22,8 @@ class ParticipantManager:
         self.__release_by_number: Optional[Dict[str, Path]] = None
         self.__task_index: Optional[Dict[str, List[tuple]]] = None
         self._participants_df: Optional[pd.DataFrame] = None
+        # Subject task pairs cache to avoid repeated globs
+        self.__pairs_cache: Dict[tuple[str, str], List[tuple[str, Optional[str]]]] = {}
 
     # ---------- lazy accessors ----------
     @property
@@ -135,21 +138,31 @@ class ParticipantManager:
                 names.add(self._norm(m.group(1)))
         return names
 
-    def _detect_task_columns(self, df: pd.DataFrame, release_dir: Path) -> List[str]:
-        seen: Set[str] = set()
-        subj_list = [p for p in release_dir.glob("sub-*") if p.is_dir()]
-        for subj_dir in tqdm(subj_list, total=len(subj_list), desc=f"Scan tasks in {release_dir.name}", leave=False):
-            seen |= self._subject_task_name_set(subj_dir.name, release_dir)
-        cols: List[str] = []
-        for col in df.columns:
-            ser = df[col]
-            statusy = ser.dtype == object and ser.dropna().str.lower().any()
-            name_match = any(b in seen for b in self._norm_bases(col))
-            if statusy or name_match:
-                cols.append(col)
-        meta = {"participant_id", "release_number", "age", "sex", "ehq_total", "commercial_use", "full_pheno",
-                "p_factor", "attention", "internalizing", "externalizing"}
-        return [c for c in cols if c not in meta]
+    def _subject_task_pairs(self, subject: str, release_dir: Path) -> List[tuple[str, Optional[str]]]:
+        """Return list of (task, run) pairs found on disk for a single subject in a release.
+        Task is the raw task name extracted from filename; run is a string or None.
+        Cached to avoid repeated directory scans.
+        """
+        key = (str(release_dir), subject)
+        if key in self.__pairs_cache:
+            return self.__pairs_cache[key]
+        eeg_dir = release_dir / subject / "eeg"
+        if not eeg_dir.exists():
+            self.__pairs_cache[key] = []
+            return []
+        out: List[tuple[str, Optional[str]]] = []
+        pat = re.compile(rf"^{re.escape(subject)}_task-([^_]+)(?:_run-(\d+))?_eeg\.set$", re.IGNORECASE)
+        for f in eeg_dir.glob(f"{subject}_task-*_eeg.set"):
+            m = pat.match(f.name)
+            if not m:
+                continue
+            task = m.group(1)
+            run = m.group(2)
+            pair = (task, run)
+            if pair not in out:
+                out.append(pair)
+        self.__pairs_cache[key] = out
+        return out
 
     # ---------- CCD metrics helpers ----------
     def _ccd_event_files(self, subject: str, release_dir: Path) -> List[Path]:
@@ -255,13 +268,14 @@ class ParticipantManager:
         t0 = time.perf_counter()
         for idx, row in tqdm(df.iterrows(), total=len(df), desc="Augment CCD metrics", leave=False):
             subj = str(row.get("participant_id"))
-            disk_pairs = self.task_index.get(subj, [])
-            if not any(t == "contrastChangeDetection" for (t, r) in disk_pairs):
-                continue
-
+            # check quickly if this subject has CCD events files on disk
             rdir = self.release_by_number.get(str(row.get("release_number")))
+            if not rdir:
+                continue
+            files = self._ccd_event_files(subj, rdir)
+            if not files:
+                continue
             metrics = self._compute_ccd_metrics(subj, rdir)
-
             for k, v in metrics.items():
                 if v is None:
                     continue
@@ -283,13 +297,15 @@ class ParticipantManager:
             pid = str(row["participant_id"])
             subj_dir = release_dir / pid
             exists = subj_dir.exists() and subj_dir.is_dir()
-            subj_tasks = set(self.task_index.get(pid, [])) if exists else set()
 
             if not exists:
                 for c in task_cols:
                     if str(row[c]).lower() == "available":
                         df.at[idx, c] = "missing"
                 continue
+
+            # Compute on-disk task/run pairs for this subject only (no global scan)
+            subj_pairs = self._subject_task_pairs(pid, release_dir)
 
             for c in task_cols:
                 val = str(row[c]).lower()
@@ -305,9 +321,9 @@ class ParticipantManager:
 
                 if idx_str is not None:
                     run = idx_str
-                    has_match = any(t == base and r == run for (t, r) in subj_tasks)
+                    has_match = any(t == base and r == run for (t, r) in subj_pairs)
                 else:
-                    has_match = any(t == base for (t, r) in subj_tasks)
+                    has_match = any(t == base for (t, r) in subj_pairs)
 
                 if not has_match:
                     df.at[idx, c] = "missing"
@@ -342,9 +358,11 @@ class ParticipantManager:
             raise FileNotFoundError('No participants.tsv found in cmi_bids_R* directories')
         combined = pd.concat(frames, ignore_index=True)
         combined['participant_id'] = combined['participant_id'].astype(str)
+
         t_aug0 = time.perf_counter()
         combined = self._augment_ccd_metrics(combined)
         self._log.info("Augmented CCD metrics in %.2fs", time.perf_counter() - t_aug0)
+
         t_save0 = time.perf_counter()
         combined.to_csv(cp, sep='\t', index=False)
         self._log.info("participants_combine saved at %s (%.2fs)", cp, time.perf_counter() - t_save0)
@@ -400,8 +418,19 @@ class ParticipantManager:
             val = rows.iloc[0].get(col)
             if isinstance(val, str) and val.lower() == 'available':
                 avail_bases |= self._norm_bases(col)
-        disk = self.task_index.get(subject, [])
-        return sorted([(t, r) for (t, r) in disk if self._norm(t) in avail_bases])
+        # Determine subject's release directory
+        rdir = None
+        if 'release_number' in rows.columns and pd.notna(rows.iloc[0].get('release_number')):
+            rdir = self.release_by_number.get(str(rows.iloc[0]['release_number']))
+        if rdir is None:
+            for candidate in self.release_dirs:
+                if (candidate / subject).exists():
+                    rdir = candidate
+                    break
+        if rdir is None:
+            return []
+        disk_pairs = self._subject_task_pairs(subject, rdir)
+        return sorted([(t, r) for (t, r) in disk_pairs if self._norm(t) in avail_bases])
 
     def filter_subjects_by_dto(self, dto: SubjectFilterDTO) -> List[str]:
         t0 = time.perf_counter()

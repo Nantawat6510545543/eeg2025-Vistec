@@ -99,7 +99,7 @@ class EEGTaskProcessor:
                 return epochs[stim]
             self._log.warning("stim '%s' not in available event IDs %s", stim, list(epochs.event_id.keys()))
             return None
-        return epochs
+        return epochs.apply_baseline(baseline=(None, 0.0))
 
     def get_epochs(self, params: EpochParamsDTO):
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
@@ -123,7 +123,6 @@ class EEGTaskProcessor:
             return epochs_sel, labels
 
         epochs, labels = preprocess_fn(self, params)
-        epochs.apply_baseline(baseline=(None, 0.0))
         if epochs is None:
             return None, "unavailable"
         if self.cache and ck:
