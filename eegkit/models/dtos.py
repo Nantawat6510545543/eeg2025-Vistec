@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field, fields
-from typing import Optional, List, Tuple, ClassVar, Dict
+from dataclasses import dataclass, field, fields, asdict
+from typing import Optional, List, Tuple, ClassVar, Dict, Set
 import re
 
 NumberRange = Tuple[float, float]
@@ -101,9 +101,36 @@ class SubjectFilterDTO(BaseTaskDTO):
 
         return ", ".join(parts)
 
+@dataclass
+class ReprMixin:
+    """Reusable mixin for clean __repr__ across dataclasses."""
+
+    _exclude_str_fields: ClassVar[Set[str]] = set()
+
+    def __str__(self) -> str:
+        data = asdict(self)
+        parts = []
+        for k, v in data.items():
+            if k in self._exclude_str_fields:
+                continue
+            if v is None:
+                continue
+            if isinstance(v, str) and not v.strip():
+                continue
+            parts.append(f"{k}={v}")
+        return ', '.join(parts)
+
+    def __init_subclass__(cls, **kwargs):
+        """When subclassing, merge exclusions from all bases."""
+        super().__init_subclass__(**kwargs)
+        merged = set()
+        for base in cls.__mro__:
+            if hasattr(base, "_exclude_str_fields"):
+                merged |= getattr(base, "_exclude_str_fields")
+        cls._exclude_str_fields = merged
 
 @dataclass
-class FilterParamsDTO:
+class FilterParamsDTO(ReprMixin):
     l_freq: float = 0.5
     h_freq: float = 55.0
     notch: float = 60.0
@@ -113,6 +140,8 @@ class FilterParamsDTO:
     # New: filter channels by complete-trace amplitude in microvolts
     uv_min: Optional[float] = None
     uv_max: Optional[float] = None
+
+    _exclude_str_fields: ClassVar[Set[str]] = {"combine_channels"}
 
     @property
     def filter_key(self) -> Dict[str, float]:
@@ -170,6 +199,8 @@ class EpochParamsDTO(FilterParamsDTO):
     stimulus: List[str] = field(default_factory=lambda: [None])
     only_labels: ClassVar[bool] = False
 
+    _exclude_str_fields: ClassVar[Set[str]] = {"stimulus"}
+
     @property
     def epochs_key(self) -> Dict[str, float]:
         key = {
@@ -187,7 +218,6 @@ class EpochParamsDTO(FilterParamsDTO):
         }
         return key
 
-
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
     fmin: float = 3.0
@@ -196,6 +226,9 @@ class PSDParamsDTO(FilterParamsDTO):
     dB: bool = True
     spatial_colors: bool = True
 
+    _exclude_str_fields: ClassVar[Set[str]] = {
+        "average", "dB", "spatial_colors"
+    }
 
 @dataclass
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
@@ -208,6 +241,10 @@ class EvokedParamsDTO(EpochParamsDTO):
     gfp: List[Optional[str]] = field(default_factory=lambda: [False, True, "only"])
     average_line: bool = True
     scale_mode: List[str] = field(default_factory=lambda: ["per-plot", "uniform-grid"])
+
+    _exclude_str_fields: ClassVar[Set[str]] = {
+        "spatial_colors", "gfp", "average_line", "scale_mode"
+    }
 
 
 @dataclass
