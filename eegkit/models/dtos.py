@@ -110,6 +110,9 @@ class FilterParamsDTO:
     resample_fs: float = 500.0
     channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
+    # New: filter channels by complete-trace amplitude in microvolts
+    uv_min: Optional[float] = None
+    uv_max: Optional[float] = None
 
     @property
     def filter_key(self) -> Dict[str, float]:
