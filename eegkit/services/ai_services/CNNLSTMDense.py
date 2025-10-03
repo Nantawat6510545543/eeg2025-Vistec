@@ -1,19 +1,21 @@
 import torch.nn as nn
 
+
 class CNNLSTMDense(nn.Module):
     """
     Input:  x of shape [B, C_in, T]
     Blocks: Conv1d -> Conv1d -> (transpose) -> LSTM -> Dense classifier
     """
+
     def __init__(
-        self,
-        in_channels: int,         # e.g., EEG channels
-        num_classes: int,
-        lstm_hidden: int = 128,
-        lstm_layers: int = 1,
-        bidirectional: bool = True,
-        dropout: float = 0.5,
-        pool: str = "mean",       # "mean" or "last" over the LSTM outputs
+            self,
+            in_channels: int,  # e.g., EEG channels
+            num_classes: int,
+            lstm_hidden: int = 128,
+            lstm_layers: int = 1,
+            bidirectional: bool = True,
+            dropout: float = 0.5,
+            pool: str = "mean",  # "mean" or "last" over the LSTM outputs
     ):
         super().__init__()
         # --- CNN feature extractor ---
@@ -52,14 +54,14 @@ class CNNLSTMDense(nn.Module):
 
     def forward(self, x):
         # x: [B, C_in, T]
-        x = self.cnn(x)                 # [B, 128, T’]
-        x = x.transpose(1, 2)           # [B, T’, 128] for LSTM (batch_first=True)
-        y, _ = self.lstm(x)             # [B, T’, H]
+        x = self.cnn(x)  # [B, 128, T’]
+        x = x.transpose(1, 2)  # [B, T’, 128] for LSTM (batch_first=True)
+        y, _ = self.lstm(x)  # [B, T’, H]
 
         if self.pool == "mean":
-            y = y.mean(dim=1)           # temporal mean-pool
+            y = y.mean(dim=1)  # temporal mean-pool
         else:
-            y = y[:, -1, :]             # last timestep
+            y = y[:, -1, :]  # last timestep
 
-        logits = self.classifier(y)     # [B, num_classes]
+        logits = self.classifier(y)  # [B, num_classes]
         return logits
