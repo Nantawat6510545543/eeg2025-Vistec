@@ -140,8 +140,29 @@ class FilterParamsDTO(ReprMixin):
     # New: filter channels by complete-trace amplitude in microvolts
     uv_min: Optional[float] = None
     uv_max: Optional[float] = None
+    # --- Cleaning options (EEGLAB Clean Rawdata-inspired) ---
+    # Remove bad channels
+    clean_remove_bad_channels: bool = False
+    clean_flatline_sec: float = 5.0
+    clean_hf_noise_sd_max: float = 4.0
+    clean_corr_min: float = 0.8  # min acceptable absolute correlation to aggregate
+    # ASR bad subspace correction/removal (requires optional asrpy; otherwise skipped)
+    clean_asr: bool = False
+    clean_asr_max_std: float = 20.0  # max acceptable 0.5s window std dev (equiv.)
+    clean_asr_remove_only: bool = True  # if True, only annotate/remove bad periods, no reconstruction
+    # Additional removal of bad data periods
+    clean_power_min_sd: float = float('-inf')
+    clean_power_max_sd: float = 7.0
+    clean_max_outbound_pct: float = 25.0  # percentage of channels
+    clean_window_sec: float = 0.5  # analysis window size (s)
 
-    _exclude_str_fields: ClassVar[Set[str]] = {"combine_channels"}
+    _exclude_str_fields: ClassVar[Set[str]] = {
+        "combine_channels",
+        # Reduce caption noise by excluding boolean toggles
+        "clean_remove_bad_channels",
+        "clean_asr",
+        "clean_asr_remove_only",
+    }
 
     @property
     def filter_key(self) -> Dict[str, float]:
@@ -151,6 +172,20 @@ class FilterParamsDTO(ReprMixin):
             "notch": self.notch,
             "resample_fs": self.resample_fs,
         }
+        # Include cleaning settings to avoid cache collisions
+        key.update({
+            "clean_remove_bad_channels": bool(self.clean_remove_bad_channels),
+            "clean_flatline_sec": float(self.clean_flatline_sec),
+            "clean_hf_noise_sd_max": float(self.clean_hf_noise_sd_max),
+            "clean_corr_min": float(self.clean_corr_min),
+            "clean_asr": bool(self.clean_asr),
+            "clean_asr_max_std": float(self.clean_asr_max_std),
+            "clean_asr_remove_only": bool(self.clean_asr_remove_only),
+            "clean_power_min_sd": float(self.clean_power_min_sd),
+            "clean_power_max_sd": float(self.clean_power_max_sd),
+            "clean_max_outbound_pct": float(self.clean_max_outbound_pct),
+            "clean_window_sec": float(self.clean_window_sec),
+        })
         return key
 
     @property
