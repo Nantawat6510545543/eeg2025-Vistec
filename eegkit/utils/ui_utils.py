@@ -3,9 +3,6 @@ from typing import get_origin
 
 import ipywidgets as widgets
 
-from ..models import BaseTaskDTO
-
-
 def is_subject_schema(schema_dto):
     """Return True if the DTO schema includes a 'subject' field (single-subject mode)."""
     return any(f.name == "subject" for f in fields(schema_dto))

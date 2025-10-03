@@ -152,7 +152,7 @@ class FilterParamsDTO(ReprMixin):
 
     # Additional removal of bad data periods
     clean_bad_data: bool = False # if True, apply additional bad data removal based on power
-    clean_power_min_sd: float = float('-inf')
+    clean_power_min_sd: float = -100.0
     clean_power_max_sd: float = 7.0
     clean_max_outbound_pct: float = 25.0  # percentage of channels
     clean_window_sec: float = 0.5  # analysis window size (s)
