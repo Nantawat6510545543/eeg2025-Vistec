@@ -4,6 +4,7 @@ from mne import Epochs, events_from_annotations
 from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ..cache import CacheKey
 import logging
+from ..utils.cleaning_utils import clean_raw_like_eeglab
 
 mne.set_log_level('WARNING')
 import itertools
@@ -61,25 +62,7 @@ class EEGTaskProcessor:
         if cached is not None:
             raw_out = cached
         else:
-            raw_copy = self.get_raw().copy()
-            raw_copy.load_data()
-
-            raw_copy.filter(
-                l_freq=params.l_freq,
-                h_freq=params.h_freq,
-                fir_design="firwin",
-                skip_by_annotation="edge"
-            )
-
-            target_fs = params.resample_fs
-            if target_fs > 0 and target_fs != 500 and abs(raw_copy.info.get('sfreq', 0) - target_fs) > 1e-6:
-                raw_copy.resample(target_fs)
-
-            raw_copy.notch_filter(
-                freqs=params.notch,
-                fir_design="firwin",
-                skip_by_annotation="edge"
-            )
+            raw_copy = clean_raw_like_eeglab(self.get_raw(), params)
 
             p = self.cache.save_raw_filtered(raw_copy, ck)
             try:
