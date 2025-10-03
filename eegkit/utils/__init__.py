@@ -15,4 +15,4 @@ from .ui_utils import (
     read_widget,
     ordered_fields,
 )
-from .cleaning_utils import clean_raw_like_eeglab, EEGCleaner
+from .cleaning_utils import EEGCleaner
