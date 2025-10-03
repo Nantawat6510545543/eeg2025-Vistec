@@ -1,11 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
-import hashlib, json, os
+import hashlib, json
 import mne
-import logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 def _repo_root(start: Path) -> Path:
     for p in [*start.parents, start]:
@@ -13,41 +10,34 @@ def _repo_root(start: Path) -> Path:
             return p
     return start
 
-def _sha256_of_files(paths):
-    h = hashlib.sha256()
-    for p in paths:
-        with open(p, "rb") as f:
-            while chunk := f.read(8192):
-                h.update(chunk)
-    return h.hexdigest()[:16]
 
 def _hash_of_dict(d):
     s = json.dumps(d, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(s.encode()).hexdigest()[:16]
+
 
 @dataclass(frozen=True)
 class CacheKey:
     subject: str
     task: str
     run: str | None
-    stage: str            # "rawfilt" or "epochs"
-    params: dict          # DTO -> dict
-    source_sig: str       # from raw/events files etc.
-    pipeline_ver: str     # bump when processing logic changes
+    stage: str  # "rawfilt" or "epochs"
+    params: dict  # DTO -> dict
+    pipeline_ver: str  # bump when processing logic changes
 
     def subdir(self):
         r = f"run-{self.run}" if self.run else "run-none"
         return f"{self.subject}/{self.task}/{r}/{self.stage}"
 
     def filename_stem(self):
-        return f"{_hash_of_dict(self.params)}-{self.source_sig}-{self.pipeline_ver}"
+        return f"{_hash_of_dict(self.params)}-{self.pipeline_ver}"
+
 
 class LocalCache:
-    def __init__(self, data_files: list[Path], base_dir: Path | None = None, pipeline_ver: str = "v1"):
+    def __init__(self, base_dir: Path | None = None, pipeline_ver: str = "v1"):
         self.repo_root = _repo_root(Path.cwd())
         self.base = base_dir or (self.repo_root / ".eegcache")
         self.base.mkdir(exist_ok=True)
-        self.source_sig = _sha256_of_files([p for p in data_files if p.exists()])
         self.pipeline_ver = pipeline_ver
 
     def _path_for(self, key: CacheKey, type, ext: str) -> Path:
@@ -58,42 +48,61 @@ class LocalCache:
     def load_raw_filtered(self, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
         if p.exists():
-            print(f"[CACHE HIT] Raw filtered found at {p}")
-            return mne.io.read_raw_fif(p.as_posix(), preload=True, verbose="ERROR")
-        print(f"[CACHE MISS] Raw filtered not found for key={p}")
+            return mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
         return None
 
     def save_raw_filtered(self, raw, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
-        print(f"[CACHE SAVE] Storing raw filtered at {p}")
         raw.save(p.as_posix(), overwrite=True)
         return p
 
     def load_epochs(self, key: CacheKey):
         p = self._path_for(key, "epo", "fif")
         if not p.exists():
-            print(f"[CACHE MISS] Epochs not found for key={p}")
             return None, None
-
         epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
-
         labels_file = p.with_suffix(".labels.json")
         labels = None
         if labels_file.exists():
             with open(labels_file, "r") as f:
                 labels = json.load(f)
-
-        print(f"[CACHE HIT] Epochs found at {p}")
         return epochs, labels
 
     def save_epochs(self, epochs, key: CacheKey, labels=None):
         p = self._path_for(key, "epo", "fif")
-        print(f"[CACHE SAVE] Storing epochs at {p}")
         epochs.save(p.as_posix(), overwrite=True)
-
         if labels is not None:
             labels_file = p.with_suffix(".labels.json")
             with open(labels_file, "w") as f:
-                json.dump(labels.tolist(), f)
+                try:
+                    from numpy import ndarray
+                    if isinstance(labels, ndarray):
+                        json.dump(labels.tolist(), f)
+                    elif isinstance(labels, (list, tuple)):
+                        json.dump(list(labels), f)
+                    elif isinstance(labels, dict):
+                        json.dump(labels, f)
+                    else:
+                        json.dump(labels, f)
+                except Exception:
+                    json.dump(str(labels), f)
+        return p
 
+    def load_evoked(self, key: CacheKey):
+        p = self._path_for(key, "ave", "fif")
+        if not p.exists():
+            return None
+        try:
+            evk_list = mne.read_evokeds(p.as_posix(), condition=0, verbose="ERROR")
+            return evk_list
+        except Exception:
+            try:
+                evk_list = mne.read_evokeds(p.as_posix(), verbose="ERROR")
+                return evk_list[0] if evk_list else None
+            except Exception:
+                return None
+
+    def save_evoked(self, evoked, key: CacheKey):
+        p = self._path_for(key, "ave", "fif")
+        evoked.save(p.as_posix(), overwrite=True)
         return p

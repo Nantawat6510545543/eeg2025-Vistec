@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 import pandas as pd
 import mne
+import warnings
 from .dtos import TaskDTO
 
 
@@ -12,8 +13,13 @@ class EEGTaskLoader:
 
     def load_raw(self):
         path = self.get_file("eeg.set")
-        raw = mne.io.read_raw_eeglab(path, preload=True, montage_units='cm')
-        raw.drop_channels(['Cz'])
+        fdt_path = path.with_suffix('.fdt')
+        preload = not fdt_path.exists()
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*boundary.*data discontinuities.*")
+            raw = mne.io.read_raw_eeglab(path, preload=preload, montage_units='cm')
+        if 'Cz' in raw.ch_names:
+            raw.drop_channels(['Cz'])
         raw.set_montage(mne.channels.make_standard_montage("GSN-HydroCel-128"), match_case=False)
         return raw
 
@@ -28,12 +34,13 @@ class EEGTaskLoader:
 
     def load_electrodes(self):
         return self._load_tsv("electrodes.tsv")
-    
+
     def get_file(self, ext):
         base = f"{self.task_dto.subject}_task-{self.task_dto.task}"
         if self.task_dto.run:
             base += f"_run-{self.task_dto.run}"
-        return self.data_dir / self.task_dto.subject / "eeg" / f"{base}_{ext}"
+        p = self.data_dir / self.task_dto.subject / "eeg" / f"{base}_{ext}"
+        return p
 
     def _load_json(self, name):
         path = self.get_file(name)

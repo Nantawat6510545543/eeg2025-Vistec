@@ -1,61 +1,65 @@
-from pathlib import Path
-import re
-from collections import defaultdict
+from __future__ import annotations
+
 from .task_model import EEGTaskModel
-from .dtos import TaskDTO
+from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
+from .cohort_model import EEGCohortModel
+from .participant_manager import ParticipantManager
+from .interfaces import TaskLike
+import logging
+import time
 
 
 class EEGSubjectModel:
     def __init__(self, data_dir):
-        self._data_dir = Path(data_dir)
-        self._subject_ids = self._discover_subjects()
-        self._task_index = self._discover_tasks()
+        self._log = logging.getLogger(__name__)
+        self.data_dir = data_dir
+        t0 = time.perf_counter()
+        self._participants = ParticipantManager(data_dir)
+        t1 = time.perf_counter()
         self._cache = {}
-
-    def _discover_subjects(self):
-        return sorted([p.name for p in self._data_dir.glob("sub-*") if p.is_dir()])
-
-    def _discover_tasks(self):
-        task_map = defaultdict(list)
-        pattern = re.compile(
-            r"(sub-(?P<subject>[^_]+))_task-(?P<task>[^_]+)(?:_run-(?P<run>\d+))?_eeg\.set"
-        )
-
-        for subj_dir in self._data_dir.glob("sub-*"):
-            eeg_dir = subj_dir / "eeg"
-            if not eeg_dir.exists():
-                continue
-
-            for eeg_file in eeg_dir.glob("sub-*_task-*_eeg.set"):
-                match = pattern.match(eeg_file.name)
-                if match:
-                    full_subj = match.group(1)
-                    task = match.group("task")
-                    run = match.group("run")
-                    task_map[full_subj].append((task, run))
-
-        for subj, tasks in list(task_map.items()):
-            task_runs = defaultdict(set)
-            for task, run in tasks:
-                task_runs[task].add(run)
-
-            for task, runs in task_runs.items():
-                runs_trial = len([r for r in runs if r is not None])
-                if runs_trial > 1:
-                    task_map[subj].append((task, f"All-{runs_trial}"))
-
-        return dict(task_map)
+        self._log.info("EEGSubjectModel initialized (ParticipantManager: %.2fs)", (t1 - t0))
 
     def list_subjects(self):
-        return self._subject_ids
+        return self._participants.list_subjects()
+
+    def list_all_tasks(self):
+        return self._participants.list_all_tasks()
 
     def list_tasks(self, subject):
-        return sorted(self._task_index.get(subject, []))
+        return self._participants.list_tasks(subject)
 
-    def get_task(self, task_dto: TaskDTO):
-        key = (task_dto.subject, task_dto.task, task_dto.run)
-        if key not in self._cache:
-            task_model = EEGTaskModel(task_dto, self._data_dir)
-            self._cache[key] = task_model
+    def get_task(self, task_dto: BaseTaskDTO) -> TaskLike:
+        # single
+        if getattr(task_dto, "subject", None):
+            subj_dir = self._participants.subject_data_dir(task_dto.subject)
+            return EEGTaskModel(task_dto, subj_dir)
 
-        return self._cache[key]
+        # cohort
+        subjects = self._participants.filter_subjects_by_dto(task_dto)
+        task = task_dto.task
+        models = []
+        for subj in subjects:
+            subj_tasks = self._participants.list_tasks(subj)
+            runs = [r for (t, r) in subj_tasks if t == task] or [None]
+            subj_dir = self._participants.subject_data_dir(subj)
+            for run in runs:
+                dto = TaskDTO(subject=subj, task=task, run=run)
+                models.append(EEGTaskModel(dto, subj_dir))
+
+        cohort = EEGCohortModel(task_dto, models, len(subjects))
+        return cohort
+
+    def get_filter_subjects_dto(self, task_dto: SubjectFilterDTO):
+        subjects = self._participants.filter_subjects_by_dto(task_dto)
+        task = task_dto.task
+        dtos = []
+        for subj in subjects:
+            subj_tasks = self._participants.list_tasks(subj)
+            runs = [r for (t, r) in subj_tasks if t == task] or [None]
+            for run in runs:
+                dtos.append(TaskDTO(subject=subj, task=task, run=run))
+
+        return dtos
+
+    def get_subjects_metadata(self, subject_ids, columns=None):
+        return self._participants.get_subjects_metadata(subject_ids, columns)

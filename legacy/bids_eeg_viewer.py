@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 import warnings
 
+
 class BIDS_EEG_Viewer:
     def __init__(self, data_dir: str):
         self.data_dir = Path(data_dir)

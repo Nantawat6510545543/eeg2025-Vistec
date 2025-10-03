@@ -1,6 +1,6 @@
 import pandas as pd
 from ..models import (
-    TaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
+    BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
 )
 
 data_registry = {}
@@ -28,39 +28,45 @@ class EEGDataService:
             self.spec[key]["function"] = func.__get__(self)
 
     @register_data("EEG Table", TableInfoDTO)
-    def show_table(self, task_dto: TaskDTO, table_info: TableInfoDTO):
+    def show_table(self, task_dto: BaseTaskDTO, table_info: TableInfoDTO):
         task_model = self.get_task(task_dto)
         df_map = {
-            'events': task_model.events,
+            'events': task_model.get_event(),
             'channels': task_model.channels,
             'electrodes': task_model.electrodes
         }
         return df_map.get(table_info.table_type, pd.DataFrame()).head(table_info.rows)
 
     @register_data("Epochs Table", EpochParamsDTO)
-    def show_epochs_table(self, task_dto: TaskDTO, params: EpochParamsDTO):
+    def show_epochs_table(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
         epochs, labels = self.get_epochs(task_dto, params)
-        if epochs is None or labels is None:
+        if epochs is None:
             return None
-        labels_series = pd.Series(labels)
-        unique_labels = sorted(set(labels_series))
+
         rows = []
-        for label in unique_labels:
-            idx = labels_series[labels_series == label].index
-            label_epochs = epochs[idx]
+        for label, _code in epochs.event_id.items():
+            try:
+                cond_epochs = epochs[label]
+            except Exception:
+                continue
+            if len(cond_epochs) == 0:
+                continue
+            n_times = len(cond_epochs.times)
+            sfreq = float(cond_epochs.info.get('sfreq', 0.0))
             row = {
                 'label': label,
-                'n_epochs': len(label_epochs),
-                'n_channels': len(label_epochs.ch_names),
-                'timespan_sec': label_epochs.times[-1] - label_epochs.times[0] if len(label_epochs.times) > 1 else 0,
-                'sampling_rate': label_epochs.info['sfreq'],
-                'duration_per_epoch_sec': label_epochs.get_data().shape[-1] / label_epochs.info['sfreq']
+                'n_epochs': len(cond_epochs),
+                'n_channels': len(cond_epochs.ch_names),
+                'timespan_sec': float(cond_epochs.times[-1] - cond_epochs.times[0]) if n_times > 1 else 0.0,
+                'sampling_rate': sfreq,
+                'duration_per_epoch_sec': float(n_times / sfreq) if sfreq > 0 and n_times > 0 else 0.0,
             }
             rows.append(row)
+
         return pd.DataFrame(rows)
 
     @register_data("Annotations", FilterParamsDTO)
-    def get_annotation_df(self, task_dto: TaskDTO, filter_params: FilterParamsDTO):
+    def get_annotation_df(self, task_dto: BaseTaskDTO, filter_params: FilterParamsDTO):
         raw = self.get_raw(task_dto, filter_params)
         annots = raw.annotations
         df = pd.DataFrame({
@@ -71,6 +77,6 @@ class EEGDataService:
         return df
 
     @register_data("Metadata", None)
-    def show_annotations(self, task_dto: TaskDTO, params: FilterParamsDTO):
+    def show_annotations(self, task_dto: BaseTaskDTO, params: FilterParamsDTO):
         task_model = self.get_task(task_dto)
         return task_model.metadata
