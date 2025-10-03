@@ -423,7 +423,7 @@ class EEGVisualization:
                         axis.cla()
 
                         label = cell_to_label_map.get((page_token, col_token, row_token))
-                        if label is not None:
+                        if label is not None and label in epochs.event_id:
                             evoked, effective_params = _fetch_evoked_response(label)
                             if evoked is not None:
                                 data_uv = evoked.data * 1e6
