@@ -5,6 +5,7 @@ from ..utils import  (finalize_figure,
     map_cells_to_labels,
     reshape_axes_array,
     draw_evoked_response,
+    ChannelsHelper,
 )
 
 import matplotlib.pyplot as plt
@@ -31,98 +32,19 @@ def register_plot(name, dto_cls):
 
 
 def prepare_channels(inst, params):
-    """Pick channels by name, optionally filter by complete-trace µV range, then optionally combine.
+    """Pick channels by name, optionally filter by complete-trace µV range, then optionally combine."""
+    ch_helper = ChannelsHelper(params, inst)
+    ch_helper.pick_channels()
+    ch_helper.filter_by_uv()
+    picks = ch_helper.picks or []
+    pick_names = ch_helper.pick_names or []
 
-    Behavior of µV range filter:
-    - If params.uv_min is not None, a channel is kept only if its minimum over all samples >= uv_min.
-    - If params.uv_max is not None, a channel is kept only if its maximum over all samples <= uv_max.
-    The data are converted from Volts to microvolts before comparison.
-    """
-    ch = getattr(params, 'channels_list', []) or []
-    picks_raw = mne.pick_channels(inst.ch_names, include=ch)
-    try:
-        picks = [int(i) for i in np.array(picks_raw).tolist()]
-    except Exception:
-        picks = list(picks_raw) if isinstance(picks_raw, (list, tuple)) else []
-    pick_names = [inst.ch_names[i] for i in picks]
-
-    # Coerce uv_min/uv_max to floats or None (UI may provide empty strings)
-    def _to_float_or_none(x):
-        if x is None:
-            return None
-        try:
-            # treat blank strings as None
-            if isinstance(x, str) and x.strip() == "":
-                return None
-            return float(x)
-        except Exception:
-            return None
-
-    uv_min = _to_float_or_none(getattr(params, 'uv_min', None))
-    uv_max = _to_float_or_none(getattr(params, 'uv_max', None))
-
-    def _filter_picks_by_uv(inst_obj, pick_idx_list):
-        # Robust empty check for list/tuple/np.ndarray
-        if pick_idx_list is None or (
-            hasattr(pick_idx_list, "__len__") and len(pick_idx_list) == 0
-        ) or (hasattr(pick_idx_list, "size") and getattr(pick_idx_list, "size", 0) == 0):
-            return []
-        # Determine data array in µV for the selected picks
-        data_uv = None
-        try:
-            # Evoked has .data (n_channels, n_times)
-            if hasattr(inst_obj, 'data') and not hasattr(inst_obj, 'get_data'):
-                data_uv = inst_obj.data[pick_idx_list, :] * 1e6
-            else:
-                # Raw and Epochs both have get_data; shapes differ:
-                # Raw: (n_channels, n_times), Epochs: (n_epochs, n_channels, n_times)
-                arr = inst_obj.get_data(picks=pick_idx_list)
-                if arr.ndim == 2:
-                    data_uv = arr * 1e6  # (n_ch, n_times)
-                elif arr.ndim == 3:
-                    # reduce over epochs: take global min/max over all epochs/time
-                    # reshape to (n_ch, -1) for uniform handling
-                    n_epochs, n_ch, n_times = arr.shape
-                    data_uv = arr.transpose(1, 0, 2).reshape(n_ch, -1) * 1e6
-                else:
-                    # Unexpected shape; skip filtering
-                    return pick_idx_list
-        except Exception:
-            # If data access fails (e.g., not preloaded), fall back to no additional filtering
-            return pick_idx_list
-
-        if data_uv is None:
-            return pick_idx_list
-
-        ch_mins = np.nanmin(data_uv, axis=-1)
-        ch_maxs = np.nanmax(data_uv, axis=-1)
-        keep_mask = np.ones(len(pick_idx_list), dtype=bool)
-        if uv_min is not None:
-            keep_mask &= ch_mins >= uv_min
-        if uv_max is not None:
-            keep_mask &= ch_maxs <= uv_max
-
-        kept = [idx for idx, keep in zip(pick_idx_list, keep_mask) if keep]
-        return kept
-
-    # Apply µV filtering if any bound is specified
-    if uv_min is not None or uv_max is not None:
-        filtered_picks = _filter_picks_by_uv(inst, picks)
-        if not filtered_picks:
-            # Fallback: if everything filtered out, keep original picks to avoid empty selection
-            filtered_picks = picks
-        picks = filtered_picks
-        pick_names = [inst.ch_names[i] for i in picks]
-
-    # Apply combine or simple pick
     if getattr(params, 'combine_channels', False):
-        # Only combine if we have at least one channel
         if pick_names:
             inst = mne.channels.combine_channels(
                 inst, groups={"combined": list(pick_names)}, method="mean"
             )
         else:
-            # Nothing to combine; leave as-is
             inst = inst.copy()
     else:
         inst = inst.copy().pick(picks)

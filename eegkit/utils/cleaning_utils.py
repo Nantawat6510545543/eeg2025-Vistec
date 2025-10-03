@@ -2,12 +2,10 @@
 
 Class-based API `EEGCleaner` performs a complete preprocessing pipeline on MNE Raw objects:
 - Band-pass filter (l_freq/h_freq), resample, and notch filter
-- Drop flatline channels (> N seconds constant)
-- Drop high-noise channels (HF band z-score > threshold)
-- Drop low-correlation channels (vs. robust reference)
-- Mark/remove bad time windows where a large fraction of channels are out of power range
-
-ASR is attempted via `asrpy` if installed and enabled; otherwise skipped.
+- Mark flatline channels as bad (> N seconds constant)
+- Mark high-noise channels (HF band z-score > threshold) as bad
+- Mark low-correlation channels (vs. robust reference) as bad
+- Mark bad time windows where a large fraction of channels are out of power range
 
 All operations are optional and controlled via FilterParamsDTO clean_* fields.
 """
@@ -19,6 +17,7 @@ from typing import Optional
 import numpy as np
 import mne
 import asrpy  
+from numpy.lib.stride_tricks import sliding_window_view as swv
 
 log = logging.getLogger(__name__)
 
@@ -41,11 +40,11 @@ class EEGCleaner:
         EEGCleaner(params).clean(raw)
     """
 
-    def __init__(self, params, raw: mne.io.BaseRaw):
+    def __init__(self, params):
         self.params = params
-        self.raw = raw
+        self.raw = None
 
-    def _drop_flatline_channels(self):
+    def _mark_bad_flatline_channels(self):
         raw = self.raw
         flat_sec = getattr(self.params, 'clean_flatline_sec', 5.0)
         if not (flat_sec and flat_sec > 0):
@@ -59,7 +58,6 @@ class EEGCleaner:
             return
         data = raw.get_data(picks=picks, reject_by_annotation='omit')
         bad_names = []
-        from numpy.lib.stride_tricks import sliding_window_view as swv
         for idx, ch_idx in enumerate(picks):
             x = data[idx]
             if x.shape[-1] < n_samples:
@@ -72,12 +70,14 @@ class EEGCleaner:
             if is_flat:
                 bad_names.append(raw.ch_names[ch_idx])
         if bad_names:
-            log.info("Dropping flatline channels (>%ss): %s", flat_sec, bad_names)
-            self.raw = raw.copy().drop_channels(bad_names)
+            log.info("Marking flatline channels as bad (>%ss): %s", flat_sec, bad_names)
+            raw = raw.copy()
+            raw.info['bads'] = sorted(set((raw.info.get('bads') or []) + bad_names))
+            self.raw = raw
         else:
             self.raw = raw
 
-    def _drop_highfreq_noise_channels(self):
+    def _mark_bad_highfreq_noise_channels(self):
         raw = self.raw
         hf_sd_max = getattr(self.params, 'clean_hf_noise_sd_max', 4.0)
         if not (hf_sd_max and hf_sd_max > 0):
@@ -92,8 +92,10 @@ class EEGCleaner:
         bad_local_idx = np.where(z.flatten() > hf_sd_max)[0].tolist()
         bad_names = [raw.ch_names[picks[i]] for i in bad_local_idx]
         if bad_names:
-            log.info("Dropping high-frequency noise channels (z>%.2f): %s", hf_sd_max, bad_names)
-            self.raw = raw.copy().drop_channels(bad_names)
+            log.info("Marking high-noise channels as bad (z>%.2f): %s", hf_sd_max, bad_names)
+            raw = raw.copy()
+            raw.info['bads'] = sorted(set((raw.info.get('bads') or []) + bad_names))
+            self.raw = raw
         else:
             self.raw = raw
         try:
@@ -101,7 +103,7 @@ class EEGCleaner:
         except Exception:
             pass
 
-    def _drop_lowcorr_channels(self):
+    def _mark_bad_lowcorr_channels(self):
         raw = self.raw
         corr_min = getattr(self.params, 'clean_corr_min', 0.8)
         if not (raw and corr_min and 0 < corr_min <= 1):
@@ -124,8 +126,10 @@ class EEGCleaner:
         bad_local_idx = np.where(corrs < corr_min)[0].tolist()
         bad_names = [raw.ch_names[picks[i]] for i in bad_local_idx]
         if bad_names:
-            log.info("Dropping low-correlation channels (corr<%.2f): %s", corr_min, bad_names)
-            self.raw = raw.copy().drop_channels(bad_names)
+            log.info("Marking low-correlation channels as bad (corr<%.2f): %s", corr_min, bad_names)
+            raw = raw.copy()
+            raw.info['bads'] = sorted(set((raw.info.get('bads') or []) + bad_names))
+            self.raw = raw
         else:
             self.raw = raw
 
@@ -146,7 +150,6 @@ class EEGCleaner:
         n_ch, n_t = data.shape
         if n_t < win:
             return
-        from numpy.lib.stride_tricks import sliding_window_view as swv
         v = swv(data, win, axis=1)
         power = np.nanmean(v ** 2, axis=-1)
         z = _safe_zscore(power, axis=1)
@@ -187,58 +190,44 @@ class EEGCleaner:
             log.warning("ASR failed (%s); skipping.", e)
             self.raw = raw
 
-    def _pre_filter(self) -> None:
+    # ---------- public API ----------
+    def pre_filter(self, raw) -> None:
         """Apply band-pass, resample, and notch to self.raw in place (copy), using self.params."""
         params = self.params
-        out = self.raw.copy()
         try:
-            out.load_data()
-            out.filter(
+            raw.load_data()
+            raw.filter(
                 l_freq=getattr(params, 'l_freq', 0.5),
                 h_freq=getattr(params, 'h_freq', 55.0),
                 fir_design='firwin',
                 skip_by_annotation='edge',
             )
             target_fs = float(getattr(params, 'resample_fs', 500.0) or 0.0)
-            cur_fs = float(out.info.get('sfreq', 0.0) or 0.0)
+            cur_fs = float(raw.info.get('sfreq', 0.0) or 0.0)
             if target_fs > 0 and abs(cur_fs - target_fs) > 1e-6:
-                out.resample(target_fs)
+                raw.resample(target_fs)
             notch = getattr(params, 'notch', 60.0)
             if notch and float(notch) > 0:
-                out.notch_filter(
+                raw.notch_filter(
                     freqs=notch,
                     fir_design='firwin',
                     skip_by_annotation='edge',
                 )
         except Exception as e:
             log.warning("Pre-clean filtering step failed: %s; proceeding with raw copy.", e)
-        self.raw = out
+        return raw
 
-    # ---------- public API ----------
-    def clean_raw(self) -> mne.io.BaseRaw:
-        """Run preprocessing and cleaning on self.raw using self.params.
-
-        Returns the cleaned Raw. self.raw is updated to the cleaned copy.
-        """
-        params = self.params
-        self._pre_filter()
-
+    def clean_mark(self, raw) -> mne.io.BaseRaw:
+        """Only apply marking steps (bad channels and bad windows) to self.raw, without prefilter."""
+        self.raw = raw
         try:
-            if getattr(params, 'clean_remove_bad_channels', False):
-                self._drop_flatline_channels()
-                self._drop_highfreq_noise_channels()
-                self._drop_lowcorr_channels()
-
-            if getattr(params, 'clean_asr', False):
+            self._mark_bad_flatline_channels()
+            self._mark_bad_highfreq_noise_channels()
+            self._mark_bad_lowcorr_channels()
+            if getattr(self.params, 'clean_asr', False):
                 self._apply_asr_if_available()
-
             self._mark_bad_windows_by_power()
         except Exception as e:
-            log.warning("Cleaning step failed: %s (skipped)", e)
+            log.warning("Mark-only cleaning failed: %s (skipped)", e)
             return self.raw
         return self.raw
-
-
-def clean_raw_like_eeglab(raw: mne.io.BaseRaw, params) -> mne.io.BaseRaw:
-    """Backwards-compatible function wrapper returning cleaned Raw."""
-    return EEGCleaner(params, raw).clean_raw()

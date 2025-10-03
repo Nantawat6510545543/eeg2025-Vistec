@@ -4,7 +4,7 @@ from mne import Epochs, events_from_annotations
 from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ..cache import CacheKey
 import logging
-from ..utils.cleaning_utils import clean_raw_like_eeglab
+from ..utils import clean_raw_like_eeglab, EEGCleaner
 
 mne.set_log_level('WARNING')
 import itertools
@@ -50,28 +50,47 @@ class EEGTaskProcessor:
         self._log = logging.getLogger(__name__)
 
     def get_filtered(self, params: FilterParamsDTO):
-        ck = CacheKey(
+        # prefilter cache (heavy FIR/resample/notch)
+        pre_ck = CacheKey(
             subject=self.task_dto.subject,
             task=self.task_dto.task,
             run=self.task_dto.run,
-            stage="rawfilt",
+            stage="prefilter",
             params=params.filter_key,
             pipeline_ver=self.cache.pipeline_ver,
         )
-        cached = self.cache.load_raw_filtered(ck)
-        if cached is not None:
-            raw_out = cached
+        cached = self.cache.load_raw_filtered(pre_ck)
+        if cached is None:
+            # run prefilter path of cleaner
+            cleaner = EEGCleaner(params, self.get_raw())
+            raw_pref = cleaner.pre_filter()
+            p = self.cache.save_raw_filtered(raw_pref, pre_ck)
+            del raw_pref
+            raw_pref = mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
         else:
-            raw_copy = clean_raw_like_eeglab(self.get_raw(), params)
+            raw_pref = cached
 
-            p = self.cache.save_raw_filtered(raw_copy, ck)
-            try:
-                del raw_copy
-            except Exception:
-                pass
-            raw_out = mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
+        # mark bad channels/time windows.
+        clean_ck = CacheKey(
+            subject=self.task_dto.subject,
+            task=self.task_dto.task,
+            run=self.task_dto.run,
+            stage="cleaned",
+            params=params.cleaning_key,
+            pipeline_ver=self.cache.pipeline_ver,
+        )
+        cleaned_cached = self.cache.load_raw_filtered(clean_ck)
+        if cleaned_cached is not None:
+            return cleaned_cached
 
-        return raw_out
+        try:
+            cleaner2 = EEGCleaner(params, raw_pref.copy().load_data())
+            cleaner2.clean_mark()
+            raw_clean = cleaner2.raw
+            self.cache.save_raw_filtered(raw_clean, clean_ck)
+            return raw_clean
+        except Exception:
+            return raw_pref
 
     def _apply_stimulus_filter(self, epochs: Epochs, params: EpochParamsDTO):
         stim = params.stimulus
@@ -108,6 +127,13 @@ class EEGTaskProcessor:
         epochs, labels = preprocess_fn(self, params)
         if epochs is None:
             return None, "unavailable"
+        
+        try:
+            if epochs.info.get('bads'):
+                epochs = epochs.interpolate_bads(reset_bads=True)
+        except Exception:
+            pass
+
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
 
@@ -134,6 +160,12 @@ class EEGTaskProcessor:
         epochs, _labels = self.get_epochs(params)
         if epochs is None:
             return None
+
+        try:
+            if epochs.info.get('bads'):
+                epochs = epochs.interpolate_bads(reset_bads=True)
+        except Exception:
+            pass
 
         evoked = epochs.average()
         if self.cache and ck:

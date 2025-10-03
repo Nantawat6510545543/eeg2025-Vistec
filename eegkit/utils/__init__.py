@@ -5,6 +5,7 @@ from .plot_utills import (
     map_cells_to_labels,
     reshape_axes_array,
     draw_evoked_response,
+    ChannelsHelper,
 )
 from .ui_utils import (
     is_subject_schema,
@@ -14,3 +15,4 @@ from .ui_utils import (
     read_widget,
     ordered_fields,
 )
+from .cleaning_utils import clean_raw_like_eeglab, EEGCleaner

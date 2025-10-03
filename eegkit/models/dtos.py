@@ -23,8 +23,6 @@ class BaseTaskDTO:
 
     def __hash__(self):
         return hash(tuple(make_hashable(getattr(self, f.name)) for f in fields(self)))
-
-
 @dataclass
 class TaskDTO(BaseTaskDTO):
     task: str
@@ -137,56 +135,81 @@ class FilterParamsDTO(ReprMixin):
     resample_fs: float = 500.0
     channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
-    # New: filter channels by complete-trace amplitude in microvolts
+    
     uv_min: Optional[float] = None
     uv_max: Optional[float] = None
-    # --- Cleaning options (EEGLAB Clean Rawdata-inspired) ---
+
     # Remove bad channels
-    clean_remove_bad_channels: bool = False
+    showbad: bool = True  # if True, show marked bad channels; otherwise exclude them
     clean_flatline_sec: float = 5.0
     clean_hf_noise_sd_max: float = 4.0
     clean_corr_min: float = 0.8  # min acceptable absolute correlation to aggregate
+    
     # ASR bad subspace correction/removal (requires optional asrpy; otherwise skipped)
-    clean_asr: bool = False
+    clean_asr: bool = False # if True, apply ASR to remove/reconstruct bad data periods
     clean_asr_max_std: float = 20.0  # max acceptable 0.5s window std dev (equiv.)
     clean_asr_remove_only: bool = True  # if True, only annotate/remove bad periods, no reconstruction
+
     # Additional removal of bad data periods
+    clean_bad_data: bool = False # if True, apply additional bad data removal based on power
     clean_power_min_sd: float = float('-inf')
     clean_power_max_sd: float = 7.0
     clean_max_outbound_pct: float = 25.0  # percentage of channels
     clean_window_sec: float = 0.5  # analysis window size (s)
-
+    
     _exclude_str_fields: ClassVar[Set[str]] = {
         "combine_channels",
-        # Reduce caption noise by excluding boolean toggles
-        "clean_remove_bad_channels",
+        "showbad",
         "clean_asr",
         "clean_asr_remove_only",
     }
 
     @property
     def filter_key(self) -> Dict[str, float]:
-        key = {
+        """Cache key for prefilter-only stage (band-pass, resample, notch).
+
+        This intentionally excludes any cleaning/marking options so that the
+        heavy prefilter result can be reused regardless of how we later mark
+        bad channels or bad time windows.
+        """
+        return {
             "l_freq": self.l_freq,
             "h_freq": self.h_freq,
             "notch": self.notch,
             "resample_fs": self.resample_fs,
         }
-        # Include cleaning settings to avoid cache collisions
-        key.update({
-            "clean_remove_bad_channels": bool(self.clean_remove_bad_channels),
-            "clean_flatline_sec": float(self.clean_flatline_sec),
-            "clean_hf_noise_sd_max": float(self.clean_hf_noise_sd_max),
-            "clean_corr_min": float(self.clean_corr_min),
-            "clean_asr": bool(self.clean_asr),
+
+    @property
+    def cleaning_key(self) -> Dict[str, float | bool]:
+        """Cache key for cleaning/marking stage (bad channels, bad periods).
+
+        Note: Visualization-only options like channel selection, showbad,
+        combine_channels, and uV thresholds are intentionally excluded.
+        """
+        key = self.filter_key
+        if not self.showbad:
+            key.update({
+                "clean_flatline_sec": float(self.clean_flatline_sec),
+                "clean_hf_noise_sd_max": float(self.clean_hf_noise_sd_max),
+                "clean_corr_min": float(self.clean_corr_min),
+            })
+
+        if self.clean_asr:
+            key.update({
             "clean_asr_max_std": float(self.clean_asr_max_std),
-            "clean_asr_remove_only": bool(self.clean_asr_remove_only),
+            "clean_asr_remove_only": bool(self.clean_asr_remove_only)
+            })
+
+        if self.clean_bad_data:
+            key.update({
             "clean_power_min_sd": float(self.clean_power_min_sd),
             "clean_power_max_sd": float(self.clean_power_max_sd),
             "clean_max_outbound_pct": float(self.clean_max_outbound_pct),
             "clean_window_sec": float(self.clean_window_sec),
-        })
+            })
+
         return key
+            
 
     @property
     def channels_list(self):
@@ -239,7 +262,7 @@ class EpochParamsDTO(FilterParamsDTO):
     @property
     def epochs_key(self) -> Dict[str, float]:
         key = {
-            **self.filter_key,
+            **self.cleaning_key,
             "tmin": self.tmin,
             "tmax": self.tmax,
         }
