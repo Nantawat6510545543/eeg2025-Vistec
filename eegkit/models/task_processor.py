@@ -50,27 +50,7 @@ class EEGTaskProcessor:
         self._log = logging.getLogger(__name__)
 
     def get_filtered(self, params: FilterParamsDTO):
-        # prefilter cache (heavy FIR/resample/notch)
-        pre_ck = CacheKey(
-            subject=self.task_dto.subject,
-            task=self.task_dto.task,
-            run=self.task_dto.run,
-            stage="prefilter",
-            params=params.filter_key,
-            pipeline_ver=self.cache.pipeline_ver,
-        )
-        cached = self.cache.load_raw_filtered(pre_ck)
-        if cached is None:
-            # run prefilter path of cleaner
-            cleaner = EEGCleaner(params, self.get_raw())
-            raw_pref = cleaner.pre_filter()
-            p = self.cache.save_raw_filtered(raw_pref, pre_ck)
-            del raw_pref
-            raw_pref = mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
-        else:
-            raw_pref = cached
-
-        # mark bad channels/time windows.
+        # 1) Find cleaned cache
         clean_ck = CacheKey(
             subject=self.task_dto.subject,
             task=self.task_dto.task,
@@ -83,10 +63,27 @@ class EEGTaskProcessor:
         if cleaned_cached is not None:
             return cleaned_cached
 
+        # 2) If cleaned cache not found, Build prefilter cache (Bandpass/resample/notch)
+        pre_ck = CacheKey(
+            subject=self.task_dto.subject,
+            task=self.task_dto.task,
+            run=self.task_dto.run,
+            stage="prefilter",
+            params=params.filter_key,
+            pipeline_ver=self.cache.pipeline_ver,
+        )
+        cached = self.cache.load_raw_filtered(pre_ck)
+        if cached is None:
+            raw_pref = EEGCleaner.pre_filter(self.get_raw(), params)
+            p = self.cache.save_raw_filtered(raw_pref, pre_ck)
+            del raw_pref
+            raw_pref = mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
+        else:
+            raw_pref = cached
+
+        # 3) Mark bad channels/time windows and save cleaned cache
         try:
-            cleaner2 = EEGCleaner(params, raw_pref.copy().load_data())
-            cleaner2.clean_mark()
-            raw_clean = cleaner2.raw
+            raw_clean = EEGCleaner.clean_mark(raw_pref, params)
             self.cache.save_raw_filtered(raw_clean, clean_ck)
             return raw_clean
         except Exception:
