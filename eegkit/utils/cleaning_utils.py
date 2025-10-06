@@ -44,8 +44,9 @@ class EEGCleaner:
 
     @staticmethod
     def _mark_bad_flatline_channels(raw, params):
+        # Optional[float]: None or <=0 disables
         flat_sec = getattr(params, 'clean_flatline_sec', 5.0)
-        if not (flat_sec and flat_sec > 0):
+        if flat_sec is None or flat_sec <= 0:
             return raw
         sfreq = float(raw.info.get('sfreq', 0.0)) or 0.0
         n_samples = int(round(flat_sec * sfreq))
@@ -76,7 +77,7 @@ class EEGCleaner:
     @staticmethod
     def _mark_bad_highfreq_noise_channels(raw, params):
         hf_sd_max = getattr(params, 'clean_hf_noise_sd_max', 4.0)
-        if not (hf_sd_max and hf_sd_max > 0):
+        if hf_sd_max is None or hf_sd_max <= 0:
             return raw
         picks = mne.pick_types(raw.info, eeg=True)
         if picks.size == 0:
@@ -100,7 +101,7 @@ class EEGCleaner:
     @staticmethod
     def _mark_bad_lowcorr_channels(raw, params):
         corr_min = getattr(params, 'clean_corr_min', 0.8)
-        if not (raw and corr_min and 0 < corr_min <= 1):
+        if corr_min is None or not (0 < float(corr_min) <= 1):
             return raw
         picks = mne.pick_types(raw.info, eeg=True)
         if picks.size < 3:
@@ -131,7 +132,7 @@ class EEGCleaner:
         max_sd = getattr(params, 'clean_power_max_sd', 7.0)
         max_out_pct = getattr(params, 'clean_max_outbound_pct', 25.0)
         window_sec = getattr(params, 'clean_window_sec', 0.5)
-        if not (raw and window_sec and window_sec > 0):
+        if window_sec is None or window_sec <= 0:
             return raw
         sfreq = float(raw.info.get('sfreq', 0.0))
         win = max(1, int(round(window_sec * sfreq)))
@@ -145,11 +146,15 @@ class EEGCleaner:
         v = swv(data, win, axis=1)
         power = np.nanmean(v ** 2, axis=-1)
         z = _safe_zscore(power, axis=1)
-        lower_ok = True if np.isneginf(min_sd) else (z >= min_sd)
-        upper_ok = z <= max_sd
+        # Handle None -> infinite bounds
+        lower_bound = -np.inf if min_sd is None else float(min_sd)
+        upper_bound = np.inf if max_sd is None else float(max_sd)
+        lower_ok = z >= lower_bound
+        upper_ok = z <= upper_bound
         ok = lower_ok & upper_ok
         frac_bad = 100.0 * (1.0 - np.nanmean(ok, axis=0))
-        bad_windows = np.where(frac_bad > float(max_out_pct))[0]
+        thr_pct = 25.0 if max_out_pct is None else float(max_out_pct)
+        bad_windows = np.where(frac_bad > thr_pct)[0]
         if bad_windows.size == 0:
             return raw
         onsets = (bad_windows / sfreq) * win
@@ -164,8 +169,8 @@ class EEGCleaner:
     def _apply_asr_if_available(raw, params):
         window_sec = getattr(params, 'clean_window_sec', 0.5)
         max_std = getattr(params, 'clean_asr_max_std', 20.0)
-        remove_only = getattr(params, 'clean_asr_remove_only', True)
-        if not (raw and max_std and max_std > 0 and _ASRPY_AVAILABLE):
+        remove_only = getattr(params, 'clean_asr_remove_only', False)
+        if max_std is None or max_std <= 0 or not _ASRPY_AVAILABLE:
             return raw
         try:
             sfreq = float(raw.info.get('sfreq', 0.0))
@@ -216,8 +221,7 @@ class EEGCleaner:
             raw = EEGCleaner._mark_bad_flatline_channels(raw, params)
             raw = EEGCleaner._mark_bad_highfreq_noise_channels(raw, params)
             raw = EEGCleaner._mark_bad_lowcorr_channels(raw, params)
-            if getattr(params, 'clean_asr', False):
-                raw = EEGCleaner._apply_asr_if_available(raw, params)
+            raw = EEGCleaner._apply_asr_if_available(raw, params)
             raw = EEGCleaner._mark_bad_windows_by_power(raw, params)
         except Exception as e:
             log.warning("Mark-only cleaning failed: %s (skipped)", e)
