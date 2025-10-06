@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 import hashlib, json
+import logging
 import mne
+
+
+log = logging.getLogger(__name__)
 
 
 def _repo_root(start: Path) -> Path:
@@ -39,27 +43,37 @@ class LocalCache:
         self.base = base_dir or (self.repo_root / ".eegcache")
         self.base.mkdir(exist_ok=True)
         self.pipeline_ver = pipeline_ver
+        try:
+            log.info("[cache] init base=%s pipeline=%s repo_root=%s", self.base, self.pipeline_ver, self.repo_root)
+        except Exception:
+            pass
 
     def _path_for(self, key: CacheKey, type, ext: str) -> Path:
         d = self.base / key.subdir()
         d.mkdir(parents=True, exist_ok=True)
-        return d / f"{key.filename_stem()}_{type}.{ext}"
+        p = d / f"{key.filename_stem()}_{type}.{ext}"
+        return p
 
     def load_raw_filtered(self, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
         if p.exists():
+            log.info("[cache] HIT rawfilt %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
             return mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
+        log.info("[cache] MISS rawfilt %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
         return None
 
     def save_raw_filtered(self, raw, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
+        log.info("[cache] SAVE rawfilt %s (sfreq=%.3f, ch=%s, ver=%s)", p, float(raw.info.get('sfreq', 0.0)), len(raw.ch_names), key.pipeline_ver)
         raw.save(p.as_posix(), overwrite=True)
         return p
 
     def load_epochs(self, key: CacheKey):
         p = self._path_for(key, "epo", "fif")
         if not p.exists():
+            log.info("[cache] MISS epochs %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
             return None, None
+        log.info("[cache] HIT epochs %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
         epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
         labels_file = p.with_suffix(".labels.json")
         labels = None
@@ -70,6 +84,11 @@ class LocalCache:
 
     def save_epochs(self, epochs, key: CacheKey, labels=None):
         p = self._path_for(key, "epo", "fif")
+        try:
+            n = len(epochs)
+        except Exception:
+            n = "?"
+        log.info("[cache] SAVE epochs %s (n=%s, ver=%s)", p, n, key.pipeline_ver)
         epochs.save(p.as_posix(), overwrite=True)
         if labels is not None:
             labels_file = p.with_suffix(".labels.json")
@@ -86,13 +105,16 @@ class LocalCache:
                         json.dump(labels, f)
                 except Exception:
                     json.dump(str(labels), f)
+            log.info("[cache] SAVE epochs labels %s", labels_file)
         return p
 
     def load_evoked(self, key: CacheKey):
         p = self._path_for(key, "ave", "fif")
         if not p.exists():
+            log.info("[cache] MISS evoked %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
             return None
         try:
+            log.info("[cache] HIT evoked %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
             evk_list = mne.read_evokeds(p.as_posix(), condition=0, verbose="ERROR")
             return evk_list
         except Exception:
@@ -104,5 +126,6 @@ class LocalCache:
 
     def save_evoked(self, evoked, key: CacheKey):
         p = self._path_for(key, "ave", "fif")
+        log.info("[cache] SAVE evoked %s (ver=%s)", p, key.pipeline_ver)
         evoked.save(p.as_posix(), overwrite=True)
         return p
