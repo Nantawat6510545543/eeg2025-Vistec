@@ -286,7 +286,7 @@ class EEGVisualization:
         """
         # 1) Discover available labels (from epochs) to infer the grid shape
         epochs, available_labels = self.get_epochs(task_dto, params)
-        if epochs is None or not available_labels:
+        if epochs is None:
             return None
 
         # Determine scaling mode (Dropdown returns a single selected string)
