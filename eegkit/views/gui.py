@@ -120,7 +120,7 @@ class EEGUI:
                     w = make_range_widget(default_val)
                 else:
                     default_val = field_default(f)
-                    w = make_widget(default_val)
+                    w = make_widget(default_val, field=f)
 
                 wmap[name] = w
                 if isinstance(w, dict):
@@ -177,7 +177,7 @@ class EEGUI:
                     params_obj = params_cls() if callable(params_cls) else params_cls
                     for f in ordered_fields(params_obj):
                         val = getattr(params_obj, f.name)
-                        w = make_widget(val)
+                        w = make_widget(val, field=f)
                         widgets_dict[f.name] = w
                         row = widgets.HBox([
                             widgets.Label(value=f"{f.name}:", layout=widgets.Layout(width='200px')),
@@ -264,7 +264,7 @@ class EEGUI:
                 continue
             default_val = field_default(f)
             wrap_list = (not subject_schema and isinstance(default_val, list))
-            val = read_widget(wmap[name], default_val, wrap_list=wrap_list)
+            val = read_widget(wmap[name], default_val, wrap_list=wrap_list, field=f)
             if subject_schema and name == "task":
                 if isinstance(val, (tuple, list)) and len(val) == 2:
                     kwargs["task"], kwargs["run"] = val[0], val[1]
@@ -282,12 +282,11 @@ class EEGUI:
 
         defaults = params_cls()
         widgets_map = self.param_widgets.get((group, key), {})
-        values = {
-            f.name: read_widget(
-                widgets_map.get(f.name), getattr(defaults, f.name), wrap_list=False
+        values = {}
+        for f in fields(defaults):
+            values[f.name] = read_widget(
+                widgets_map.get(f.name), getattr(defaults, f.name), wrap_list=False, field=f
             )
-            for f in fields(defaults)
-        }
         return params_cls(**values)
 
     def _prepare_execution(self):
