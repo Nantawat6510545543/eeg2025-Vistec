@@ -16,3 +16,4 @@ from .ui_utils import (
     ordered_fields,
 )
 from .cleaning_utils import EEGCleaner
+from .logging_utils import silence_console_logs, configure_logging
