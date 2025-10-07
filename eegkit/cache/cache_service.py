@@ -48,6 +48,43 @@ class LocalCache:
         except Exception:
             pass
 
+    # --- logging helpers ---
+    def _key_summary(self, key: CacheKey) -> str:
+        try:
+            return (
+                f"subject={key.subject}, task={key.task}, run={key.run}, "
+                f"stage={key.stage}, ver={key.pipeline_ver}, params_hash={_hash_of_dict(key.params)}"
+            )
+        except Exception:
+            return f"subject={getattr(key,'subject',None)}, task={getattr(key,'task',None)}, run={getattr(key,'run',None)}"
+
+    def _log_get(self, artifact: str, path: Path, key: CacheKey):
+        try:
+            log.info("[cache] GET %s file=%s key={%s}", artifact, path.name, self._key_summary(key))
+        except Exception:
+            pass
+
+    def _log_hit(self, artifact: str, path: Path, key: CacheKey):
+        try:
+            log.info("[cache] HIT %s file=%s (subdir=%s, ver=%s)", artifact, path.name, key.subdir(), key.pipeline_ver)
+        except Exception:
+            pass
+
+    def _log_miss(self, artifact: str, path: Path, key: CacheKey):
+        try:
+            log.info("[cache] MISS %s file=%s (subdir=%s, ver=%s)", artifact, path.name, key.subdir(), key.pipeline_ver)
+        except Exception:
+            pass
+
+    def _log_save(self, artifact: str, path: Path, key: CacheKey, extra: str | None = None):
+        try:
+            if extra:
+                log.info("[cache] SAVE %s file=%s (%s)", artifact, path.name, extra)
+            else:
+                log.info("[cache] SAVE %s file=%s (ver=%s)", artifact, path.name, key.pipeline_ver)
+        except Exception:
+            pass
+
     def _path_for(self, key: CacheKey, type, ext: str) -> Path:
         d = self.base / key.subdir()
         d.mkdir(parents=True, exist_ok=True)
@@ -56,24 +93,31 @@ class LocalCache:
 
     def load_raw_filtered(self, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
+        self._log_get("rawfilt", p, key)
         if p.exists():
-            log.info("[cache] HIT rawfilt %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
+            self._log_hit("rawfilt", p, key)
             return mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
-        log.info("[cache] MISS rawfilt %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
+        self._log_miss("rawfilt", p, key)
         return None
 
     def save_raw_filtered(self, raw, key: CacheKey):
         p = self._path_for(key, "eeg", "fif")
-        log.info("[cache] SAVE rawfilt %s (sfreq=%.3f, ch=%s, ver=%s)", p, float(raw.info.get('sfreq', 0.0)), len(raw.ch_names), key.pipeline_ver)
+        self._log_save(
+            "rawfilt",
+            p,
+            key,
+            extra=f"sfreq={float(raw.info.get('sfreq', 0.0)):.3f}, ch={len(raw.ch_names)}, ver={key.pipeline_ver}",
+        )
         raw.save(p.as_posix(), overwrite=True)
         return p
 
     def load_epochs(self, key: CacheKey):
         p = self._path_for(key, "epo", "fif")
+        self._log_get("epochs", p, key)
         if not p.exists():
-            log.info("[cache] MISS epochs %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
+            self._log_miss("epochs", p, key)
             return None, None
-        log.info("[cache] HIT epochs %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
+        self._log_hit("epochs", p, key)
         epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
         labels_file = p.with_suffix(".labels.json")
         labels = None
@@ -88,7 +132,7 @@ class LocalCache:
             n = len(epochs)
         except Exception:
             n = "?"
-        log.info("[cache] SAVE epochs %s (n=%s, ver=%s)", p, n, key.pipeline_ver)
+        self._log_save("epochs", p, key, extra=f"n={n}, ver={key.pipeline_ver}")
         epochs.save(p.as_posix(), overwrite=True)
         if labels is not None:
             labels_file = p.with_suffix(".labels.json")
@@ -110,11 +154,12 @@ class LocalCache:
 
     def load_evoked(self, key: CacheKey):
         p = self._path_for(key, "ave", "fif")
+        self._log_get("evoked", p, key)
         if not p.exists():
-            log.info("[cache] MISS evoked %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
+            self._log_miss("evoked", p, key)
             return None
         try:
-            log.info("[cache] HIT evoked %s (subdir=%s, ver=%s)", p, key.subdir(), key.pipeline_ver)
+            self._log_hit("evoked", p, key)
             evk_list = mne.read_evokeds(p.as_posix(), condition=0, verbose="ERROR")
             return evk_list
         except Exception:
@@ -126,6 +171,6 @@ class LocalCache:
 
     def save_evoked(self, evoked, key: CacheKey):
         p = self._path_for(key, "ave", "fif")
-        log.info("[cache] SAVE evoked %s (ver=%s)", p, key.pipeline_ver)
+        self._log_save("evoked", p, key)
         evoked.save(p.as_posix(), overwrite=True)
         return p
