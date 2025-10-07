@@ -135,7 +135,8 @@ class FilterParamsDTO(ReprMixin):
     h_freq: float = 55.0
     notch: float = 60.0
     resample_fs: Optional[float] = 500.0
-    channels: str = "69-76,81-83,88,89"
+    channels: str = ""
+    # channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
     
     uv_min: Optional[float] = -100.0
