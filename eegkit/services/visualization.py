@@ -110,13 +110,15 @@ class EEGVisualization:
         )
         return [finalize_figure(fig, task_dto, caption_line=str(params), plot_name="Time Domain")]
 
-    @register_plot("Frequency Domain", PSDParamsDTO)
-    def plot_frequency(self, task_dto: BaseTaskDTO, params: PSDParamsDTO):
-        raw = self.get_raw(task_dto, params)
-        raw = prepare_channels(raw, params)
-        psd = raw.compute_psd(fmin=params.fmin, fmax=params.fmax)
+    @register_plot("Frequency Domain", EpochPSDParamsDTO)
+    def plot_frequency(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
+        epochs, labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
+        epochs = prepare_channels(epochs, params)
+        psd = epochs.compute_psd(fmin=params.fmin, fmax=params.fmax, average='mean')
         fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
-        return [finalize_figure(fig, task_dto, caption_line=str(params), plot_name="Frequency Domain")]
+        return finalize_figure(fig, task_dto, caption_line=str(params), plot_name="Frequency Domain")
 
     @register_plot("Condition-wise PSD", EpochPSDParamsDTO)
     def plot_conditionwise_psd(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
@@ -214,7 +216,7 @@ class EEGVisualization:
             tmax=params.tmax,
             fmin=params.fmin,
             fmax=params.fmax,
-            window="boxcar",
+            window="hann",
             average='mean',
             verbose=False,
         )
