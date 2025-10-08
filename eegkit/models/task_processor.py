@@ -183,6 +183,10 @@ class EEGTaskProcessor:
         )
         stim_rows["event_code"] = stim_rows["label"].map(EVENT_ID)
 
+        new_sfreq = filtered.info['sfreq']
+        if 'onset' in events.columns and filtered.info['sfreq'] != 500: # hardcoded original sfreq
+            events['sample'] = (events['onset'] * new_sfreq).astype(int)
+
         events_array = np.column_stack([
             stim_rows['sample'].astype(int),
             np.zeros(len(stim_rows), dtype=int),

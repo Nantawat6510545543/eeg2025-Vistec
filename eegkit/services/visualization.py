@@ -33,6 +33,12 @@ def register_plot(name, dto_cls):
 
 def prepare_channels(inst, params):
     """Pick channels by name, optionally filter by complete-trace µV range, then optionally combine."""
+    try:
+        if hasattr(inst, "event_id") and hasattr(inst, "load_data"):
+            inst = inst.copy().load_data()
+    except Exception:
+        pass
+
     ch_helper = ChannelsHelper(params, inst)
     ch_helper.pick_channels()
     ch_helper.filter_by_uv()
