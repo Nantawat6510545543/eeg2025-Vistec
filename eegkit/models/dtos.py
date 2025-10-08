@@ -132,9 +132,9 @@ class ReprMixin:
 @dataclass
 class FilterParamsDTO(ReprMixin):
     l_freq: float = 0.5
-    h_freq: float = 50.0
+    h_freq: float = 55.0
     notch: float = 60.0
-    resample_fs: float = 100.0
+    resample_fs: Optional[float] = 500.0
     channels: str = ""
     # channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
