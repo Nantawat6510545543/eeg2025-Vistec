@@ -6,6 +6,7 @@ from ..utils import  (finalize_figure,
     reshape_axes_array,
     draw_evoked_response,
     ChannelsHelper,
+    render_label_grid,
 )
 
 import matplotlib.pyplot as plt
@@ -72,6 +73,29 @@ class EEGVisualization:
             func = self.spec[key]["function"]
             self.spec[key]["function"] = func.__get__(self)
 
+    # ----- shared helpers for grid plots -----
+    def _snr_spectrum(self, psd: np.ndarray, noise_n_neighbor_freqs: int = 3, noise_skip_neighbor_freqs: int = 1) -> np.ndarray:
+        """Compute SNR by dividing PSD by a neighborhood-averaged noise estimate along the last axis.
+
+        psd shape: (..., n_freqs)
+        returns SNR with the same shape.
+        """
+        kernel = np.concatenate((
+            np.ones(noise_n_neighbor_freqs),
+            np.zeros(2 * noise_skip_neighbor_freqs + 1),
+            np.ones(noise_n_neighbor_freqs),
+        ))
+        kernel /= kernel.sum()
+        mean_noise = np.apply_along_axis(
+            lambda psd_: np.convolve(psd_, kernel, mode="valid"),
+            axis=-1,
+            arr=psd,
+        )
+        edge_width = noise_n_neighbor_freqs + noise_skip_neighbor_freqs
+        pad = [(0, 0)] * (mean_noise.ndim - 1) + [(edge_width, edge_width)]
+        mean_noise = np.pad(mean_noise, pad_width=tuple(pad), constant_values=float('nan'))
+        return psd / mean_noise
+
     def prepare_params(self, task_dto, key):
         spec = self.spec[key]
         params_cls = spec["params"]
@@ -116,26 +140,77 @@ class EEGVisualization:
         if epochs is None:
             return None
         epochs = prepare_channels(epochs, params)
-        psd = epochs.compute_psd(fmin=params.fmin, fmax=params.fmax, average='mean')
+        sfreq = epochs.info["sfreq"]
+        nfft = int(max(8, sfreq * max(0.5, (params.tmax - params.tmin))))
+        psd = epochs.compute_psd(
+            method="welch",
+            fmin=params.fmin,
+            fmax=params.fmax,
+            tmin=params.tmin, 
+            tmax=params.tmax,
+            n_fft=nfft,
+            window="hann",
+            average='mean',
+        )
         fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
         return finalize_figure(fig, task_dto, caption_line=str(params), plot_name="Frequency Domain")
 
-    @register_plot("Condition-wise PSD", EpochPSDParamsDTO)
-    def plot_conditionwise_psd(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
-        epochs, labels = self.get_epochs(task_dto, params)
+    @register_plot("PSD Grid", EpochPSDParamsDTO)
+    def plot_psd_grid(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
+        """Render a grid of PSDs organized by label tokens (refactored to shared grid)."""
+        epochs, available_labels = self.get_epochs(task_dto, params)
         if epochs is None:
             return None
-        epochs = prepare_channels(epochs, params)
-        fig_list = []
-        for condition in epochs.event_id:
-            condition_epochs = epochs[condition]
-            if len(condition_epochs) == 0:
-                continue
-            psd = condition_epochs.compute_psd(fmin=params.fmin, fmax=params.fmax, average='mean')
-            fig = psd.plot(average=params.average, spatial_colors=params.spatial_colors, dB=params.dB, show=False)
-            fig = finalize_figure(fig, task_dto, condition, caption_line=str(params), plot_name="Condition-wise PSD")
-            fig_list.append(fig)
-        return fig_list
+        # Welch parameters
+        sfreq = float(epochs.info.get("sfreq", 0.0))
+        nfft = int(max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (params.tmax is not None and params.tmin is not None) else 1.0)))
+
+        scale_mode = getattr(params, 'scale_mode', 'per-plot')
+        if isinstance(scale_mode, (list, tuple)) and scale_mode:
+            scale_mode = scale_mode[0]
+
+        def _draw(ax, label):
+            try:
+                ce = prepare_channels(epochs[label], params)
+                if len(ce) == 0:
+                    return None
+                spectrum = ce.compute_psd(
+                    method="welch",
+                    n_fft=nfft,
+                    n_overlap=0,
+                    n_per_seg=None,
+                    tmin=params.tmin,
+                    tmax=params.tmax,
+                    fmin=params.fmin,
+                    fmax=params.fmax,
+                    window="hann",
+                    average='mean',
+                    verbose=False,
+                )
+                psd, freqs = spectrum.get_data(return_freqs=True)
+                psd_db = 10 * np.log10(psd, where=psd > 0, out=np.full_like(psd, np.nan))
+                psd_mean = np.nanmean(psd_db, axis=(0, 1))
+                psd_std = np.nanstd(psd_db, axis=(0, 1))
+                ax.plot(freqs, psd_mean, color='b')
+                ax.fill_between(freqs, psd_mean - psd_std, psd_mean + psd_std, color='b', alpha=0.2)
+                ax.text(1, 1, f"n={int(len(ce))}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
+                if psd_mean.size:
+                    return float(np.nanmin(psd_mean)), float(np.nanmax(psd_mean))
+            except Exception:
+                return None
+
+        return render_label_grid(
+            task_dto=task_dto,
+            epochs=epochs,
+            available_labels=available_labels,
+            params=params,
+            plot_name="PSD Grid",
+            xlim=(params.fmin, params.fmax),
+            xlabel="Frequency [Hz]",
+            unit_tag="dB",
+            scale_mode=scale_mode,
+            per_cell_draw=_draw,
+        )
 
     @register_plot("Epoch Plot", EpochParamsDTO)
     def plot_epochs(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
@@ -275,142 +350,107 @@ class EEGVisualization:
         )
         return finalize_figure(fig, task_dto, params.stimulus, caption_line=str(params), plot_name="SNR Spectrum")
 
-    # complete v5
-    @register_plot("Evoked Grid", EvokedParamsDTO)
-    def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
-        """Render a grid of evoked responses organized by label tokens, with two scale modes.
-
-        Behavior:
-        - Labels are split by '_' into tokens; the grid uses up to 3 tokens as (page, column, row).
-        - Titles (top row) are always drawn.
-        - Cells with no corresponding label or evoked data are left as empty plots with visible axes.
-        - The bottom row always shows the time axis labels. All cells share x-limits [tmin, tmax].
-        - Each subplot shows a small "µV" unit tag at its top-left.
-        - Each non-empty subplot shows the epoch count used in averaging at top-right as "n=..".
-
-        scale_mode:
-        - "per-plot" (default): each cell autoscales; all cells show their own y-tick numbers (no row text labels).
-        - "uniform-grid": compute a global symmetric y-range (µV) per page and apply to all cells; inner columns hide y-tick labels.
-        """
-        # 1) Discover available labels (from epochs) to infer the grid shape
+    @register_plot("SNR Grid", EpochPSDParamsDTO)
+    def plot_snr_grid(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
         epochs, available_labels = self.get_epochs(task_dto, params)
         if epochs is None:
             return None
 
-        # Determine scaling mode (Dropdown returns a single selected string)
+        sfreq = float(epochs.info.get("sfreq", 0.0))
+        nfft = int(max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (params.tmax is not None and params.tmin is not None) else 1.0)))
+
         scale_mode = getattr(params, 'scale_mode', 'per-plot')
         if isinstance(scale_mode, (list, tuple)) and scale_mode:
             scale_mode = scale_mode[0]
 
-        # --- tokenization ----------------------------------------------------
-        tokens_by_label = {label: split_tokens(label) for label in available_labels}
-        max_token_count = max((len(tokens) for tokens in tokens_by_label.values()), default=1)
-        grid_mode = min(max_token_count, 3)  # clamp to 3 max
-
-        # --- grid axes + label mapping --------------------------------------
-        page_values, column_values, row_values = compute_axes_values(tokens_by_label, grid_mode)
-        cell_to_label_map = map_cells_to_labels(tokens_by_label, grid_mode)
-
-        figures = []
-        num_rows, num_cols = len(row_values), len(column_values)
-
-        # --- fetch evoked helper --------------------------------------------
-        def _fetch_evoked_response(label: str):
-            params_copy = copy.deepcopy(params)
-            params_copy.stimulus = [label]
-            evoked = self.get_evoked(task_dto, params_copy)
-            return (prepare_channels(evoked, params_copy), params_copy) if evoked is not None else (None, params_copy)
-
-        # --- label cell helper ----------------------------------------------
-        def _label_cell(axis, row_idx, col_idx, row_token, col_token):
-            if row_idx == 0 and (col_token is not None and col_token != ""):
-                axis.set_title(col_token)
-            if col_idx == 0:
-                axis.set_ylabel(f"{row_token}")
-                axis.tick_params(labelleft=True)
-            else:
-                # Per user request: in per-plot mode show numeric ticks on all subplots; otherwise hide
-                if scale_mode == 'per-plot':
-                    axis.tick_params(labelleft=True)
-                else:
-                    axis.tick_params(labelleft=False)
-
-            axis.text(0.01, 1, "µV", transform=axis.transAxes, ha='left', va='bottom', fontsize=8, color='0.4')
-
-        # --- build figures --------------------------------------------------
-        total_cells = len(page_values) * num_rows * num_cols
-        with tqdm(total=total_cells, desc="Evoked Grid cells", leave=False) as pbar:
-            for page_token in page_values:
-                fig, axes = plt.subplots(num_rows, num_cols, sharex=False, sharey=False)
-                axes_2d = reshape_axes_array(axes, num_rows, num_cols)
-
-                # Track global y-range across this page for uniform-grid mode
-                y_min, y_max = None, None
-
-                for row_idx, row_token in enumerate(row_values):
-                    for col_idx, col_token in enumerate(column_values):
-                        axis = axes_2d[row_idx, col_idx]
-                        axis.cla()
-
-                        label = cell_to_label_map.get((page_token, col_token, row_token))
-                        if label is not None and label in epochs.event_id:
-                            evoked, effective_params = _fetch_evoked_response(label)
-                            if evoked is not None:
-                                data_uv = evoked.data * 1e6
-                                if data_uv.size:
-                                    dmin = float(np.nanmin(data_uv))
-                                    dmax = float(np.nanmax(data_uv))
-                                    if np.isfinite(dmin) and np.isfinite(dmax):
-                                        y_min = dmin if y_min is None else min(y_min, dmin)
-                                        y_max = dmax if y_max is None else max(y_max, dmax)
-
-                            draw_evoked_response(axis, evoked, effective_params)
-                            # Annotate epoch count (nave) on top-right
-                            try:
-                                nave = getattr(evoked, 'nave', None)
-                                if nave is not None:
-                                    axis.text(1, 1, f"n={int(nave)}", transform=axis.transAxes,
-                                              ha='right', va='bottom', fontsize=8, color='0.4')
-                            except Exception:
-                                pass
-
-                        # set labels and axis limits for every cell, even if empty
-                        _label_cell(axis, row_idx, col_idx, row_token, col_token)
-                        axis.set_xlim(params.tmin, params.tmax)
-
-                        pbar.update(1)
-
-                # Harmonize y-limits across all subplots in this page when requested
-                if scale_mode == 'uniform-grid' and y_min is not None and y_max is not None:
-                    # symmetric around 0 using max absolute amplitude
-                    y_abs = float(max(abs(y_min), abs(y_max)))
-                    if not (y_abs and np.isfinite(y_abs) and y_abs > 0):
-                        y_abs = 1.0
-                    y_lo, y_hi = -y_abs, y_abs
-                    for r in range(num_rows):
-                        for c in range(num_cols):
-                            axes_2d[r, c].set_ylim(y_lo, y_hi)
-
-                # x-ticks only on bottom row
-                last_row_idx = num_rows - 1
-                for r in range(num_rows):
-                    for c in range(num_cols):
-                        axis = axes_2d[r, c]
-                        if r == last_row_idx:
-                            axis.set_xlabel("Time [s]")
-                            axis.tick_params(labelbottom=True)
-                        else:
-                            axis.tick_params(labelbottom=False)
-
-                # finalize and caption
-                page_stimulus = page_token if (grid_mode == 3 and page_token is not None) else None
-                fig = finalize_figure(
-                    fig,
-                    task_dto,
-                    stimulus=page_stimulus,
-                    caption_line=str(params),
-                    plot_name="Evoked Grid",
+        def _draw(ax, label):
+            try:
+                ce = prepare_channels(epochs[label], params)
+                if len(ce) == 0:
+                    return None
+                spectrum = ce.compute_psd(
+                    method="welch",
+                    n_fft=nfft,
+                    n_overlap=0,
+                    n_per_seg=None,
+                    tmin=params.tmin,
+                    tmax=params.tmax,
+                    fmin=params.fmin,
+                    fmax=params.fmax,
+                    window="hann",
+                    average='mean',
+                    verbose=False,
                 )
-                figures.append(fig)
+                psd, freqs = spectrum.get_data(return_freqs=True)
+                snr = self._snr_spectrum(psd)
+                snr_mean = np.nanmean(snr, axis=(0, 1))
+                snr_std = np.nanstd(snr, axis=(0, 1))
+                ax.plot(freqs, snr_mean, color='r')
+                ax.fill_between(freqs, snr_mean - snr_std, snr_mean + snr_std, color='r', alpha=0.2)
+                ax.text(1, 1, f"n={int(len(ce))}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
+                if snr_mean.size:
+                    return float(np.nanmin(snr_mean)), float(np.nanmax(snr_mean))
+            except Exception:
+                return None
 
-        return figures
+        return render_label_grid(
+            task_dto=task_dto,
+            epochs=epochs,
+            available_labels=available_labels,
+            params=params,
+            plot_name="SNR Grid",
+            xlim=(params.fmin, params.fmax),
+            xlabel="Frequency [Hz]",
+            unit_tag="SNR",
+            scale_mode=scale_mode,
+            per_cell_draw=_draw,
+        )
+
+    @register_plot("Evoked Grid", EvokedParamsDTO)
+    def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
+        """Render a grid of evoked responses organized by label tokens, via shared grid helper."""
+        epochs, available_labels = self.get_epochs(task_dto, params)
+        if epochs is None:
+            return None
+
+        scale_mode = getattr(params, 'scale_mode', 'per-plot')
+        if isinstance(scale_mode, (list, tuple)) and scale_mode:
+            scale_mode = scale_mode[0]
+
+        def _draw(ax, label):
+            p = copy.deepcopy(params)
+            p.stimulus = [label]
+            evoked = self.get_evoked(task_dto, p)
+            if evoked is None:
+                return None
+            evoked = prepare_channels(evoked, p)
+            # compute y-range
+            try:
+                data_uv = evoked.data * 1e6
+                dmin = float(np.nanmin(data_uv)) if data_uv.size else None
+                dmax = float(np.nanmax(data_uv)) if data_uv.size else None
+            except Exception:
+                dmin = dmax = None
+            draw_evoked_response(ax, evoked, p)
+            try:
+                nave = getattr(evoked, 'nave', None)
+                if nave is not None:
+                    ax.text(1, 1, f"n={int(nave)}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
+            except Exception:
+                pass
+            if dmin is not None and dmax is not None:
+                return dmin, dmax
+            return None
+
+        return render_label_grid(
+            task_dto=task_dto,
+            epochs=epochs,
+            available_labels=available_labels,
+            params=params,
+            plot_name="Evoked Grid",
+            xlim=(params.tmin, params.tmax),
+            xlabel="Time [s]",
+            unit_tag="µV",
+            scale_mode=scale_mode,
+            per_cell_draw=_draw,
+        )
