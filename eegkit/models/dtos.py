@@ -274,8 +274,8 @@ class EpochParamsDTO(FilterParamsDTO):
 
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
-    fmin: float = 3.0
-    fmax: float = 55.0
+    fmin: float = None
+    fmax: float = None
     average: bool = True
     dB: bool = True
     spatial_colors: bool = True
@@ -283,6 +283,12 @@ class PSDParamsDTO(FilterParamsDTO):
     _exclude_str_fields: ClassVar[Set[str]] = {
         "average", "dB", "spatial_colors"
     }
+
+    def __post_init__(self):
+        if self.fmin is None:
+            self.fmin = self.l_freq
+        if self.fmax is None:
+            self.fmax = self.h_freq
 
 @dataclass
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
