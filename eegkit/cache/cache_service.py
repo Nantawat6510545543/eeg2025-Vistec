@@ -96,7 +96,16 @@ class LocalCache:
         self._log_get("rawfilt", p, key)
         if p.exists():
             self._log_hit("rawfilt", p, key)
-            return mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
+            try:
+                return mne.io.read_raw_fif(p.as_posix(), preload=False, verbose="ERROR")
+            except Exception as e:
+                try:
+                    bad = p.with_name(p.name + ".bad")
+                    p.rename(bad)
+                    log.warning("[cache] Corrupt RAWFILT, quarantined as %s (err=%s)", bad.name, e)
+                except Exception:
+                    log.warning("[cache] Corrupt RAWFILT read (and could not quarantine): %s", e)
+                return None
         self._log_miss("rawfilt", p, key)
         return None
 
@@ -118,13 +127,30 @@ class LocalCache:
             self._log_miss("epochs", p, key)
             return None, None
         self._log_hit("epochs", p, key)
-        epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
-        labels_file = p.with_suffix(".labels.json")
-        labels = None
-        if labels_file.exists():
-            with open(labels_file, "r") as f:
-                labels = json.load(f)
-        return epochs, labels
+        try:
+            epochs = mne.read_epochs(p.as_posix(), preload=True, verbose="ERROR")
+            labels_file = p.with_suffix(".labels.json")
+            labels = None
+            if labels_file.exists():
+                with open(labels_file, "r") as f:
+                    labels = json.load(f)
+            return epochs, labels
+        except Exception as e:
+            # Quarantine bad cache and treat as miss so upstream will rebuild
+            try:
+                bad = p.with_name(p.name + ".bad")
+                p.rename(bad)
+                labels_file = p.with_suffix(".labels.json")
+                if labels_file.exists():
+                    try:
+                        labels_bad = labels_file.with_name(labels_file.name + ".bad")
+                        labels_file.rename(labels_bad)
+                    except Exception:
+                        labels_file.unlink(missing_ok=True)
+                log.warning("[cache] Corrupt EPOCHS, quarantined as %s (err=%s)", bad.name, e)
+            except Exception:
+                log.warning("[cache] Corrupt EPOCHS read (and could not quarantine): %s", e)
+            return None, None
 
     def save_epochs(self, epochs, key: CacheKey, labels=None):
         p = self._path_for(key, "epo", "fif")
