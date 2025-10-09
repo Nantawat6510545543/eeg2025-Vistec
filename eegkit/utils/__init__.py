@@ -5,8 +5,9 @@ from .plot_utills import (
     map_cells_to_labels,
     reshape_axes_array,
     draw_evoked_response,
-    ChannelsHelper,
+    render_label_grid,
 )
+from .channels_helper import ChannelsHelper
 from .ui_utils import (
     is_subject_schema,
     field_default,
