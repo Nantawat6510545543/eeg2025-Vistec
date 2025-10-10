@@ -3,6 +3,7 @@ from typing import get_origin, get_args
 
 import ipywidgets as widgets
 
+
 def is_subject_schema(schema_dto):
     """Return True if the DTO schema includes a 'subject' field (single-subject mode)."""
     return any(f.name == "subject" for f in fields(schema_dto))
@@ -181,5 +182,3 @@ def ordered_fields(dto_cls):
         return 4
 
     return sorted(fields(dto_cls), key=priority)
-
-

@@ -1,13 +1,13 @@
 from ..models import *
-from ..utils import  (finalize_figure,
-    split_tokens,
-    compute_axes_values,
-    map_cells_to_labels,
-    reshape_axes_array,
-    draw_evoked_response,
-    ChannelsHelper,
-    render_label_grid,
-)
+from ..utils import (finalize_figure,
+                     split_tokens,
+                     compute_axes_values,
+                     map_cells_to_labels,
+                     reshape_axes_array,
+                     draw_evoked_response,
+                     ChannelsHelper,
+                     render_label_grid,
+                     )
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -74,7 +74,8 @@ class EEGVisualization:
             self.spec[key]["function"] = func.__get__(self)
 
     # ----- shared helpers for grid plots -----
-    def _snr_spectrum(self, psd: np.ndarray, noise_n_neighbor_freqs: int = 3, noise_skip_neighbor_freqs: int = 1) -> np.ndarray:
+    def _snr_spectrum(self, psd: np.ndarray, noise_n_neighbor_freqs: int = 3,
+                      noise_skip_neighbor_freqs: int = 1) -> np.ndarray:
         """Compute SNR by dividing PSD by a neighborhood-averaged noise estimate along the last axis.
 
         psd shape: (..., n_freqs)
@@ -146,7 +147,7 @@ class EEGVisualization:
             method="welch",
             fmin=params.fmin,
             fmax=params.fmax,
-            tmin=params.tmin, 
+            tmin=params.tmin,
             tmax=params.tmax,
             n_fft=nfft,
             window="hann",
@@ -163,7 +164,8 @@ class EEGVisualization:
             return None
         # Welch parameters
         sfreq = float(epochs.info.get("sfreq", 0.0))
-        nfft = int(max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (params.tmax is not None and params.tmin is not None) else 1.0)))
+        nfft = int(max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (
+                    params.tmax is not None and params.tmin is not None) else 1.0)))
 
         scale_mode = getattr(params, 'scale_mode', 'per-plot')
         if isinstance(scale_mode, (list, tuple)) and scale_mode:
@@ -193,7 +195,8 @@ class EEGVisualization:
                 psd_std = np.nanstd(psd_db, axis=(0, 1))
                 ax.plot(freqs, psd_mean, color='b')
                 ax.fill_between(freqs, psd_mean - psd_std, psd_mean + psd_std, color='b', alpha=0.2)
-                ax.text(1, 1, f"n={int(len(ce))}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
+                ax.text(1, 1, f"n={int(len(ce))}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8,
+                        color='0.4')
                 if psd_mean.size:
                     return float(np.nanmin(psd_mean)), float(np.nanmax(psd_mean))
             except Exception:
@@ -271,7 +274,8 @@ class EEGVisualization:
                 continue
             evk = prepare_channels(evk, copy_params)
             fig = evk.plot(gfp=copy_params.gfp, spatial_colors=copy_params.spatial_colors, show=False)
-            fig = finalize_figure(fig, task_dto, condition, caption_line=str(copy_params), plot_name="Evoked per Condition")
+            fig = finalize_figure(fig, task_dto, condition, caption_line=str(copy_params),
+                                  plot_name="Evoked per Condition")
             fig_list.append(fig)
         return fig_list
 
@@ -357,7 +361,8 @@ class EEGVisualization:
             return None
 
         sfreq = float(epochs.info.get("sfreq", 0.0))
-        nfft = int(max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (params.tmax is not None and params.tmin is not None) else 1.0)))
+        nfft = int(max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (
+                    params.tmax is not None and params.tmin is not None) else 1.0)))
 
         scale_mode = getattr(params, 'scale_mode', 'per-plot')
         if isinstance(scale_mode, (list, tuple)) and scale_mode:
@@ -387,7 +392,8 @@ class EEGVisualization:
                 snr_std = np.nanstd(snr, axis=(0, 1))
                 ax.plot(freqs, snr_mean, color='r')
                 ax.fill_between(freqs, snr_mean - snr_std, snr_mean + snr_std, color='r', alpha=0.2)
-                ax.text(1, 1, f"n={int(len(ce))}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
+                ax.text(1, 1, f"n={int(len(ce))}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8,
+                        color='0.4')
                 if snr_mean.size:
                     return float(np.nanmin(snr_mean)), float(np.nanmax(snr_mean))
             except Exception:
@@ -435,7 +441,8 @@ class EEGVisualization:
             try:
                 nave = getattr(evoked, 'nave', None)
                 if nave is not None:
-                    ax.text(1, 1, f"n={int(nave)}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
+                    ax.text(1, 1, f"n={int(nave)}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8,
+                            color='0.4')
             except Exception:
                 pass
             if dmin is not None and dmax is not None:

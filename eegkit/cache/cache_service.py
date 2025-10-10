@@ -4,7 +4,6 @@ import hashlib, json
 import logging
 import mne
 
-
 log = logging.getLogger(__name__)
 
 
@@ -56,7 +55,7 @@ class LocalCache:
                 f"stage={key.stage}, ver={key.pipeline_ver}, params_hash={_hash_of_dict(key.params)}"
             )
         except Exception:
-            return f"subject={getattr(key,'subject',None)}, task={getattr(key,'task',None)}, run={getattr(key,'run',None)}"
+            return f"subject={getattr(key, 'subject', None)}, task={getattr(key, 'task', None)}, run={getattr(key, 'run', None)}"
 
     def _log_get(self, artifact: str, path: Path, key: CacheKey):
         try:

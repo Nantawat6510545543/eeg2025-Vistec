@@ -14,8 +14,8 @@ from __future__ import annotations
 import logging
 import time
 import numpy as np
-import mne 
-import asrpy 
+import mne
+import asrpy
 from numpy.lib.stride_tricks import sliding_window_view as swv
 
 log = logging.getLogger(__name__)
@@ -298,7 +298,7 @@ class EEGCleaner:
         """Only apply marking steps (bad channels and bad windows) to self.raw, without prefilter."""
         t0 = time.perf_counter()
         log.info("[clean_mark] start")
-        
+
         raw = EEGCleaner._mark_bad_flatline_channels(raw, params)
         raw = EEGCleaner._mark_bad_highfreq_noise_channels(raw, params)
         raw = EEGCleaner._mark_bad_lowcorr_channels(raw, params)
@@ -306,4 +306,3 @@ class EEGCleaner:
         raw = EEGCleaner._mark_bad_windows_by_power(raw, params)
         log.info("[clean_mark] done (t=%.3fs)", time.perf_counter() - t0)
         return raw
-        

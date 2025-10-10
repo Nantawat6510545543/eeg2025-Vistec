@@ -121,7 +121,7 @@ class EEGTaskProcessor:
         epochs, labels = preprocess_fn(self, params)
         if epochs is None:
             return None, "unavailable"
-        
+
         try:
             if epochs.info.get('bads'):
                 epochs = epochs.interpolate_bads(reset_bads=True)
@@ -184,7 +184,7 @@ class EEGTaskProcessor:
         stim_rows["event_code"] = stim_rows["label"].map(EVENT_ID)
 
         new_sfreq = filtered.info['sfreq']
-        if 'onset' in events.columns and filtered.info['sfreq'] != 500: # hardcoded original sfreq
+        if 'onset' in events.columns and filtered.info['sfreq'] != 500:  # hardcoded original sfreq
             events['sample'] = (events['onset'] * new_sfreq).astype(int)
 
         events_array = np.column_stack([

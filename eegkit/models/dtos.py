@@ -23,6 +23,8 @@ class BaseTaskDTO:
 
     def __hash__(self):
         return hash(tuple(make_hashable(getattr(self, f.name)) for f in fields(self)))
+
+
 @dataclass
 class TaskDTO(BaseTaskDTO):
     task: str
@@ -99,6 +101,7 @@ class SubjectFilterDTO(BaseTaskDTO):
 
         return ", ".join(parts)
 
+
 @dataclass
 class ReprMixin:
     """Reusable mixin for clean __repr__ across dataclasses."""
@@ -129,6 +132,7 @@ class ReprMixin:
                 merged |= getattr(base, "_exclude_str_fields")
         cls._exclude_str_fields = merged
 
+
 @dataclass
 class FilterParamsDTO(ReprMixin):
     l_freq: float = 0.5
@@ -138,26 +142,26 @@ class FilterParamsDTO(ReprMixin):
     channels: str = ""
     # channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
-    
+
     uv_min: Optional[float] = -100.0
     uv_max: Optional[float] = 100.0
 
     # Remove bad channels
     showbad: bool = False  # if True, plot bad channels found
-    clean_flatline_sec:  Optional[float] = 5.0
-    clean_hf_noise_sd_max:  Optional[float] = 4.0
-    clean_corr_min:  Optional[float] = 0.8  # min acceptable absolute correlation to aggregate
-    
+    clean_flatline_sec: Optional[float] = 5.0
+    clean_hf_noise_sd_max: Optional[float] = 4.0
+    clean_corr_min: Optional[float] = 0.8  # min acceptable absolute correlation to aggregate
+
     # ASR bad subspace correction/removal (requires optional asrpy; otherwise skipped)
-    clean_asr_max_std:  Optional[float] = 20.0  # max acceptable 0.5s window std dev (equiv.)
+    clean_asr_max_std: Optional[float] = 20.0  # max acceptable 0.5s window std dev (equiv.)
     clean_asr_remove_only: bool = False  # if True, only annotate/remove bad periods, no reconstruction
 
     # Additional removal of bad data periods
-    clean_power_min_sd:  Optional[float] = -100.0
-    clean_power_max_sd:  Optional[float] = 7.0
-    clean_max_outbound_pct:  Optional[float] = 25.0  # percentage of channels
-    clean_window_sec:  Optional[float] = 0.5  # analysis window size (s)
-    
+    clean_power_min_sd: Optional[float] = -100.0
+    clean_power_max_sd: Optional[float] = 7.0
+    clean_max_outbound_pct: Optional[float] = 25.0  # percentage of channels
+    clean_window_sec: Optional[float] = 0.5  # analysis window size (s)
+
     _exclude_str_fields: ClassVar[Set[str]] = {
         "combine_channels",
         "showbad",
@@ -205,7 +209,6 @@ class FilterParamsDTO(ReprMixin):
         add("clean_window_sec", self.clean_window_sec)
 
         return key
-            
 
     @property
     def channels_list(self):
@@ -272,6 +275,7 @@ class EpochParamsDTO(FilterParamsDTO):
         }
         return key
 
+
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
     fmin: float = None
@@ -289,6 +293,7 @@ class PSDParamsDTO(FilterParamsDTO):
             self.fmin = self.l_freq
         if self.fmax is None:
             self.fmax = self.h_freq
+
 
 @dataclass
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
