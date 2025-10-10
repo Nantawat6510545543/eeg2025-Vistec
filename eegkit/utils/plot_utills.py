@@ -91,17 +91,17 @@ def draw_evoked_response(axis, evoked, params):
 
 
 def render_label_grid(
-    *,
-    task_dto,
-    epochs,
-    available_labels,
-    params,
-    plot_name: str,
-    xlim: tuple[float, float],
-    xlabel: str,
-    unit_tag: str,
-    scale_mode: str,
-    per_cell_draw: Callable[[Axes, str], Optional[Tuple[float, float]]],
+        *,
+        task_dto,
+        epochs,
+        available_labels,
+        params,
+        plot_name: str,
+        xlim: tuple[float, float],
+        xlabel: str,
+        unit_tag: str,
+        scale_mode: str,
+        per_cell_draw: Callable[[Axes, str], Optional[Tuple[float, float]]],
 ):
     """Generic renderer for label-tokenized grids.
 
