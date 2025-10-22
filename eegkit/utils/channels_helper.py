@@ -105,3 +105,35 @@ class ChannelsHelper:
         final_picks = kept if kept else picks
         self.picks = final_picks
         self.pick_names = [self.inst.ch_names[i] for i in final_picks]
+        
+def prepare_channels(inst, params):
+    """End-to-end channel preparation as a simple module function.
+
+    - For Epochs-like objects, ensure data is loaded (copy.load_data()).
+    - Select channels according to params (including showbad behavior).
+    - Optionally filter channels by µV range across the full trace.
+    - Optionally combine selected channels into a single 'combined' channel.
+
+    Returns a new instance (picked or channel-combined), leaving the input unmodified.
+    """
+    # Ensure data is loaded for objects that support lazy loading (e.g., Epochs)
+    try:
+        if hasattr(inst, "event_id") and hasattr(inst, "load_data"):
+            inst = inst.copy().load_data()
+    except Exception:
+        pass
+
+    helper = ChannelsHelper(params, inst)
+    helper.pick_channels()
+    helper.filter_by_uv()
+    picks = helper.picks or []
+    pick_names = helper.pick_names or []
+
+    if getattr(params, 'combine_channels', False):
+        if pick_names:
+            return mne.channels.combine_channels(
+                inst, groups={"combined": list(pick_names)}, method="mean"
+            )
+        return inst.copy()
+    else:
+        return inst.copy().pick(picks)

@@ -38,8 +38,9 @@ class EEGUI:
         """Initialize the GUI with a controller and build all widget layouts."""
         self.controller = controller
         self.specs = self.controller.get_specs()
+        self.mode_info = getattr(self.controller, 'get_modes_info', lambda: {})()
 
-        self.schemas: list[type[BaseTaskDTO]] = [TaskDTO, SubjectFilterDTO]
+        self.schemas = [TaskDTO, SubjectFilterDTO]
         self.schema_selector = widgets.ToggleButtons(
             options=[(getattr(c, "ui_name", c.__name__), c) for c in self.schemas],
             description="Input Type:", layout=widgets.Layout(width="auto")
@@ -47,6 +48,7 @@ class EEGUI:
         self.schema_selector.value = self.schemas[0]
 
         self.mode_selector = widgets.ToggleButtons(options=list(self.specs.keys()), description="Mode:")
+        self.mode_description = widgets.HTML(value="")
         self.action_selector = widgets.ToggleButtons(description="Action:")
         self.param_box = widgets.VBox()
         self.tmux_run_button = widgets.Button(description="Run on Tmux", button_style="success")
@@ -76,6 +78,7 @@ class EEGUI:
             self.schema_selector,
             self.schema_box,
             self.mode_selector,
+            self.mode_description,
             self.action_selector,
             self.param_box,
             self.tmux_run_button,
@@ -85,6 +88,7 @@ class EEGUI:
 
         self._on_schema_change()
         self._update_actions()
+        self._update_mode_description()
         self._update_param_inputs()
 
     # schema panels
@@ -225,6 +229,15 @@ class EEGUI:
         if self.action_selector.options:
             self.action_selector.value = self.action_selector.options[0]
         self._update_param_inputs()
+        self._update_mode_description()
+
+    def _update_mode_description(self):
+        group = self.mode_selector.value
+        desc = (self.mode_info or {}).get(group, "")
+        if desc:
+            self.mode_description.value = f"<div style='color:#666;font-size:12px;margin:4px 0 8px 0'>{desc}</div>"
+        else:
+            self.mode_description.value = ""
 
     def _update_param_inputs(self, *_):
         """Rebuild the parameter panel and apply dynamic defaults via controller.prepare."""
