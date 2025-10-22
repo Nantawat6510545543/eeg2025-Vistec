@@ -31,7 +31,7 @@ def register_grid_plot(name, dto_cls):
 
 
 class EEGGridVisualization(BaseService):
-    description = "Grid-based visualizations organized by condition labels (e.g., PSD Grid, SNR Grid, Evoked Grid)."
+    description = "Displays per-condition results in a labeled grid for side-by-side comparison with consistent axes and scaling."
 
     def __init__(self, get_raw_func, get_epochs_func, get_evoked_func, get_task_func=None):
         super().__init__(
