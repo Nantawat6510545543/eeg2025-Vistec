@@ -2,6 +2,7 @@ from ..models import (
     FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
 from ..services import EEGVisualization, EEGDataService
+from ..services.grid_visualization import EEGGridVisualization
 
 
 class EEGController:
@@ -13,16 +14,35 @@ class EEGController:
             get_evoked_func=self.get_evoked,
             get_task_func=self.subject_model.get_task
         )
+        self.grid_visualizer = EEGGridVisualization(
+            get_raw_func=self.get_filtered_raw,
+            get_epochs_func=self.get_epochs,
+            get_evoked_func=self.get_evoked,
+            get_task_func=self.subject_model.get_task
+        )
         self.data_service = EEGDataService(
             get_raw_func=self.get_filtered_raw,
             get_epochs_func=self.get_epochs,
             get_task_func=self.subject_model.get_task
         )
 
-        self.specs = {
-            "plot": self.visualizer.spec,
-            "data": self.data_service.spec,
+        self._modes = {
+            "plot": {
+                "description": getattr(self.visualizer, 'description', "Single-figure visualizations."),
+                "spec": self.visualizer.spec,
+            },
+            "grid_plot": {
+                "description": getattr(self.grid_visualizer, 'description', "Grid-based visualizations."),
+                "spec": self.grid_visualizer.spec,
+            },
+            "data": {
+                "description": getattr(self.data_service, 'description', "Data tables and exports."),
+                "spec": self.data_service.spec,
+            },
         }
+
+        # Backward-compatible access used by UI and jobs
+        self.specs = {k: v["spec"] for k, v in self._modes.items()}
 
     def get_filtered_raw(self, task_dto: BaseTaskDTO, filter_params: FilterParamsDTO):
         task_model = self.subject_model.get_task(task_dto)
@@ -48,11 +68,16 @@ class EEGController:
     def get_specs(self):
         return self.specs
 
+    def get_modes_info(self):
+        """Return dict of mode -> description for UI display."""
+        return {k: v.get("description", "") for k, v in self._modes.items()}
+
     def prepare(self, task_dto: BaseTaskDTO, group: str, key: str):
         if group == "plot":
             return self.visualizer.prepare_params(task_dto, key)
-        else:
-            return {}
+        if group == "grid_plot":
+            return self.grid_visualizer.prepare_params(task_dto, key)
+        return {}
 
     def show(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
         # Per-subject expansion mode

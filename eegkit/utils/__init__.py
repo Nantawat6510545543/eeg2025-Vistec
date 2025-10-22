@@ -7,7 +7,7 @@ from .plot_utills import (
     draw_evoked_response,
     render_label_grid,
 )
-from .channels_helper import ChannelsHelper
+from .channels_helper import ChannelsHelper, prepare_channels
 from .ui_utils import (
     is_subject_schema,
     field_default,
