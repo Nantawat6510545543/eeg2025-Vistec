@@ -19,7 +19,7 @@ def register_data(name, dto_cls):
 
 
 class EEGDataService(BaseService):
-    description = "Tabular/data exports: events, channels/electrodes, metadata, epochs summaries."
+    description = "Provides structured tables from the current selection for quick inspection and lightweight export (annotations, channels/electrodes, metadata, epoch summaries)."
     def __init__(self, get_raw_func, get_epochs_func, get_task_func):
         super().__init__(
             registry=data_registry,

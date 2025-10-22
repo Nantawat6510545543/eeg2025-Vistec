@@ -28,7 +28,7 @@ from .base_service import BaseService
 
 
 class EEGVisualization(BaseService):
-    description = "Single-figure visualizations (sensor layout, time, frequency, epochs, evoked)."
+    description = "Produces one concise figure for the current EEG selection."
     def __init__(self, get_raw_func, get_epochs_func, get_task_func, get_evoked_func):
         super().__init__(
             registry=plot_registry,
