@@ -117,6 +117,15 @@ class EEGCohortModel(TaskLike):
 
         self._log.info("Concatenating %d epochs (build loop %.2fs)", len(epochs_list), t_loop)
         t_cat0 = time.perf_counter()
+        
+        # Normalize bad-channel lists across subjects/runs so concatenate does not fail.
+        all_bads = set()
+        for ep in epochs_list:
+            all_bads.update(ep.info.get('bads', []) or [])
+        union_bads = sorted(set(all_bads))
+        for i, ep in enumerate(epochs_list):
+            ep.info['bads'] = list(union_bads)
+
         self.epochs = concatenate_epochs(epochs_list)
         t_cat = time.perf_counter() - t_cat0
         self._log.info("Concatenated epochs in %.2fs", t_cat)

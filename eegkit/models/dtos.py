@@ -146,8 +146,11 @@ class FilterParamsDTO(ReprMixin):
     uv_min: Optional[float] = -100.0
     uv_max: Optional[float] = 100.0
 
-    # Remove bad channels
-    showbad: bool = False  # if True, plot bad channels found
+    # Bad-channel policy (Dropdown options; selected value becomes a string):
+    #  - 'skip': do not compute/mark bad channels
+    #  - 'exclude': compute/mark and exclude bads downstream
+    #  - 'include': compute/mark but include bads downstream (QA)
+    bad_channel_policy: List[Optional[str]] = field(default_factory=lambda: ['exclude', 'skip', 'include'])
     clean_flatline_sec: Optional[float] = 5.0
     clean_hf_noise_sd_max: Optional[float] = 4.0
     clean_corr_min: Optional[float] = 0.8  # min acceptable absolute correlation to aggregate
@@ -164,8 +167,15 @@ class FilterParamsDTO(ReprMixin):
 
     _exclude_str_fields: ClassVar[Set[str]] = {
         "combine_channels",
-        "showbad",
+        "bad_channel_policy",
     }
+
+    def get_bad_channel_policy(self) -> str:
+        """Return the selected bad-channel policy ('skip'|'exclude'|'include')."""
+        policy = getattr(self, 'bad_channel_policy', None)
+        if isinstance(policy, (list, tuple)):
+            return policy[0]
+        return policy
 
     @property
     def filter_key(self) -> Dict[str, float]:
@@ -183,13 +193,18 @@ class FilterParamsDTO(ReprMixin):
         }
 
     @property
-    def cleaning_key(self) -> Dict[str, float | bool]:
+    def cleaning_key(self) -> Dict[str, float | bool | str]:
         """Cache key for cleaning/marking stage (bad channels, bad periods).
 
         Include only non-None thresholds; booleans as-is. This prevents None from
         being coerced and allows Optional fields to disable steps without breaking the key.
         """
         key = {**self.filter_key}
+
+        policy = self.get_bad_channel_policy()
+        key["bad_channel_policy"] = policy
+        if policy.strip().lower() in {"skip"}:
+            return key
 
         def add(name, val):
             if val is not None:
@@ -257,6 +272,12 @@ class EpochParamsDTO(FilterParamsDTO):
     only_labels: ClassVar[bool] = False
 
     _exclude_str_fields: ClassVar[Set[str]] = {"stimulus"}
+
+    def get_stimulus(self) -> Optional[str]:
+        s = getattr(self, 'stimulus', None)
+        if isinstance(s, (list, tuple)):
+            return s[0] if len(s) > 0 else None
+        return s
 
     @property
     def epochs_key(self) -> Dict[str, float]:

@@ -81,15 +81,18 @@ class EEGTaskProcessor:
         else:
             raw_pref = cached
 
-        # 3) Mark bad channels/time windows and save cleaned cache
+        # 3) Depending on policy, mark bads or pass through
+        policy = params.get_bad_channel_policy()
+        if policy and policy.strip().lower() == "skip":
+            self.cache.save_raw_filtered(raw_pref, clean_ck)
+            return raw_pref
+        
         raw_clean = EEGCleaner.clean_mark(raw_pref, params)
         self.cache.save_raw_filtered(raw_clean, clean_ck)
         return raw_clean
 
     def _apply_stimulus_filter(self, epochs: Epochs, params: EpochParamsDTO):
-        stim = params.stimulus
-        if isinstance(stim, (list, tuple)):
-            stim = stim[0] if len(stim) > 0 else None
+        stim = params.get_stimulus()
         if stim:
             if stim in epochs.event_id:
                 return epochs[stim]
@@ -122,8 +125,10 @@ class EEGTaskProcessor:
         if epochs is None:
             return None, "unavailable"
 
+        # Interpolation policy: only interpolate when user wants to include bad channels
         try:
-            if epochs.info.get('bads'):
+            policy = params.get_bad_channel_policy()
+            if policy and policy.strip().lower() == 'include' and epochs.info.get('bads'):
                 epochs = epochs.interpolate_bads(reset_bads=True)
         except Exception:
             pass
@@ -155,8 +160,10 @@ class EEGTaskProcessor:
         if epochs is None:
             return None
 
+        # Interpolation policy: only interpolate when user wants to include bad channels
         try:
-            if epochs.info.get('bads'):
+            policy = params.get_bad_channel_policy()
+            if policy and policy.strip().lower() == 'include' and epochs.info.get('bads'):
                 epochs = epochs.interpolate_bads(reset_bads=True)
         except Exception:
             pass

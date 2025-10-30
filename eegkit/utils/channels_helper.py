@@ -26,12 +26,15 @@ class ChannelsHelper:
         self.pick_names: List[str] | None = None
 
     def pick_channels(self) -> None:
-        ch = getattr(self.params, 'channels_list', []) or []
-        # Respect showbad: exclude marked bads from candidates unless requested
-        if getattr(self.params, 'showbad', False):
-            exclude = []
-        else:
-            exclude = list(getattr(self.inst.info, 'bads', []) or [])
+        ch = getattr(self.params, 'channels_list', [])
+        policy = self.params.get_bad_channel_policy()
+        exclude = []
+        if policy:
+            code = policy.strip().lower()
+            if code == "exclude":
+                exclude = list(getattr(self.inst.info, 'bads', []) or [])
+            elif code in {"include", "skip"}:
+                exclude = []
         picks_raw = mne.pick_channels(self.inst.ch_names, include=ch, exclude=exclude)
         try:
             picks = [int(i) for i in np.array(picks_raw).tolist()]
