@@ -5,7 +5,9 @@ from .plot_utills import (
     map_cells_to_labels,
     reshape_axes_array,
     draw_evoked_response,
+    render_label_grid,
 )
+from .channels_helper import ChannelsHelper, prepare_channels
 from .ui_utils import (
     is_subject_schema,
     field_default,
@@ -14,3 +16,5 @@ from .ui_utils import (
     read_widget,
     ordered_fields,
 )
+from .cleaning_utils import EEGCleaner
+from .logging_utils import silence_console_logs, configure_logging

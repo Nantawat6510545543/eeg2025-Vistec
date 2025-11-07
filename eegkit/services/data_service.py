@@ -2,6 +2,7 @@ import pandas as pd
 from ..models import (
     BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, TableInfoDTO
 )
+from .base_service import BaseService
 
 data_registry = {}
 
@@ -17,15 +18,15 @@ def register_data(name, dto_cls):
     return decorator
 
 
-class EEGDataService:
+class EEGDataService(BaseService):
+    description = "Provides structured tables from the current selection for quick inspection and lightweight export (annotations, channels/electrodes, metadata, epoch summaries)."
     def __init__(self, get_raw_func, get_epochs_func, get_task_func):
-        self.get_raw = get_raw_func
-        self.get_epochs = get_epochs_func
-        self.get_task = get_task_func
-        self.spec = data_registry
-        for key in self.spec:
-            func = self.spec[key]["function"]
-            self.spec[key]["function"] = func.__get__(self)
+        super().__init__(
+            registry=data_registry,
+            get_raw_func=get_raw_func,
+            get_epochs_func=get_epochs_func,
+            get_task_func=get_task_func,
+        )
 
     @register_data("EEG Table", TableInfoDTO)
     def show_table(self, task_dto: BaseTaskDTO, table_info: TableInfoDTO):

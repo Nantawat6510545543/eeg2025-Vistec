@@ -101,6 +101,7 @@ class SubjectFilterDTO(BaseTaskDTO):
 
         return ", ".join(parts)
 
+
 @dataclass
 class ReprMixin:
     """Reusable mixin for clean __repr__ across dataclasses."""
@@ -117,6 +118,8 @@ class ReprMixin:
                 continue
             if isinstance(v, str) and not v.strip():
                 continue
+            if isinstance(v, bool) and not v:
+                continue
             parts.append(f"{k}={v}")
         return ', '.join(parts)
 
@@ -129,28 +132,82 @@ class ReprMixin:
                 merged |= getattr(base, "_exclude_str_fields")
         cls._exclude_str_fields = merged
 
+
 @dataclass
 class FilterParamsDTO(ReprMixin):
     l_freq: float = 0.5
     h_freq: float = 55.0
     notch: float = 60.0
-    resample_fs: float = 500.0
-    channels: str = "69-76,81-83,88,89"
+    resample_fs: Optional[float] = 500.0
+    channels: str = ""
+    # channels: str = "69-76,81-83,88,89"
     combine_channels: bool = False
-    # New: filter channels by complete-trace amplitude in microvolts
-    uv_min: Optional[float] = None
-    uv_max: Optional[float] = None
 
-    _exclude_str_fields: ClassVar[Set[str]] = {"combine_channels"}
+    uv_min: Optional[float] = -100.0
+    uv_max: Optional[float] = 100.0
+
+    # Remove bad channels
+    showbad: bool = False  # if True, plot bad channels found
+    clean_flatline_sec: Optional[float] = 5.0
+    clean_hf_noise_sd_max: Optional[float] = 4.0
+    clean_corr_min: Optional[float] = 0.8  # min acceptable absolute correlation to aggregate
+
+    # ASR bad subspace correction/removal (requires optional asrpy; otherwise skipped)
+    clean_asr_max_std: Optional[float] = 20.0  # max acceptable 0.5s window std dev (equiv.)
+    clean_asr_remove_only: bool = False  # if True, only annotate/remove bad periods, no reconstruction
+
+    # Additional removal of bad data periods
+    clean_power_min_sd: Optional[float] = -100.0
+    clean_power_max_sd: Optional[float] = 7.0
+    clean_max_outbound_pct: Optional[float] = 25.0  # percentage of channels
+    clean_window_sec: Optional[float] = 0.5  # analysis window size (s)
+
+    _exclude_str_fields: ClassVar[Set[str]] = {
+        "combine_channels",
+        "showbad",
+    }
 
     @property
     def filter_key(self) -> Dict[str, float]:
-        key = {
+        """Cache key for prefilter-only stage (band-pass, resample, notch).
+
+        This intentionally excludes any cleaning/marking options so that the
+        heavy prefilter result can be reused regardless of how we later mark
+        bad channels or bad time windows.
+        """
+        return {
             "l_freq": self.l_freq,
             "h_freq": self.h_freq,
             "notch": self.notch,
             "resample_fs": self.resample_fs,
         }
+
+    @property
+    def cleaning_key(self) -> Dict[str, float | bool]:
+        """Cache key for cleaning/marking stage (bad channels, bad periods).
+
+        Include only non-None thresholds; booleans as-is. This prevents None from
+        being coerced and allows Optional fields to disable steps without breaking the key.
+        """
+        key = {**self.filter_key}
+
+        def add(name, val):
+            if val is not None:
+                key[name] = val
+
+        add("clean_flatline_sec", self.clean_flatline_sec)
+        add("clean_hf_noise_sd_max", self.clean_hf_noise_sd_max)
+        add("clean_corr_min", self.clean_corr_min)
+        add("clean_asr_max_std", self.clean_asr_max_std)
+
+        if self.clean_asr_remove_only:
+            key["clean_asr_remove_only"] = True
+
+        add("clean_power_min_sd", self.clean_power_min_sd)
+        add("clean_power_max_sd", self.clean_power_max_sd)
+        add("clean_max_outbound_pct", self.clean_max_outbound_pct)
+        add("clean_window_sec", self.clean_window_sec)
+
         return key
 
     @property
@@ -204,7 +261,7 @@ class EpochParamsDTO(FilterParamsDTO):
     @property
     def epochs_key(self) -> Dict[str, float]:
         key = {
-            **self.filter_key,
+            **self.cleaning_key,
             "tmin": self.tmin,
             "tmax": self.tmax,
         }
@@ -218,10 +275,11 @@ class EpochParamsDTO(FilterParamsDTO):
         }
         return key
 
+
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
-    fmin: float = 3.0
-    fmax: float = 55.0
+    fmin: float = None
+    fmax: float = None
     average: bool = True
     dB: bool = True
     spatial_colors: bool = True
@@ -229,6 +287,13 @@ class PSDParamsDTO(FilterParamsDTO):
     _exclude_str_fields: ClassVar[Set[str]] = {
         "average", "dB", "spatial_colors"
     }
+
+    def __post_init__(self):
+        if self.fmin is None:
+            self.fmin = self.l_freq
+        if self.fmax is None:
+            self.fmax = self.h_freq
+
 
 @dataclass
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
