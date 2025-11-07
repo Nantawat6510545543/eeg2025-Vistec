@@ -73,12 +73,11 @@ def derive_param_groups(cls_or_instance: Any) -> List[Dict[str, Any]]:
         owned = [n for n in ann.keys() if n in all_field_names and n not in assigned]
         if not owned:
             continue
-        # Mark these names as owned by this class
         for n in owned:
             assigned[n] = owner
         groups_rev.append((owner, owned))
 
-    # Build final group dicts (already base->derived order due to reversed MRO walk)
+    # Build final group dicts
     result: List[Dict[str, Any]] = []
     for owner, names in groups_rev:
         title = TITLE_OVERRIDES.get(owner.__name__, _camel_to_title(owner.__name__))

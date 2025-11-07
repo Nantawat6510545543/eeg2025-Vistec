@@ -51,6 +51,12 @@ class EEGUI:
         self.mode_selector = widgets.ToggleButtons(options=list(self.specs.keys()), description="Mode:")
         self.mode_description = widgets.HTML(value="")
         self.action_selector = widgets.ToggleButtons(description="Action:")
+        self.param_view_toggle = widgets.Checkbox(
+            value=False,
+            description="Show all groups",
+            indent=False,
+            layout=widgets.Layout(width="auto")
+        )
         self.param_box = widgets.VBox()
         self.tmux_run_button = widgets.Button(description="Run on Tmux", button_style="success")
         self.inline_run_button = widgets.Button(description="Run Inline", button_style="success")
@@ -73,6 +79,7 @@ class EEGUI:
         self.schema_selector.observe(self._on_schema_change, names="value")
         self.mode_selector.observe(self._update_actions, names="value")
         self.action_selector.observe(self._update_param_inputs, names="value")
+        self.param_view_toggle.observe(self._update_param_inputs, names="value")
         self.tmux_run_button.on_click(self._tmux_execute)
         self.inline_run_button.on_click(self._inline_execute)
 
@@ -82,6 +89,7 @@ class EEGUI:
             self.mode_selector,
             self.mode_description,
             self.action_selector,
+            self.param_view_toggle,
             self.param_box,
             self.tmux_run_button,
             self.inline_run_button,
@@ -192,7 +200,15 @@ class EEGUI:
                         field_names = g["field_names"]
                         rows_for_owner = []
                         pair_buf = []
-                        for name in field_names:
+                        # Order fields within this group using ordered_fields(owner)
+                        try:
+                            ordered_owner_fields = [f.name for f in ordered_fields(owner)]
+                        except Exception:
+                            ordered_owner_fields = field_names
+                        ordered_names = [n for n in ordered_owner_fields if n in field_names]
+                        if not ordered_names:
+                            ordered_names = field_names
+                        for name in ordered_names:
                             if not hasattr(params_obj, name):
                                 continue
                             val = getattr(params_obj, name)
@@ -273,11 +289,18 @@ class EEGUI:
             return
         layout_key = (group, key)
         group_meta = self.param_group_meta.get(layout_key, [])
-        # Build tabs if we have multiple groups; else keep old flat layout
+        # Build UI according to toggle: tabs (default) vs show-all-with-headers
         if group_meta:
-            if len(group_meta) == 1:
-                # Single group: just show rows, simpler UI
-                self.param_box.children = group_meta[0]["rows"]
+            show_all = bool(getattr(self.param_view_toggle, "value", False))
+            if show_all:
+                blocks = []
+                for gm in group_meta:
+                    header = widgets.HTML(
+                        value=f"<div style='font-weight:600;margin:6px 0 4px 0'>{gm['title']}</div>"
+                    )
+                    blocks.append(header)
+                    blocks.extend(gm["rows"])  # reuse existing widgets
+                self.param_box.children = blocks
             else:
                 tab = widgets.Tab()
                 tab_children = []
