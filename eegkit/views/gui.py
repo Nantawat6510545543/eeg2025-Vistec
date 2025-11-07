@@ -22,6 +22,7 @@ from pathlib import Path
 
 from ..models import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 from ..utils import is_subject_schema, field_default, make_widget, make_range_widget, read_widget, ordered_fields
+from ..utils.ui_param_groups import derive_param_groups
 
 plt.ioff()
 
@@ -64,6 +65,7 @@ class EEGUI:
 
         self.param_layouts = {}
         self.param_widgets = {}
+        self.param_group_meta = {}
         self._build_all_param_layouts()
 
         self.schema_box = widgets.VBox()
@@ -170,38 +172,62 @@ class EEGUI:
             task_w.value = opts[0][1]
 
     def _build_all_param_layouts(self):
-        """Build parameter input widgets for every registered action in specs."""
+        """Build parameter input widgets for every registered action in specs.
+
+        New behavior: group fields by defining class and render later as tabs.
+        """
         for group in self.specs:
             for key, spec in self.specs[group].items():
-                params_cls = spec["params"]
+                params_cls = spec.get("params")
                 layout_key = (group, key)
                 widgets_dict = {}
-                rows, pair_buf = [], []
+                group_meta = []  # list of {owner,title,field_names,rows}
                 if params_cls:
                     params_obj = params_cls() if callable(params_cls) else params_cls
-                    for f in ordered_fields(params_obj):
-                        val = getattr(params_obj, f.name)
-                        w = make_widget(val, field=f)
-                        widgets_dict[f.name] = w
-                        row = widgets.HBox([
-                            widgets.Label(value=f"{f.name}:", layout=widgets.Layout(width='200px')),
-                            w
-                        ])
-                        if isinstance(val, str):
-                            if pair_buf:
-                                rows.append(widgets.HBox(pair_buf))
-                                pair_buf = []
-                            rows.append(row)
-                        else:
-                            pair_buf.append(row)
-                            if len(pair_buf) == 2:
-                                rows.append(widgets.HBox(pair_buf))
-                                pair_buf = []
+                    # Derive grouped field ownership
+                    groups = derive_param_groups(params_obj)
+                    for g in groups:
+                        owner = g["owner"]
+                        title = g["title"]
+                        field_names = g["field_names"]
+                        rows_for_owner = []
+                        pair_buf = []
+                        for name in field_names:
+                            if not hasattr(params_obj, name):
+                                continue
+                            val = getattr(params_obj, name)
+                            w = make_widget(val, field=next(f for f in fields(params_obj) if f.name == name))
+                            widgets_dict[name] = w
+                            row = widgets.HBox([
+                                widgets.Label(value=f"{name}:", layout=widgets.Layout(width='200px')),
+                                w
+                            ])
+                            if isinstance(val, str):
+                                if pair_buf:
+                                    rows_for_owner.append(widgets.HBox(pair_buf))
+                                    pair_buf = []
+                                rows_for_owner.append(row)
+                            else:
+                                pair_buf.append(row)
+                                if len(pair_buf) == 2:
+                                    rows_for_owner.append(widgets.HBox(pair_buf))
+                                    pair_buf = []
+                        if pair_buf:
+                            rows_for_owner.append(widgets.HBox(pair_buf))
+                        group_meta.append({
+                            "owner": owner,
+                            "title": title,
+                            "field_names": field_names,
+                            "rows": rows_for_owner,
+                        })
 
-                if pair_buf:
-                    rows.append(widgets.HBox(pair_buf))
-                self.param_layouts[layout_key] = rows
+                # Flatten legacy layout (concatenate) for backward compatibility in any code expecting param_layouts
+                flat_rows = []
+                for gm in group_meta:
+                    flat_rows.extend(gm["rows"])
+                self.param_layouts[layout_key] = flat_rows
                 self.param_widgets[layout_key] = widgets_dict
+                self.param_group_meta[layout_key] = group_meta
 
     def _on_schema_change(self, *_):
         """Switch schema panel when the input type toggle changes."""
@@ -246,7 +272,23 @@ class EEGUI:
         if not group or not key:
             return
         layout_key = (group, key)
-        self.param_box.children = self.param_layouts.get(layout_key, [])
+        group_meta = self.param_group_meta.get(layout_key, [])
+        # Build tabs if we have multiple groups; else keep old flat layout
+        if group_meta:
+            if len(group_meta) == 1:
+                # Single group: just show rows, simpler UI
+                self.param_box.children = group_meta[0]["rows"]
+            else:
+                tab = widgets.Tab()
+                tab_children = []
+                for gm in group_meta:
+                    tab_children.append(widgets.VBox(gm["rows"]))
+                tab.children = tab_children
+                for idx, gm in enumerate(group_meta):
+                    tab.set_title(idx, gm["title"])
+                self.param_box.children = [tab]
+        else:
+            self.param_box.children = self.param_layouts.get(layout_key, [])
         self.param_inputs = self.param_widgets.get(layout_key, {})
         task_dto = self._current_subject_schema_dto_for_prepare()
         if task_dto is None:
