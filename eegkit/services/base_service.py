@@ -73,28 +73,11 @@ class BaseService(ABC):
         mean_noise = np.pad(mean_noise, pad_width=tuple(pad), constant_values=float("nan"))
         return psd / mean_noise
 
-    def prepare_params(self, task_dto, key):  # optional hook, shared default
-        """Return dynamic default values for params widgets.
-
-        Default implementation: if params for the action is an EpochParamsDTO,
-        query epochs to discover available labels and pre-fill the 'stimulus'
-        dropdown with [None] + labels.
-        """
-        spec = self.spec[key]
-        params_cls = spec.get("params")
-        if not params_cls:
-            return {}
-
-        try:
-            params_obj = params_cls()
-        except Exception:
-            # If params_cls is not callable, ignore dynamic defaults
-            return {}
-
-        if EpochParamsDTO and isinstance(params_obj, EpochParamsDTO):
+    def prepare_params(self, task_dto, params_dto):
+        if EpochParamsDTO and isinstance(params_dto, EpochParamsDTO):
             if self.get_epochs is None:
                 return {}
-            _epochs, labels = self.get_epochs(task_dto=task_dto, epoch_params=params_obj)
+            _epochs, labels = self.get_epochs(task_dto=task_dto, epoch_params=params_dto)
             if isinstance(labels, str) and labels == "unavailable":
                 return {}
             if labels is not None:

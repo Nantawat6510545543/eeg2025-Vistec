@@ -328,7 +328,9 @@ class EEGUI:
         task_dto = self._current_subject_schema_dto_for_prepare()
         if task_dto is None:
             return
-        updates = self.controller.prepare(task_dto, group, key) or {}
+        spec = self.specs[group][key]
+        params_dto = self._collect_params(group, key, spec)
+        updates = self.controller.prepare(task_dto, group, key, params_dto) or {}
         for name, new_val in updates.items():
             w = self.param_inputs.get(name)
             if w is None:
@@ -457,17 +459,14 @@ class EEGUI:
                     self.ui_param_cache.set_value(_owner, _name, val)
                 return _on_change
 
-            # Attach to common widget types
-            try:
-                if isinstance(w, dict):
-                    # Range-like composite: observe both
-                    for part in ('min', 'max'):
-                        if part in w and hasattr(w[part], 'observe'):
-                            w[part].observe(_make_handler(), names='value')
-                elif hasattr(w, 'observe'):
-                    w.observe(_make_handler(), names='value')
-            except Exception:
-                pass
+            # Attach to common widget types (let errors surface for debugging)
+            if isinstance(w, dict):
+                # Range-like composite: observe both
+                for part in ('min', 'max'):
+                    if part in w and hasattr(w[part], 'observe'):
+                        w[part].observe(_make_handler(), names='value')
+            elif hasattr(w, 'observe'):
+                w.observe(_make_handler(), names='value')
         self._wired_layouts.add(layout_key)
 
     def _apply_overlay(self, widgets_map, overlay):
@@ -475,23 +474,19 @@ class EEGUI:
             w = widgets_map.get(name)
             if w is None:
                 continue
-            try:
-                if isinstance(w, dict):
-                    # Expect tuple/list of (min,max)
-                    if isinstance(val, (tuple, list)) and len(val) == 2:
-                        vmin, vmax = val
-                        if 'min' in w and hasattr(w['min'], 'value'):
-                            w['min'].value = '' if vmin is None else str(vmin)
-                        if 'max' in w and hasattr(w['max'], 'value'):
-                            w['max'].value = '' if vmax is None else str(vmax)
-                elif isinstance(w, widgets.Dropdown):
-                    # Set only if value is among options (consider (label,value) tuples)
-                    opts = w.options or []
-                    values = [v if not isinstance(v, tuple) else v[1] for v in opts]
-                    if val in values:
-                        w.value = val
-                elif hasattr(w, 'value'):
+            if isinstance(w, dict):
+                # Expect tuple/list of (min,max)
+                if isinstance(val, (tuple, list)) and len(val) == 2:
+                    vmin, vmax = val
+                    if 'min' in w and hasattr(w['min'], 'value'):
+                        w['min'].value = '' if vmin is None else str(vmin)
+                    if 'max' in w and hasattr(w['max'], 'value'):
+                        w['max'].value = '' if vmax is None else str(vmax)
+            elif isinstance(w, widgets.Dropdown):
+                # Set only if value is among options (consider (label,value) tuples)
+                opts = w.options or []
+                values = [v if not isinstance(v, tuple) else v[1] for v in opts]
+                if val in values:
                     w.value = val
-            except Exception:
-                # Silently skip invalid overlay application
-                pass
+            elif hasattr(w, 'value'):
+                w.value = val

@@ -267,10 +267,10 @@ class EEGCleaner:
     def pre_filter(raw, params) -> mne.io.BaseRaw:
         """Apply band-pass, resample, and notch to self.raw in place (copy), using self.params."""
         t0 = time.perf_counter()
-        l_freq = getattr(params, 'l_freq', 0.5)
-        h_freq = getattr(params, 'h_freq', 55.0)
-        resample_fs = getattr(params, 'resample_fs', 500.0)
-        notch = getattr(params, 'notch', 60.0)
+        l_freq = params.l_freq
+        h_freq = params.h_freq
+        resample_fs = params.resample_fs
+        notch = params.notch
         log.info("[prefilter] start l=%.3f, h=%.3f, fs=%s, notch=%s", float(l_freq), float(h_freq), resample_fs, notch)
         raw.load_data()
         raw.filter(
@@ -279,11 +279,10 @@ class EEGCleaner:
             fir_design='firwin',
             skip_by_annotation='edge',
         )
-        target_fs = float(getattr(params, 'resample_fs', 500.0) or 0.0)
+        target_fs = float(params.resample_fs or 0.0)
         cur_fs = float(raw.info.get('sfreq', 0.0) or 0.0)
         if target_fs > 0 and abs(cur_fs - target_fs) > 1e-6:
             raw.resample(target_fs)
-        notch = getattr(params, 'notch', 60.0)
         if notch and float(notch) > 0:
             raw.notch_filter(
                 freqs=notch,

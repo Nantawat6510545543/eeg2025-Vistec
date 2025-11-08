@@ -72,11 +72,11 @@ class EEGController:
         """Return dict of mode -> description for UI display."""
         return {k: v.get("description", "") for k, v in self._modes.items()}
 
-    def prepare(self, task_dto: BaseTaskDTO, group: str, key: str):
+    def prepare(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
         if group == "plot":
-            return self.visualizer.prepare_params(task_dto, key)
+            return self.visualizer.prepare_params(task_dto, params_dto)
         if group == "grid_plot":
-            return self.grid_visualizer.prepare_params(task_dto, key)
+            return self.grid_visualizer.prepare_params(task_dto, params_dto)
         return {}
 
     def show(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
