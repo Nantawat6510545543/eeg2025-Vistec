@@ -22,6 +22,8 @@ from pathlib import Path
 
 from ..models import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 from ..utils import is_subject_schema, field_default, make_widget, make_range_widget, read_widget, ordered_fields
+from ..utils.ui_param_groups import derive_param_groups
+from ..utils.ui_param_cache import UIParamCache
 
 plt.ioff()
 
@@ -50,6 +52,12 @@ class EEGUI:
         self.mode_selector = widgets.ToggleButtons(options=list(self.specs.keys()), description="Mode:")
         self.mode_description = widgets.HTML(value="")
         self.action_selector = widgets.ToggleButtons(description="Action:")
+        self.param_view_toggle = widgets.Checkbox(
+            value=False,
+            description="Show all groups",
+            indent=False,
+            layout=widgets.Layout(width="auto")
+        )
         self.param_box = widgets.VBox()
         self.tmux_run_button = widgets.Button(description="Run on Tmux", button_style="success")
         self.inline_run_button = widgets.Button(description="Run Inline", button_style="success")
@@ -64,6 +72,10 @@ class EEGUI:
 
         self.param_layouts = {}
         self.param_widgets = {}
+        self.param_group_meta = {}
+        self._wired_layouts = set()
+        self._field_owner = {}
+        self.ui_param_cache = UIParamCache()
         self._build_all_param_layouts()
 
         self.schema_box = widgets.VBox()
@@ -71,6 +83,7 @@ class EEGUI:
         self.schema_selector.observe(self._on_schema_change, names="value")
         self.mode_selector.observe(self._update_actions, names="value")
         self.action_selector.observe(self._update_param_inputs, names="value")
+        self.param_view_toggle.observe(self._update_param_inputs, names="value")
         self.tmux_run_button.on_click(self._tmux_execute)
         self.inline_run_button.on_click(self._inline_execute)
 
@@ -80,6 +93,7 @@ class EEGUI:
             self.mode_selector,
             self.mode_description,
             self.action_selector,
+            self.param_view_toggle,
             self.param_box,
             self.tmux_run_button,
             self.inline_run_button,
@@ -170,38 +184,123 @@ class EEGUI:
             task_w.value = opts[0][1]
 
     def _build_all_param_layouts(self):
-        """Build parameter input widgets for every registered action in specs."""
+        """Build parameter input widgets for every registered action in specs.
+
+        New behavior: group fields by defining class and render later as tabs.
+        """
         for group in self.specs:
             for key, spec in self.specs[group].items():
-                params_cls = spec["params"]
+                params_cls = spec.get("params")
                 layout_key = (group, key)
                 widgets_dict = {}
-                rows, pair_buf = [], []
+                group_meta = []  # list of {owner,title,field_names,rows}
                 if params_cls:
                     params_obj = params_cls() if callable(params_cls) else params_cls
-                    for f in ordered_fields(params_obj):
-                        val = getattr(params_obj, f.name)
-                        w = make_widget(val, field=f)
-                        widgets_dict[f.name] = w
-                        row = widgets.HBox([
-                            widgets.Label(value=f"{f.name}:", layout=widgets.Layout(width='200px')),
-                            w
-                        ])
-                        if isinstance(val, str):
-                            if pair_buf:
-                                rows.append(widgets.HBox(pair_buf))
-                                pair_buf = []
-                            rows.append(row)
-                        else:
-                            pair_buf.append(row)
-                            if len(pair_buf) == 2:
-                                rows.append(widgets.HBox(pair_buf))
-                                pair_buf = []
+                    # Derive grouped field ownership
+                    groups = derive_param_groups(params_obj)
+                    for g in groups:
+                        owner = g["owner"]
+                        title = g["title"]
+                        field_names = g["field_names"]
+                        rows_for_owner = []
+                        pair_buf = []
+                        # Order fields within this group using ordered_fields(owner)
+                        try:
+                            ordered_owner_fields = [f.name for f in ordered_fields(owner)]
+                        except Exception:
+                            ordered_owner_fields = field_names
+                        ordered_names = [n for n in ordered_owner_fields if n in field_names]
+                        if not ordered_names:
+                            ordered_names = field_names
+                        for name in ordered_names:
+                            if not hasattr(params_obj, name):
+                                continue
+                            val = getattr(params_obj, name)
+                            w = make_widget(val, field=next(f for f in fields(params_obj) if f.name == name))
+                            widgets_dict[name] = w
+                            row = widgets.HBox([
+                                widgets.Label(value=f"{name}:", layout=widgets.Layout(width='200px')),
+                                w
+                            ])
+                            if isinstance(val, str):
+                                if pair_buf:
+                                    rows_for_owner.append(widgets.HBox(pair_buf))
+                                    pair_buf = []
+                                rows_for_owner.append(row)
+                            else:
+                                pair_buf.append(row)
+                                if len(pair_buf) == 2:
+                                    rows_for_owner.append(widgets.HBox(pair_buf))
+                                    pair_buf = []
+                        if pair_buf:
+                            rows_for_owner.append(widgets.HBox(pair_buf))
+                        group_meta.append({
+                            "owner": owner,
+                            "title": title,
+                            "field_names": field_names,
+                            "rows": rows_for_owner,
+                        })
 
-                if pair_buf:
-                    rows.append(widgets.HBox(pair_buf))
-                self.param_layouts[layout_key] = rows
+                # Flatten legacy layout (concatenate) for backward compatibility in any code expecting param_layouts
+                flat_rows = []
+                for gm in group_meta:
+                    flat_rows.extend(gm["rows"])
+                self.param_layouts[layout_key] = flat_rows
                 self.param_widgets[layout_key] = widgets_dict
+                self.param_group_meta[layout_key] = group_meta
+                # map field -> owner for quick lookup
+                owner_map: dict[str, type] = {}
+                for gm in group_meta:
+                    for n in gm["field_names"]:
+                        owner_map[n] = gm["owner"]
+                self._field_owner[layout_key] = owner_map
+                # wire observers once
+                self._wire_param_observers(layout_key, group_meta, widgets_dict)
+
+    def _wire_param_observers(self, layout_key, group_meta, widgets_dict):
+        if layout_key in self._wired_layouts:
+            return
+        owner_map = self._field_owner.get(layout_key, {})
+        for name, w in widgets_dict.items():
+            owner = owner_map.get(name)
+            if owner is None:
+                continue
+
+            def _make_handler(_name=name, _owner=owner, _w=w):
+                def _on_change(change):
+                    if change.get('name') != 'value':
+                        return
+                    val = getattr(_w, 'value', None)
+                    self.ui_param_cache.set_value(_owner, _name, val)
+                return _on_change
+
+            if isinstance(w, dict):
+                for part in ('min', 'max'):
+                    if part in w and hasattr(w[part], 'observe'):
+                        w[part].observe(_make_handler(), names='value')
+            elif hasattr(w, 'observe'):
+                w.observe(_make_handler(), names='value')
+        self._wired_layouts.add(layout_key)
+
+    def _apply_overlay(self, widgets_map, overlay):
+        for name, val in overlay.items():
+            w = widgets_map.get(name)
+            if w is None:
+                continue
+            if isinstance(w, dict):
+                if isinstance(val, (tuple, list)) and len(val) == 2:
+                    vmin, vmax = val
+                    if 'min' in w and hasattr(w['min'], 'value'):
+                        w['min'].value = '' if vmin is None else str(vmin)
+                    if 'max' in w and hasattr(w['max'], 'value'):
+                        w['max'].value = '' if vmax is None else str(vmax)
+            elif isinstance(w, widgets.Dropdown):
+                opts = w.options or []
+                values = [v if not isinstance(v, tuple) else v[1] for v in opts]
+                if val in values:
+                    w.value = val
+            elif hasattr(w, 'value'):
+                w.value = val
 
     def _on_schema_change(self, *_):
         """Switch schema panel when the input type toggle changes."""
@@ -246,12 +345,37 @@ class EEGUI:
         if not group or not key:
             return
         layout_key = (group, key)
-        self.param_box.children = self.param_layouts.get(layout_key, [])
+        group_meta = self.param_group_meta.get(layout_key, [])
+        # Build UI according to toggle: tabs (default) vs show-all-with-headers
+        if group_meta:
+            show_all = bool(getattr(self.param_view_toggle, "value", False))
+            if show_all:
+                blocks = []
+                for gm in group_meta:
+                    header = widgets.HTML(
+                        value=f"<div style='font-weight:600;margin:6px 0 4px 0'>{gm['title']}</div>"
+                    )
+                    blocks.append(header)
+                    blocks.extend(gm["rows"])  # reuse existing widgets
+                self.param_box.children = blocks
+            else:
+                tab = widgets.Tab()
+                tab_children = []
+                for gm in group_meta:
+                    tab_children.append(widgets.VBox(gm["rows"]))
+                tab.children = tab_children
+                for idx, gm in enumerate(group_meta):
+                    tab.set_title(idx, gm["title"])
+                self.param_box.children = [tab]
+        else:
+            self.param_box.children = self.param_layouts.get(layout_key, [])
         self.param_inputs = self.param_widgets.get(layout_key, {})
         task_dto = self._current_subject_schema_dto_for_prepare()
         if task_dto is None:
             return
-        updates = self.controller.prepare(task_dto, group, key) or {}
+        spec = self.specs[group][key]
+        params_dto = self._collect_params(group, key, spec)
+        updates = self.controller.prepare(task_dto, group, key, params_dto) or {}
         for name, new_val in updates.items():
             w = self.param_inputs.get(name)
             if w is None:
@@ -262,6 +386,11 @@ class EEGUI:
                     w.value = new_val[0]
             elif hasattr(w, "value"):
                 w.value = new_val
+        # After dynamic updates, apply UI cache overlay
+        group_meta = self.param_group_meta.get(layout_key, [])
+        overlay = self.ui_param_cache.get_overlay(group_meta)
+        if overlay:
+            self._apply_overlay(self.param_inputs, overlay)
 
     def _build_active_dto(self):
         """Create the active DTO instance by reading all schema widgets."""
@@ -352,3 +481,4 @@ class EEGUI:
     def show(self):
         """Display the assembled UI in the current notebook output cell."""
         display(self.ui)
+

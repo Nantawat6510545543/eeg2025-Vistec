@@ -177,20 +177,44 @@ class EEGTaskProcessor:
         if stim_rows.empty:
             return None, None
 
+        # Build human-readable labels and numeric event codes
         stim_rows['label'] = stim_rows.apply(
             lambda row: f"bg{int(row['background'])}_fg{row['foreground_contrast']}_stim{int(row['stimulus_cond'])}",
             axis=1
         )
         stim_rows["event_code"] = stim_rows["label"].map(EVENT_ID)
 
-        new_sfreq = filtered.info['sfreq']
-        if 'onset' in events.columns and filtered.info['sfreq'] != 500:  # hardcoded original sfreq
-            events['sample'] = (events['onset'] * new_sfreq).astype(int)
+        # Derive sample indices aligned to the CURRENT Raw sampling rate
+        sfreq = float(filtered.info.get('sfreq', 0.0))
+        if 'onset' in stim_rows.columns:
+            # Prefer onset (seconds) -> samples at current sfreq
+            stim_rows = stim_rows[stim_rows['onset'].notna()].copy()
+            stim_rows['sample'] = np.round(stim_rows['onset'].astype(float) * sfreq).astype(int)
+        elif 'sample' in stim_rows.columns:
+            # Fallback: use provided sample index (assume already at current rate)
+            stim_rows['sample'] = stim_rows['sample'].astype(int)
+        else:
+            # Cannot construct events without timing
+            return None, None
+
+        # Guard against out-of-bounds epochs (edges of the recording)
+        n_times = int(filtered.n_times)
+        tmin_samp = int(np.floor(params.tmin * sfreq))
+        tmax_samp = int(np.ceil(params.tmax * sfreq))
+        start_idx = stim_rows['sample'] + tmin_samp
+        stop_idx = stim_rows['sample'] + tmax_samp
+        in_bounds = (start_idx >= 0) & (stop_idx < n_times)
+        if not np.any(in_bounds):
+            return None, None
+        stim_rows = stim_rows.loc[in_bounds].copy()
+
+        # Ensure events are sorted by sample index
+        stim_rows.sort_values('sample', inplace=True)
 
         events_array = np.column_stack([
-            stim_rows['sample'].astype(int),
+            stim_rows['sample'].astype(int).values,
             np.zeros(len(stim_rows), dtype=int),
-            stim_rows['event_code'].astype(int)
+            stim_rows['event_code'].astype(int).values
         ])
 
         present_labels = stim_rows["label"].unique()
