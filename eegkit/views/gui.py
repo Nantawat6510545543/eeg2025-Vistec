@@ -257,6 +257,51 @@ class EEGUI:
                 # wire observers once
                 self._wire_param_observers(layout_key, group_meta, widgets_dict)
 
+    def _wire_param_observers(self, layout_key, group_meta, widgets_dict):
+        if layout_key in self._wired_layouts:
+            return
+        owner_map = self._field_owner.get(layout_key, {})
+        for name, w in widgets_dict.items():
+            owner = owner_map.get(name)
+            if owner is None:
+                continue
+
+            def _make_handler(_name=name, _owner=owner, _w=w):
+                def _on_change(change):
+                    if change.get('name') != 'value':
+                        return
+                    val = getattr(_w, 'value', None)
+                    self.ui_param_cache.set_value(_owner, _name, val)
+                return _on_change
+
+            if isinstance(w, dict):
+                for part in ('min', 'max'):
+                    if part in w and hasattr(w[part], 'observe'):
+                        w[part].observe(_make_handler(), names='value')
+            elif hasattr(w, 'observe'):
+                w.observe(_make_handler(), names='value')
+        self._wired_layouts.add(layout_key)
+
+    def _apply_overlay(self, widgets_map, overlay):
+        for name, val in overlay.items():
+            w = widgets_map.get(name)
+            if w is None:
+                continue
+            if isinstance(w, dict):
+                if isinstance(val, (tuple, list)) and len(val) == 2:
+                    vmin, vmax = val
+                    if 'min' in w and hasattr(w['min'], 'value'):
+                        w['min'].value = '' if vmin is None else str(vmin)
+                    if 'max' in w and hasattr(w['max'], 'value'):
+                        w['max'].value = '' if vmax is None else str(vmax)
+            elif isinstance(w, widgets.Dropdown):
+                opts = w.options or []
+                values = [v if not isinstance(v, tuple) else v[1] for v in opts]
+                if val in values:
+                    w.value = val
+            elif hasattr(w, 'value'):
+                w.value = val
+
     def _on_schema_change(self, *_):
         """Switch schema panel when the input type toggle changes."""
         schema_dto = self.schema_selector.value
@@ -437,56 +482,3 @@ class EEGUI:
         """Display the assembled UI in the current notebook output cell."""
         display(self.ui)
 
-    # --- internal: wiring & cache helpers ---
-    def _wire_param_observers(self, layout_key, group_meta, widgets_dict):
-        if layout_key in self._wired_layouts:
-            return
-        # Build field -> owner mapping (should already exist)
-        owner_map = self._field_owner.get(layout_key, {})
-        # Create a simple field defaults map by instantiating params if possible
-        for name, w in widgets_dict.items():
-            owner = owner_map.get(name)
-            if owner is None:
-                continue
-
-            def _make_handler(_name=name, _owner=owner, _w=w):
-                def _on_change(change):
-                    # Only handle real value changes
-                    if change.get('name') != 'value':
-                        return
-                    val = getattr(_w, 'value', None)
-                    # Accept None/primitive/list values directly
-                    self.ui_param_cache.set_value(_owner, _name, val)
-                return _on_change
-
-            # Attach to common widget types (let errors surface for debugging)
-            if isinstance(w, dict):
-                # Range-like composite: observe both
-                for part in ('min', 'max'):
-                    if part in w and hasattr(w[part], 'observe'):
-                        w[part].observe(_make_handler(), names='value')
-            elif hasattr(w, 'observe'):
-                w.observe(_make_handler(), names='value')
-        self._wired_layouts.add(layout_key)
-
-    def _apply_overlay(self, widgets_map, overlay):
-        for name, val in overlay.items():
-            w = widgets_map.get(name)
-            if w is None:
-                continue
-            if isinstance(w, dict):
-                # Expect tuple/list of (min,max)
-                if isinstance(val, (tuple, list)) and len(val) == 2:
-                    vmin, vmax = val
-                    if 'min' in w and hasattr(w['min'], 'value'):
-                        w['min'].value = '' if vmin is None else str(vmin)
-                    if 'max' in w and hasattr(w['max'], 'value'):
-                        w['max'].value = '' if vmax is None else str(vmax)
-            elif isinstance(w, widgets.Dropdown):
-                # Set only if value is among options (consider (label,value) tuples)
-                opts = w.options or []
-                values = [v if not isinstance(v, tuple) else v[1] for v in opts]
-                if val in values:
-                    w.value = val
-            elif hasattr(w, 'value'):
-                w.value = val
