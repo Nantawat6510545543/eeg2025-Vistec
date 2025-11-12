@@ -18,7 +18,7 @@ from ..models import (
     BaseTaskDTO,
     EpochParamsDTO,
     FilterParamsDTO,
-    AIBase,
+    AIBaseDTO,
     AITrainParamsDTO,
     AIPredictParamsDTO,
 )
@@ -109,7 +109,7 @@ class EEGAIService(BaseService):
         - If params belong to AIBase, add {"model": [list of model names]} for UI dropdowns
         """
         updates = super().prepare_params(task_dto, params_dto)
-        if isinstance(params_dto, AIBase):
+        if isinstance(params_dto, AIBaseDTO):
             models = self._available_models()
             updates = {**(updates or {}), "model": models}
         return updates or {}

@@ -350,12 +350,12 @@ class TableInfoDTO(FilterParamsDTO):
 
 # ---- AI DTOs ----
 @dataclass
-class AIBase(EpochParamsDTO):
+class AIBaseDTO(EpochParamsDTO):
     model: List[str] = field(default_factory=lambda: [None])
 
 
 @dataclass
-class AITrainParamsDTO(AIBase):
+class AITrainParamsDTO(AIBaseDTO):
     batch_size: int = 32
     epochs_n: int = 1
     lr: float = 0.001
@@ -364,5 +364,5 @@ class AITrainParamsDTO(AIBase):
 
 
 @dataclass
-class AIPredictParamsDTO(AIBase):
+class AIPredictParamsDTO(AIBaseDTO):
     checkpoint_path: Optional[str] = None

@@ -12,7 +12,7 @@ from .dtos import (
     EvokedParamsDTO,
     EvokedTopoParamsDTO,
     EvokedJointParamsDTO,
-    AIBase,
+    AIBaseDTO,
     AITrainParamsDTO,
     AIPredictParamsDTO,
 )
