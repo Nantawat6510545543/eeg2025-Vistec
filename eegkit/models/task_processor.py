@@ -228,14 +228,17 @@ class EEGTaskProcessor:
         df = self.get_events()
         if df is None:
             return None, None
-        try:
-            t_start = df[df['value'] == 'resting_start']['onset'].values[0]
-            t_end = df[df['value'] == 'break cnt']['onset'].values[1]
-        except Exception:
-            return None, None
-        filtered.crop(tmin=t_start, tmax=t_end)
+        
+        starts = df[df.get('value') == 'resting_start'].get('onset') if 'value' in df and 'onset' in df else None
+        ends = df[df.get('value').isin(['break cnt', 'resting_end'])]['onset'] if 'value' in df and 'onset' in df else None
+        if starts is not None and len(starts) > 0 and ends is not None and len(ends) > 0:
+            t_start = float(starts.iloc[0])
+            t_end = float(ends.iloc[-1])
+            if t_end > t_start:
+                filtered.crop(tmin=t_start, tmax=t_end)
 
-        events_arr, ann_event_id = events_from_annotations(self.get_raw())
+        # Compute events from annotations on the Raw
+        events_arr, ann_event_id = events_from_annotations(filtered)
         open_code = ann_event_id.get('instructed_toOpenEyes')
         close_code = ann_event_id.get('instructed_toCloseEyes')
         new_events_list = []
