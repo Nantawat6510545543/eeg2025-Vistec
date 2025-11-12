@@ -117,11 +117,8 @@ def prepare_channels(inst, params):
     Returns a new instance (picked or channel-combined), leaving the input unmodified.
     """
     # Ensure data is loaded for objects that support lazy loading (e.g., Epochs)
-    try:
-        if hasattr(inst, "event_id") and hasattr(inst, "load_data"):
-            inst = inst.copy().load_data()
-    except Exception:
-        pass
+    if hasattr(inst, "event_id") and hasattr(inst, "load_data"):
+        inst = inst.copy().load_data()
 
     helper = ChannelsHelper(params, inst)
     helper.pick_channels()

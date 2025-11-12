@@ -42,10 +42,7 @@ class LocalCache:
         self.base = base_dir or (self.repo_root / ".eegcache")
         self.base.mkdir(exist_ok=True)
         self.pipeline_ver = pipeline_ver
-        try:
-            log.info("[cache] init base=%s pipeline=%s repo_root=%s", self.base, self.pipeline_ver, self.repo_root)
-        except Exception:
-            pass
+        log.info("[cache] init base=%s pipeline=%s repo_root=%s", self.base, self.pipeline_ver, self.repo_root)
 
     # --- logging helpers ---
     def _key_summary(self, key: CacheKey) -> str:
@@ -58,31 +55,19 @@ class LocalCache:
             return f"subject={getattr(key, 'subject', None)}, task={getattr(key, 'task', None)}, run={getattr(key, 'run', None)}"
 
     def _log_get(self, artifact: str, path: Path, key: CacheKey):
-        try:
-            log.info("[cache] GET %s file=%s key={%s}", artifact, path.name, self._key_summary(key))
-        except Exception:
-            pass
+        log.info("[cache] GET %s file=%s key={%s}", artifact, path.name, self._key_summary(key))
 
     def _log_hit(self, artifact: str, path: Path, key: CacheKey):
-        try:
-            log.info("[cache] HIT %s file=%s (subdir=%s, ver=%s)", artifact, path.name, key.subdir(), key.pipeline_ver)
-        except Exception:
-            pass
+        log.info("[cache] HIT %s file=%s (subdir=%s, ver=%s)", artifact, path.name, key.subdir(), key.pipeline_ver)
 
     def _log_miss(self, artifact: str, path: Path, key: CacheKey):
-        try:
-            log.info("[cache] MISS %s file=%s (subdir=%s, ver=%s)", artifact, path.name, key.subdir(), key.pipeline_ver)
-        except Exception:
-            pass
+        log.info("[cache] MISS %s file=%s (subdir=%s, ver=%s)", artifact, path.name, key.subdir(), key.pipeline_ver)
 
     def _log_save(self, artifact: str, path: Path, key: CacheKey, extra: str | None = None):
-        try:
-            if extra:
-                log.info("[cache] SAVE %s file=%s (%s)", artifact, path.name, extra)
-            else:
-                log.info("[cache] SAVE %s file=%s (ver=%s)", artifact, path.name, key.pipeline_ver)
-        except Exception:
-            pass
+        if extra:
+            log.info("[cache] SAVE %s file=%s (%s)", artifact, path.name, extra)
+        else:
+            log.info("[cache] SAVE %s file=%s (ver=%s)", artifact, path.name, key.pipeline_ver)
 
     def _path_for(self, key: CacheKey, type, ext: str) -> Path:
         d = self.base / key.subdir()

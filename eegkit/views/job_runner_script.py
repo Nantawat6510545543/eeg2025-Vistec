@@ -31,10 +31,7 @@ def save_output(result, out_dir: Path):
     if hasattr(result, 'savefig'):
         fp = out_dir / 'figure.png'
         result.savefig(fp, dpi=150, bbox_inches='tight')
-        try:
-            _plt.close(result)
-        except Exception:
-            pass
+        _plt.close(result)
         summary.update({"type": "figure", "path": str(fp)})
         return summary
 
@@ -45,10 +42,7 @@ def save_output(result, out_dir: Path):
         for i, fig in enumerate(result, start=1):
             fp = mdir / f'fig_{i:02d}.png'
             fig.savefig(fp, dpi=150, bbox_inches='tight')
-            try:
-                _plt.close(fig)
-            except Exception:
-                pass
+            _plt.close(fig)
         summary.update({"type": "figures", "count": len(result), "path": str(mdir)})
         return summary
 
@@ -106,11 +100,8 @@ def main(spec_path: str):
     log.info("[JOB] Starting %s -> %s/%s", SPEC['job_id'], SPEC['group'], SPEC['key'])
     log.info("[JOB] task_dto = %s", task_dto)
     log.info("[JOB] params    = %s", params_dto)
-    try:
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        log.info("[JOB][RSS] start: %s KB", usage.ru_maxrss)
-    except Exception:
-        pass
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    log.info("[JOB][RSS] start: %s KB", usage.ru_maxrss)
 
     try:
         result = controller.show(task_dto, SPEC['group'], SPEC['key'], params_dto)
@@ -158,12 +149,9 @@ def main(spec_path: str):
         info = save_output(result, JOB_DIR)
         log.info("[JOB] Saved output -> %s", info.get('path', info.get('dir')))
 
-    try:
-        plt.close('all')
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        log.info("[JOB][RSS] end: %s KB", usage.ru_maxrss)
-    except Exception:
-        pass
+    plt.close('all')
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    log.info("[JOB][RSS] end: %s KB", usage.ru_maxrss)
     log.info('[JOB] Done.')
 
 

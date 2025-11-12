@@ -32,11 +32,8 @@ def finalize_figure(fig: plt.Figure, task_dto, stimulus=None, caption_line: str 
         fig.set_constrained_layout(False)
     # Disable new layout engine (Matplotlib >=3.8) to allow subplots_adjust
     if hasattr(fig, 'get_layout_engine') and hasattr(fig, 'set_layout_engine'):
-        try:
-            if fig.get_layout_engine() is not None:
-                fig.set_layout_engine(None)
-        except Exception:
-            pass
+        if fig.get_layout_engine() is not None:
+            fig.set_layout_engine(None)
 
     # Title fixed at title_y
     fig.text(0.5, title_y, plot_name.title(), ha='center', va='top', fontsize=18, fontweight='bold')

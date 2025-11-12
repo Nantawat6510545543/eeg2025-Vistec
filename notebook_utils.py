@@ -17,11 +17,8 @@ def reload_data_classes():
     import importlib
 
     # Configure logging early so subsequent reloads emit logs to notebook output
-    try:
-        from eegkit.utils.logging_utils import configure_logging
-        configure_logging()
-    except Exception:
-        pass
+    from eegkit.utils.logging_utils import configure_logging
+    configure_logging()
 
     subj_mod = importlib.import_module('eegkit.models.subject_model')
     task_mod = importlib.import_module('eegkit.models.task_model')

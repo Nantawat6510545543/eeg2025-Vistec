@@ -179,12 +179,9 @@ class EEGGridVisualization(BaseService):
             except Exception:
                 dmin = dmax = None
             draw_evoked_response(ax, evoked, p)
-            try:
-                nave = getattr(evoked, 'nave', None)
-                if nave is not None:
-                    ax.text(1, 1, f"n={int(nave)}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
-            except Exception:
-                pass
+            nave = getattr(evoked, 'nave', None)
+            if nave is not None:
+                ax.text(1, 1, f"n={int(nave)}", transform=ax.transAxes, ha='right', va='bottom', fontsize=8, color='0.4')
             if dmin is not None and dmax is not None:
                 return dmin, dmax
             return None

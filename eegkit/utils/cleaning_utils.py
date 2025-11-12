@@ -216,10 +216,7 @@ class EEGCleaner:
                 model = asrpy.ASR(sfreq=sfreq, cutoff=max_std)
                 # Best-effort: some versions expose attribute to set window length
                 if window_sec and hasattr(model, 'window_length'):
-                    try:
-                        setattr(model, 'window_length', window_sec)
-                    except Exception:
-                        pass
+                    setattr(model, 'window_length', window_sec)
 
             cleaned_uv = model.fit_transform(data_uv)
 

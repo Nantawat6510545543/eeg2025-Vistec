@@ -132,16 +132,13 @@ def render_label_grid(
 
                     label = cell_to_label_map.get((page_token, col_token, row_token))
                     if label is not None and label in epochs.event_id:
-                        try:
-                            y_bounds = per_cell_draw(ax, label)
-                            if y_bounds is not None:
-                                dmin, dmax = y_bounds
-                                if (dmin is not None) and np.isfinite(dmin):
-                                    y_min = dmin if y_min is None else min(y_min, float(dmin))
-                                if (dmax is not None) and np.isfinite(dmax):
-                                    y_max = dmax if y_max is None else max(y_max, float(dmax))
-                        except Exception:
-                            pass
+                        y_bounds = per_cell_draw(ax, label)
+                        if y_bounds is not None:
+                            dmin, dmax = y_bounds
+                            if (dmin is not None) and np.isfinite(dmin):
+                                y_min = dmin if y_min is None else min(y_min, float(dmin))
+                            if (dmax is not None) and np.isfinite(dmax):
+                                y_max = dmax if y_max is None else max(y_max, float(dmax))
 
                     # Labeling
                     if r_idx == 0 and (col_token is not None and col_token != ""):

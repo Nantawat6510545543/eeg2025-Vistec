@@ -122,11 +122,8 @@ class EEGTaskProcessor:
         if epochs is None:
             return None, "unavailable"
 
-        try:
-            if epochs.info.get('bads'):
-                epochs = epochs.interpolate_bads(reset_bads=True)
-        except Exception:
-            pass
+        if epochs.info.get('bads'):
+            epochs = epochs.interpolate_bads(reset_bads=True)
 
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
@@ -155,11 +152,8 @@ class EEGTaskProcessor:
         if epochs is None:
             return None
 
-        try:
-            if epochs.info.get('bads'):
-                epochs = epochs.interpolate_bads(reset_bads=True)
-        except Exception:
-            pass
+        if epochs.info.get('bads'):
+            epochs = epochs.interpolate_bads(reset_bads=True)
 
         evoked = epochs.average()
         if self.cache and ck:
