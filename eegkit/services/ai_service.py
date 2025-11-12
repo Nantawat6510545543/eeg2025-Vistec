@@ -1,17 +1,14 @@
 from __future__ import annotations
+from typing import Dict, Any, List
 
-"""AI Service and Mediator
-
-Provides a registry-driven AI mode similar to plot/data services and a thin
-mediator that adapts EEG epochs into AI-friendly tensors. Training is kept
-minimal for now; we focus on wiring, parameter preparation, and dataset build.
-"""
-
-from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Tuple
+from importlib import import_module
 
 import numpy as np
 import pandas as pd
+
+import torch
+import torch.nn as nn
+from torch.utils.data import TensorDataset, DataLoader
 
 from .base_service import BaseService
 from ..models import (
@@ -49,12 +46,10 @@ class EEGAIService(BaseService):
         """Return mapping of model_name -> {display_name, description} discovered under ai_models."""
         meta: Dict[str, Dict[str, Any]] = {}
         try:
-            from importlib import import_module
             mod = import_module('eegkit.services.ai_models')
-            import torch.nn as nn
             for attr in getattr(mod, '__all__', []):
                 obj = getattr(mod, attr, None)
-                if isinstance(obj, type) and issubclass(obj, nn.Module):
+                if nn and isinstance(obj, type) and issubclass(obj, nn.Module):
                     display = getattr(obj, 'DISPLAY_NAME', attr)
                     desc = getattr(obj, 'DESCRIPTION', (obj.__doc__ or '').strip())
                     meta[attr] = {
@@ -83,10 +78,7 @@ class EEGAIService(BaseService):
         if epochs is None:
             return None, None, {"reason": "epochs_unavailable"}
 
-        try:
-            epochs.load_data()
-        except Exception:
-            pass
+        epochs.load_data()
 
         X = epochs.get_data()  # (n_epochs, n_channels, n_times)
         if labels is None:
@@ -101,6 +93,48 @@ class EEGAIService(BaseService):
             "shape": tuple(X.shape),
         }
         return X.astype(np.float32), y, meta
+
+    # ---- training/eval helpers ----
+    def _select_device(self, pref: str | None = None):
+        if torch is None:
+            return None
+        if pref == "cpu":
+            return torch.device("cpu")
+        if pref == "cuda":
+            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    def _encode_labels(self, y: np.ndarray):
+        # Map unique labels -> indices
+        uniq = np.unique(y)
+        index = {v: i for i, v in enumerate(uniq)}
+        y_idx = np.array([index[v] for v in y], dtype=np.int64)
+        classes = [str(v) for v in uniq.tolist()]
+        return y_idx, classes
+
+    def _model_factory(self, name: str, n_channels: int, n_times: int, n_classes: int):
+        """Instantiate supported models by internal name.
+
+        Supported now:
+        - SimpleNN: flatten input (C*T)
+        - CNNLSTMDense: expects [B, C, T]
+        Other models can be added later with proper input adapters.
+        """
+        mod = import_module('eegkit.services.ai_models')
+        cls = getattr(mod, name, None)
+        if cls is None:
+            return None, {"reason": f"unknown model '{name}'"}
+        try:
+            if name == "SimpleNN":
+                model = cls(input_dim=int(n_channels * n_times), num_classes=int(n_classes))
+                return model, {"input_adapter": "flatten"}
+            if name == "CNNLSTMDense":
+                model = cls(in_channels=int(n_channels), num_classes=int(n_classes))
+                return model, {"input_adapter": "channels_times"}
+            return None, {"reason": f"model '{name}' not yet supported by trainer"}
+        except Exception as e:
+            return None, {"reason": f"model init error: {e}"}
+
 
     def prepare_params(self, task_dto, params_dto):
         """Extend BaseService.prepare_params and inject AI model choices.
@@ -142,13 +176,52 @@ class EEGAIService(BaseService):
         return pd.DataFrame([row])
 
     @register_ai("Train", AITrainParamsDTO)
-    def train_stub(self, task_dto: BaseTaskDTO, params: AITrainParamsDTO):
-        # Placeholder: just verify data can be built
-        X, y, meta = self._build_epoch_dataset(task_dto, params)
+    def train(self, task_dto: BaseTaskDTO, params: AITrainParamsDTO):
+        """Train a simple classifier and return the in-memory model (no saving)."""
+        if torch is None:
+            return {"status": "error", "reason": "torch not available"}
+        X, y_raw, meta = self._build_epoch_dataset(task_dto, params)
         if X is None:
             return {"status": "unavailable", "reason": meta.get("reason")}
+        y_idx, classes = self._encode_labels(y_raw)
+
+        device = self._select_device((params.device or ["auto"])[0] if isinstance(params.device, list) else params.device)
+        X_t = torch.from_numpy(X)
+        y_t = torch.from_numpy(y_idx)
+        n_e, n_c, n_t = X.shape
+        model, info = self._model_factory((params.model or [None])[0] if isinstance(params.model, list) else params.model, n_c, n_t, len(classes))
+        if model is None:
+            return {"status": "unsupported", **info}
+        model = model.to(device)
+        adapter = info.get("input_adapter")
+
+        ds = TensorDataset(X_t, y_t)
+        dl = DataLoader(ds, batch_size=int(params.batch_size), shuffle=True)
+        criterion = torch.nn.CrossEntropyLoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=float(params.lr))
+        model.train()
+        for _ in range(int(params.epochs_n)):
+            for xb, yb in dl:
+                xb = xb.to(device)
+                yb = yb.to(device)
+                optimizer.zero_grad()
+                if adapter == "flatten":
+                    xb_in = xb.reshape(xb.size(0), -1)
+                elif adapter == "channels_times":
+                    xb_in = xb
+                else:
+                    xb_in = xb
+                out = model(xb_in)
+                loss = criterion(out, yb)
+                loss.backward()
+                optimizer.step()
+
+        return model
+
+    @register_ai("Predict", AIPredictParamsDTO)
+    def predict(self, task_dto: BaseTaskDTO, params: AIPredictParamsDTO):
+        """Placeholder for future inference; saving/loading handled via tmux jobs later."""
         return {
-            "status": "ok",
-            "message": "Training pipeline scaffolded. Replace with real training.",
-            "shape": meta.get("shape"),
+            "status": "placeholder",
+            "message": "Predict action not implemented yet. Checkpoint-based inference will be added with tmux jobs.",
         }
