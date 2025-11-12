@@ -1,3 +1,3 @@
 from .visualization import EEGVisualization
 from .data_service import EEGDataService
-from .ai_services import *
+from .ai_models import *

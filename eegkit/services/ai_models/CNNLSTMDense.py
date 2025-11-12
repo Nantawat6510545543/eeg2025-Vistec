@@ -2,6 +2,11 @@ import torch.nn as nn
 
 
 class CNNLSTMDense(nn.Module):
+    DISPLAY_NAME = "CNN + LSTM + Dense"
+    DESCRIPTION = (
+        "Temporal model: Conv1d feature extractor over channels followed by LSTM and dense classifier; "
+        "input shape [B, C, T]."
+    )
     """
     Input:  x of shape [B, C_in, T]
     Blocks: Conv1d -> Conv1d -> (transpose) -> LSTM -> Dense classifier

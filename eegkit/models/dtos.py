@@ -346,3 +346,23 @@ class TimeDomainParamsDTO(FilterParamsDTO):
 class TableInfoDTO(FilterParamsDTO):
     table_type: List[str] = field(default_factory=lambda: ["events", "channels", "electrodes"])
     rows: int = 10
+
+
+# ---- AI DTOs ----
+@dataclass
+class AIBaseDTO(EpochParamsDTO):
+    model: List[str] = field(default_factory=lambda: [None])
+
+
+@dataclass
+class AITrainParamsDTO(AIBaseDTO):
+    batch_size: int = 32
+    epochs_n: int = 1
+    lr: float = 0.001
+    device: List[str] = field(default_factory=lambda: ["auto", "cpu", "cuda"])
+    target: List[str] = field(default_factory=lambda: ["stimulus"]) 
+
+
+@dataclass
+class AIPredictParamsDTO(AIBaseDTO):
+    checkpoint_path: Optional[str] = None

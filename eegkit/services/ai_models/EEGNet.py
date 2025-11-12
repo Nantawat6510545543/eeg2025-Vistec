@@ -3,6 +3,11 @@ import torch.nn.functional as F
 
 
 class EEGNet(nn.Module):
+    DISPLAY_NAME = "EEGNet (binary head)"
+    DESCRIPTION = (
+        "Compact CNN for EEG-like 2D inputs; example architecture with a single FC head "
+        "suited for binary/continuous outputs in demos."
+    )
     def __init__(self):
         super(EEGNet, self).__init__()
         self.T = 120
@@ -24,8 +29,6 @@ class EEGNet(nn.Module):
         self.pooling3 = nn.MaxPool2d((2, 4))
 
         # FC Layer
-        # NOTE: This dimension will depend on the number of timestamps per sample in your data.
-        # I have 120 timepoints. 
         self.fc1 = nn.Linear(4 * 2 * 7, 1)
 
     def forward(self, x):
