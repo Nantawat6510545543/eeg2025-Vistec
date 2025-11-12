@@ -1,0 +1,18 @@
+"""AI model collection.
+
+Auto-discovered by EEGAIService based on nn.Module subclasses defined here.
+Keep imports lightweight; avoid side effects. Models should follow a simple
+constructor contract so the service can introspect them (e.g., accept
+in_channels, n_classes or num_classes)."""
+
+from .EEGNet import EEGNet
+from .EEGNetMultiOutput import EEGNetMultiOutput
+from .simpleNN import SimpleNN
+from .CNNLSTMDense import CNNLSTMDense
+
+__all__ = [
+    "EEGNet",
+    "EEGNetMultiOutput",
+    "SimpleNN",
+    "CNNLSTMDense",
+]

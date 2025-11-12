@@ -2,6 +2,7 @@ from ..models import (
     FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
 from ..services import EEGVisualization, EEGDataService
+from ..services.ai_service import EEGAIService
 from ..services.grid_visualization import EEGGridVisualization
 
 
@@ -25,19 +26,28 @@ class EEGController:
             get_epochs_func=self.get_epochs,
             get_task_func=self.subject_model.get_task
         )
+        self.ai_service = EEGAIService(
+            get_raw_func=self.get_filtered_raw,
+            get_epochs_func=self.get_epochs,
+            get_task_func=self.subject_model.get_task,
+        )
 
         self._modes = {
-            "plot": {
+            "Plot": {
                 "description": getattr(self.visualizer, 'description', "Single-figure visualizations."),
                 "spec": self.visualizer.spec,
             },
-            "grid_plot": {
+            "Grid Plot": {
                 "description": getattr(self.grid_visualizer, 'description', "Grid-based visualizations."),
                 "spec": self.grid_visualizer.spec,
             },
-            "data": {
+            "Data": {
                 "description": getattr(self.data_service, 'description', "Data tables and exports."),
                 "spec": self.data_service.spec,
+            },
+            "AI": {
+                "description": getattr(self.ai_service, 'description', "AI training and inference."),
+                "spec": self.ai_service.spec,
             },
         }
 
@@ -73,10 +83,12 @@ class EEGController:
         return {k: v.get("description", "") for k, v in self._modes.items()}
 
     def prepare(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
-        if group == "plot":
+        if group == "Plot":
             return self.visualizer.prepare_params(task_dto, params_dto)
-        if group == "grid_plot":
+        if group == "Grid Plot":
             return self.grid_visualizer.prepare_params(task_dto, params_dto)
+        if group == "AI":
+            return self.ai_service.prepare_params(task_dto, params_dto)
         return {}
 
     def show(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
