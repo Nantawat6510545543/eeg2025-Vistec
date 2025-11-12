@@ -1,4 +1,13 @@
-from ..models import *
+from ..models.dtos import (
+    BaseTaskDTO,
+    FilterParamsDTO,
+    TimeDomainParamsDTO,
+    EpochPSDParamsDTO,
+    EpochParamsDTO,
+    EvokedParamsDTO,
+    EvokedTopoParamsDTO,
+    EvokedJointParamsDTO,
+)
 
 from ..utils import  (finalize_figure,
     prepare_channels,

@@ -5,7 +5,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import logging
 
-from eegkit import *
+from eegkit.controller.eeg_controller import EEGController
+from eegkit.models.subject_model import EEGSubjectModel
+from eegkit.models.dtos import (
+    TaskDTO,
+    SubjectFilterDTO,
+    FilterParamsDTO,
+    EpochParamsDTO,
+    PSDParamsDTO,
+    EpochPSDParamsDTO,
+    TimeDomainParamsDTO,
+    TableInfoDTO,
+    EvokedParamsDTO,
+    EvokedTopoParamsDTO,
+    EvokedJointParamsDTO,
+)
 from eegkit.utils.logging_utils import configure_logging
 
 matplotlib.use('Agg')

@@ -1,3 +1,7 @@
 from .visualization import EEGVisualization
 from .data_service import EEGDataService
-from .ai_models import *
+
+__all__ = [
+	'EEGVisualization',
+	'EEGDataService',
+]
