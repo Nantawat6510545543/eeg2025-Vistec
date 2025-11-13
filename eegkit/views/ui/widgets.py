@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import fields, MISSING
 from typing import get_origin, get_args
 
@@ -181,4 +183,15 @@ def ordered_fields(dto_cls):
         # 5. Everything else last
         return 4
 
-    return sorted(fields(dto_cls), key=priority)
+    from dataclasses import fields as _fields
+    return sorted(_fields(dto_cls), key=priority)
+
+
+__all__ = [
+    "is_subject_schema",
+    "field_default",
+    "make_widget",
+    "make_range_widget",
+    "read_widget",
+    "ordered_fields",
+]

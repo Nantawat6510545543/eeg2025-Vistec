@@ -1,8 +1,4 @@
-"""UI-only parameter cache shared across plots and aware of DTO inheritance.
-
-This cache stores widget values per owner class (as derived from the param
-grouping utility). It is in-memory only and does not affect EEG processing cache.
-"""
+"""UI-only parameter cache (pure, no ipywidgets)."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Mapping, Type
@@ -29,7 +25,7 @@ class UIParamCache:
     def get_overlay(self, group_meta: List[Mapping[str, Any]]) -> Dict[str, Any]:
         """Compose a flat field overlay using base-to-derived order.
 
-        group_meta: [{"owner": type, "title": str, "field_names": [..], ...}, ...]
+        group_meta: [{"owner": type, "title": str, "field_names": [..], ...}]
         Returns: { field_name: cached_value }
         """
         overlay: Dict[str, Any] = {}

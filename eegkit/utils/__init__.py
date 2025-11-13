@@ -9,13 +9,5 @@ from .plot_utills import (
 )
 from .channels_helper import ChannelsHelper, prepare_channels
 from .signal_utils import snr_spectrum
-from .ui_utils import (
-    is_subject_schema,
-    field_default,
-    make_widget,
-    make_range_widget,
-    read_widget,
-    ordered_fields,
-)
 from .cleaning_utils import EEGCleaner
 from .logging_utils import silence_console_logs, configure_logging

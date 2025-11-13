@@ -21,9 +21,16 @@ from .job_runner import JobRunner
 from pathlib import Path
 
 from ..models import BaseTaskDTO, TaskDTO, SubjectFilterDTO
-from ..utils import is_subject_schema, field_default, make_widget, make_range_widget, read_widget, ordered_fields
-from ..utils.ui_param_groups import derive_param_groups
-from ..utils.ui_param_cache import UIParamCache
+from .ui.widgets import (
+    is_subject_schema,
+    field_default,
+    make_widget,
+    make_range_widget,
+    read_widget,
+    ordered_fields,
+)
+from .ui_support.grouping import derive_param_groups
+from .ui_support.cache import UIParamCache
 
 plt.ioff()
 
@@ -241,7 +248,6 @@ class EEGUI:
                             "rows": rows_for_owner,
                         })
 
-                # Flatten legacy layout (concatenate) for backward compatibility in any code expecting param_layouts
                 flat_rows = []
                 for gm in group_meta:
                     flat_rows.extend(gm["rows"])
