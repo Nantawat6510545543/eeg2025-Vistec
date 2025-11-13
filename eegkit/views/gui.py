@@ -24,6 +24,7 @@ from .ui.schema_panel import SchemaPanel
 from .ui.param_panel import ParamPanel
 from .ui.actions_bar import ActionsBar
 from .ui.execution_panel import ExecutionPanel
+from .ui.progress_area import ProgressArea
 
 
 class EEGUI:
@@ -93,19 +94,11 @@ class EEGUI:
     def _build_all_param_layouts(self):
         """Build parameter input widgets for every registered action in specs."""
         total = sum(len(actions) for actions in self.specs.values())
-        progress = None
-        progress_text = None
-        progress_box = None
+        pa = None
         built = 0
         if total > 0:
-            progress_label = widgets.HTML(value="<b>Preparing parameter layouts…</b>")
-            progress = widgets.IntProgress(
-                value=0, min=0, max=total, description="0/{}".format(total), bar_style="",
-                layout=widgets.Layout(width="100%", height="26px")
-            )
-            progress_text = widgets.HTML(value="")
-            progress_box = widgets.VBox([progress_label, progress, progress_text], layout=widgets.Layout(width="100%"))
-            display(progress_box)
+            pa = ProgressArea()
+            pa.begin(total, title="Preparing parameter layouts…")
 
         for group in self.specs:
             for key, spec in self.specs[group].items():
@@ -113,19 +106,14 @@ class EEGUI:
                 # Build via ParamPanel
                 self.param_panel.ensure_layout(group, key, params_cls)
 
-                if progress is not None:
+                if pa is not None:
                     built += 1
-                    progress.value = built
-                    progress.description = f"{built}/{total}"
-                    if progress_text is not None:
-                        progress_text.value = f"Building <code>{group}</code> → <code>{key}</code> ({built}/{total})"
+                    pa.update(built, total, group=group, key=key)
 
-        if progress is not None:
-            progress.bar_style = "success"
-            progress.description = f"{built}/{total}"
-            if progress_text is not None:
-                per_group = ", ".join(f"{g}: {len(actions)}" for g, actions in self.specs.items())
-                progress_text.value = f"Ready. Built {built} layout(s)." + (f" Groups → {per_group}" if per_group else "")
+        if pa is not None:
+            per_group = ", ".join(f"{g}: {len(actions)}" for g, actions in self.specs.items())
+            summary = f"Ready. Built {built} layout(s)." + (f" Groups → {per_group}" if per_group else "")
+            pa.finish(summary)
 
     def _apply_overlay(self, widgets_map, overlay):
         for name, val in overlay.items():
