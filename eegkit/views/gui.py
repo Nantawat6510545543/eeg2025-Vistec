@@ -10,18 +10,14 @@ Notes:
 - If exposed in the form, the per-subject batch option runs the chosen action
     separately for each subject matched by the filter (subject limit respected).
 """
-from dataclasses import fields
-
 import ipywidgets as widgets
 from IPython.display import display, clear_output
 from .job_runner import JobRunner
 from pathlib import Path
 
-from ..models import BaseTaskDTO, TaskDTO, SubjectFilterDTO
+from ..models import TaskDTO, SubjectFilterDTO
 from .ui.widgets import (
     is_subject_schema,
-    field_default,
-    read_widget,
 )
 from .ui_support.cache import UIParamCache
 from .ui.schema_panel import SchemaPanel
@@ -87,7 +83,7 @@ class EEGUI:
 
         self._on_schema_change()
         self._update_actions()
-        self._update_mode_description()
+        self.actions.update_mode_description()
         self._update_param_inputs()
 
     def _on_schema_subject_changed(self):
@@ -165,18 +161,12 @@ class EEGUI:
         schema_dto = self.schema_selector.value
         if not is_subject_schema(schema_dto):
             return None
-        wmap = self.schema_panel.schema_widgets.get(schema_dto, {})
-        subject = wmap["subject"].value
-        task, run = wmap["task"].value
-        return schema_dto(subject=subject, task=task, run=run)
+        return self.schema_panel.build_dto(schema_dto)
 
     def _update_actions(self, *_):
         """Refresh actions list based on selected mode and update UI accordingly."""
         self.actions.update_actions()
         self._update_param_inputs()
-        self._update_mode_description()
-
-    def _update_mode_description(self):
         self.actions.update_mode_description()
 
     def _update_param_inputs(self, *_):
@@ -214,7 +204,7 @@ class EEGUI:
         if task_dto is None:
             return
         spec = self.specs[group][key]
-        params_dto = self._collect_params(group, key, spec)
+        params_dto = self.param_panel.collect_params(group, key, spec, self.param_panel.param_widgets)
         updates = self.controller.prepare(task_dto, group, key, params_dto) or {}
         for name, new_val in updates.items():
             w = self.param_inputs.get(name)
@@ -232,41 +222,13 @@ class EEGUI:
         if overlay:
             self._apply_overlay(self.param_inputs, overlay)
 
-    def _build_active_dto(self):
-        """Create the active DTO instance by reading all schema widgets."""
-        schema_dto = self.schema_selector.value
-        wmap = self.schema_panel.schema_widgets[schema_dto]
-        kwargs = {}
-        subject_schema = is_subject_schema(schema_dto)
-        for f in fields(schema_dto):
-            name = f.name
-            if subject_schema and name == "run":
-                continue
-            if name not in wmap:
-                continue
-            default_val = field_default(f)
-            wrap_list = (not subject_schema and isinstance(default_val, list))
-            val = read_widget(wmap[name], default_val, wrap_list=wrap_list, field=f)
-            if subject_schema and name == "task":
-                if isinstance(val, (tuple, list)) and len(val) == 2:
-                    kwargs["task"], kwargs["run"] = val[0], val[1]
-                else:
-                    kwargs["task"], kwargs["run"] = val, None
-            else:
-                kwargs[name] = val
-        return schema_dto(**kwargs)
-
-    def _collect_params(self, group: str, key: str, spec: dict):
-        """Construct params DTO via ParamPanel."""
-        return self.param_panel.collect_params(group, key, spec, self.param_panel.param_widgets)
-
     def _prepare_execution(self):
         """Builds all required inputs for execution (dto, group, key, params)."""
         group = self.actions.mode_selector.value
         key = self.actions.action_selector.value
         spec = self.specs[group][key]
-        dto = self._build_active_dto()
-        params_dto = self._collect_params(group, key, spec)
+        dto = self.schema_panel.build_dto(self.schema_selector.value)
+        params_dto = self.param_panel.collect_params(group, key, spec, self.param_panel.param_widgets)
         return dto, group, key, params_dto
 
     def _tmux_execute(self, _):

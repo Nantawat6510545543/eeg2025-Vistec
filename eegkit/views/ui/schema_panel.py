@@ -11,7 +11,7 @@ from typing import Callable, Dict, List, Type
 
 import ipywidgets as widgets
 
-from ..ui.widgets import is_subject_schema, field_default, make_widget, make_range_widget
+from ..ui.widgets import is_subject_schema, field_default, make_widget, make_range_widget, read_widget
 from ..ui_support.cache import UIParamCache  # only for typing reference if needed
 
 
@@ -45,6 +45,34 @@ class SchemaPanel:
 
     def get_widgets_map(self, schema_dto: Type) -> Dict[str, widgets.Widget | dict]:
         return self.schema_widgets.get(schema_dto, {})
+
+    def build_dto(self, schema_dto: Type):
+        """Construct a DTO instance from current widget values for the given schema.
+
+        Handles TaskDTO specially for (task, run) tuple from the task dropdown.
+        """
+        wmap = self.schema_widgets.get(schema_dto, {})
+        if not wmap:
+            return None
+        kwargs = {}
+        subject_schema = is_subject_schema(schema_dto)
+        for f in fields(schema_dto):
+            name = f.name
+            if subject_schema and name == "run":
+                continue
+            if name not in wmap:
+                continue
+            default_val = field_default(f)
+            wrap_list = (not subject_schema and isinstance(default_val, list))
+            val = read_widget(wmap[name], default_val, wrap_list=wrap_list, field=f)
+            if subject_schema and name == "task":
+                if isinstance(val, (tuple, list)) and len(val) == 2:
+                    kwargs["task"], kwargs["run"] = val[0], val[1]
+                else:
+                    kwargs["task"], kwargs["run"] = val, None
+            else:
+                kwargs[name] = val
+        return schema_dto(**kwargs)
 
     def refresh_task_options(self, schema_dto: Type, init: bool = False) -> None:
         """Populate the task dropdown for the selected subject.
