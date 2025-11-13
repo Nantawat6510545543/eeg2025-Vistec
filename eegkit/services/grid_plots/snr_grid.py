@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from ...models import BaseTaskDTO, EpochPSDParamsDTO
-from ...utils import render_label_grid, prepare_channels
+from ...utils import render_label_grid, prepare_channels, snr_spectrum
 from . import register_grid_plot
 
 
@@ -41,7 +41,7 @@ def plot_snr_grid(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
                 verbose=False,
             )
             psd, freqs = spectrum.get_data(return_freqs=True)
-            snr = self._snr_spectrum(psd)
+            snr = snr_spectrum(psd)
             snr_mean = np.nanmean(snr, axis=(0, 1))
             snr_std = np.nanstd(snr, axis=(0, 1))
             ax.plot(freqs, snr_mean, color='r')

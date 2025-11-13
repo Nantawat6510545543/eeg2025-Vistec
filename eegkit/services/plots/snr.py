@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
-from ...utils import finalize_figure, prepare_channels
+from ...utils import finalize_figure, prepare_channels, snr_spectrum
 from ..plots import register_plot
 
 plt.ioff()
@@ -31,7 +31,7 @@ def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
         verbose=False,
     )
     psds, freqs = spectrum.get_data(return_freqs=True)
-    snrs = self._snr_spectrum(psds)
+    snrs = snr_spectrum(psds)
     fig, axes = plt.subplots(2, 1, sharex="all", figsize=(8, 5))
     try:
         start_idx = int(np.where(np.floor(freqs) == 1.0)[0][0])
