@@ -51,9 +51,6 @@ class EEGController:
             },
         }
 
-        # Backward-compatible access used by UI and jobs
-        self.specs = {k: v["spec"] for k, v in self._modes.items()}
-
     def get_filtered_raw(self, task_dto: BaseTaskDTO, filter_params: FilterParamsDTO):
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_filtered_raw(filter_params)
@@ -76,7 +73,7 @@ class EEGController:
         return self.subject_model.list_tasks(subject)
 
     def get_specs(self):
-        return self.specs
+        return {k: v["spec"] for k, v in self._modes.items()}
 
     def get_modes_info(self):
         """Return dict of mode -> description for UI display."""
@@ -97,10 +94,10 @@ class EEGController:
             dtos = self.subject_model.get_filter_subjects_dto(task_dto)
             out = {}
             for single_dto in dtos:
-                res = self.specs[group][key]["function"](single_dto, params_dto)
+                res = self._modes[group]["spec"][key]["function"](single_dto, params_dto)
                 out[single_dto.subject] = res
             return out
 
         # Default / existing behavior
-        result = self.specs[group][key]["function"](task_dto, params_dto)
+        result = self._modes[group]["spec"][key]["function"](task_dto, params_dto)
         return result
