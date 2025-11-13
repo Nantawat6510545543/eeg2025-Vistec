@@ -191,10 +191,26 @@ class EEGUI:
             task_w.value = opts[0][1]
 
     def _build_all_param_layouts(self):
-        """Build parameter input widgets for every registered action in specs.
+        """Build parameter input widgets for every registered action in specs."""
+        # Show a progress area while constructing param layouts
+        try:
+            total = sum(len(actions) for actions in self.specs.values())
+        except Exception:
+            total = 0
+        progress = None
+        progress_text = None
+        progress_box = None
+        built = 0
+        if total > 0:
+            progress_label = widgets.HTML(value="<b>Preparing parameter layouts…</b>")
+            progress = widgets.IntProgress(
+                value=0, min=0, max=total, description="0/{}".format(total), bar_style="",
+                layout=widgets.Layout(width="100%", height="26px")
+            )
+            progress_text = widgets.HTML(value="")
+            progress_box = widgets.VBox([progress_label, progress, progress_text], layout=widgets.Layout(width="100%"))
+            display(progress_box)
 
-        New behavior: group fields by defining class and render later as tabs.
-        """
         for group in self.specs:
             for key, spec in self.specs[group].items():
                 params_cls = spec.get("params")
@@ -262,6 +278,27 @@ class EEGUI:
                 self._field_owner[layout_key] = owner_map
                 # wire observers once
                 self._wire_param_observers(layout_key, group_meta, widgets_dict)
+                # Update progress UI
+                if progress is not None:
+                    built += 1
+                    progress.value = built
+                    progress.description = f"{built}/{total}"
+                    if progress_text is not None:
+                        progress_text.value = f"Building <code>{group}</code> → <code>{key}</code> ({built}/{total})"
+
+        if progress is not None:
+            try:
+                progress.bar_style = "success"
+                progress.description = f"{built}/{total}"
+                if progress_text is not None:
+                    # Leave a final summary visible under the bar
+                    try:
+                        per_group = ", ".join(f"{g}: {len(actions)}" for g, actions in self.specs.items())
+                    except Exception:
+                        per_group = ""
+                    progress_text.value = f"Ready. Built {built} layout(s)." + (f" Groups → {per_group}" if per_group else "")
+            except Exception:
+                pass
 
     def _wire_param_observers(self, layout_key, group_meta, widgets_dict):
         if layout_key in self._wired_layouts:
