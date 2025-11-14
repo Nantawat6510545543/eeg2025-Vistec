@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import mne
 import warnings
-from .dtos import TaskDTO
+from ..dtos import TaskDTO
 
 
 class EEGTaskLoader:

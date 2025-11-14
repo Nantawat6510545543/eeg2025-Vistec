@@ -21,9 +21,11 @@ def reload_data_classes():
     configure_logging()
 
     subj_mod = importlib.import_module('eegkit.models.subject_model')
-    task_mod = importlib.import_module('eegkit.models.task_model')
-    loader_mod = importlib.import_module('eegkit.models.task_loader')
-    proc_mod = importlib.import_module('eegkit.models.task_processor')
+    # Updated paths: pipeline package is the canonical home for task model/loader/processor
+    pipe_pkg = importlib.import_module('eegkit.models.pipeline')
+    task_mod = importlib.import_module('eegkit.models.pipeline.task_model')
+    loader_mod = importlib.import_module('eegkit.models.pipeline.task_loader')
+    proc_mod = importlib.import_module('eegkit.models.pipeline.task_processor')
 
     importlib.reload(subj_mod)
     importlib.reload(task_mod)
@@ -37,7 +39,8 @@ def reload_data_classes():
 def get_model():
     import importlib
 
-    ai_mod = importlib.import_module('eegkit.services.ai_services')
+    # Module name is singular: ai_service
+    ai_mod = importlib.import_module('eegkit.services.ai_service')
     importlib.reload(ai_mod)
 
     return ai_mod

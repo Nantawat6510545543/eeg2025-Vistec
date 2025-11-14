@@ -1,10 +1,10 @@
 import numpy as np
 import mne
 from mne import Epochs, events_from_annotations
-from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
-from ..cache import CacheKey
+from ..dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
+from ...cache import CacheKey
 import logging
-from ..utils import EEGCleaner
+from ...utils import EEGCleaner
 
 mne.set_log_level('WARNING')
 import itertools

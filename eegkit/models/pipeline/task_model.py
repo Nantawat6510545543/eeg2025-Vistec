@@ -1,12 +1,21 @@
 from .task_loader import EEGTaskLoader
 from .task_processor import EEGTaskProcessor
-from .dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
-from ..cache import LocalCache
-from .interfaces import TaskLike
+from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
+from ...cache import LocalCache, PIPELINE_VERSION
+from ..interfaces import TaskLike
+from typing import Optional, Type
 
 
 class EEGTaskModel(TaskLike):
-    def __init__(self, task_dto: TaskDTO, data_dir):
+    def __init__(
+        self,
+        task_dto: TaskDTO,
+        data_dir,
+        *,
+        cache: Optional[LocalCache] = None,
+        loader_class: Type[EEGTaskLoader] = EEGTaskLoader,
+        processor_class: Type[EEGTaskProcessor] = EEGTaskProcessor,
+    ):
         self.task_dto = task_dto
         self._data_dir = data_dir
         self._electrodes = None
@@ -15,16 +24,18 @@ class EEGTaskModel(TaskLike):
         self._raw = None
         self._events = None
         self.loader = None
-        self.cache = None
+        self.cache = cache
         self.processor = None
+        self._loader_class = loader_class
+        self._processor_class = processor_class
 
     def _ensure_loader(self):
         if self.loader is None:
-            self.loader = EEGTaskLoader(self.task_dto, self._data_dir)
+            self.loader = self._loader_class(self.task_dto, self._data_dir)
         if self.cache is None:
-            self.cache = LocalCache(pipeline_ver="v3")
+            self.cache = LocalCache(pipeline_ver=PIPELINE_VERSION)
         if self.processor is None:
-            self.processor = EEGTaskProcessor(self.get_raw, self.get_event, self.task_dto, self.cache)
+            self.processor = self._processor_class(self.get_raw, self.get_event, self.task_dto, self.cache)
 
     def get_raw(self):
         self._ensure_loader()
