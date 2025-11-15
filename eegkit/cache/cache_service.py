@@ -140,10 +140,11 @@ class LocalCache:
     def save_epochs(self, epochs, key: CacheKey, labels=None):
         p = self._path_for(key, "epo", "fif")
         try:
-            n = len(epochs)
+            n = int(len(epochs))
         except Exception:
-            n = "?"
-        self._log_save("epochs", p, key, extra=f"n={n}, ver={key.pipeline_ver}")
+            n = -1
+        n_str = str(n) if n >= 0 else "?"
+        self._log_save("epochs", p, key, extra=f"n={n_str}, ver={key.pipeline_ver}")
         epochs.save(p.as_posix(), overwrite=True)
         if labels is not None:
             labels_file = p.with_suffix(".labels.json")

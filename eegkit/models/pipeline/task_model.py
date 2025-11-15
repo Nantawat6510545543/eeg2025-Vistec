@@ -25,7 +25,7 @@ class EEGTaskModel(TaskLike):
         self._events = None
         self.loader = None
         self.cache = cache
-        self.processor = None
+        self.processor: Optional[EEGTaskProcessor] = None
         self._loader_class = loader_class
         self._processor_class = processor_class
 
@@ -72,14 +72,17 @@ class EEGTaskModel(TaskLike):
 
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
         self._ensure_loader()
+        assert self.processor is not None
         raw = self.processor.get_filtered(filter_params)
         self._raw = None
         return raw
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
         self._ensure_loader()
+        assert self.processor is not None
         return self.processor.get_epochs(epoch_params)
 
     def get_evoked(self, epoch_params: EpochParamsDTO):
         self._ensure_loader()
+        assert self.processor is not None
         return self.processor.get_evoked(epoch_params)

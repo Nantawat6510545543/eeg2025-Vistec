@@ -7,7 +7,7 @@ and layout rows to the orchestrator.
 from __future__ import annotations
 
 from dataclasses import fields
-from typing import Callable, Dict, List, Type
+from typing import Callable, Dict, List, Type, cast
 
 import ipywidgets as widgets
 
@@ -84,21 +84,24 @@ class SchemaPanel:
         task_w = wmap.get("task")
         if subj_w is None or task_w is None:
             return
+        if not isinstance(subj_w, widgets.Dropdown) or not isinstance(task_w, widgets.Dropdown):
+            return
         subj = getattr(subj_w, "value", None)
         tasks = self.controller.list_tasks(subj) if subj else []
         opts = []
         for t, r in tasks:
             label = f"{t} (Run {r})" if r else f"{t}"
             opts.append((label, (t, r)))
-        task_w.options = opts
+        task_dd = cast(widgets.Dropdown, task_w)
+        task_dd.options = opts
         if not opts:
-            task_w.value = None
+            task_dd.value = None
             return
         if init:
-            if task_w.value not in [v for _, v in opts]:
-                task_w.value = opts[0][1]
+            if task_dd.value not in [v for _, v in opts]:
+                task_dd.value = opts[0][1]
         else:
-            task_w.value = opts[0][1]
+            task_dd.value = opts[0][1]
 
     # internal ----------------------------------------------------------------
     def _build_all_schema_layouts(self) -> None:

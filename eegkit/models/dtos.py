@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field, fields, asdict
-from typing import Optional, List, Tuple, ClassVar, Dict, Set
+from typing import Optional, List, Tuple, ClassVar, Dict, Set, Union
 import re
 
-NumberRange = Tuple[float, float]
+NumberRange = Tuple[Optional[float], Optional[float]]
 
 
 def make_hashable(value):
@@ -177,7 +177,7 @@ class FilterParamsDTO(ReprMixin):
         return {
             "l_freq": self.l_freq,
             "h_freq": self.h_freq,
-            "notch": self.notch,
+            "notch": self.notch,  # may be None
             "resample_fs": self.resample_fs,
         }
 
@@ -252,7 +252,7 @@ class FilterParamsDTO(ReprMixin):
 class EpochParamsDTO(FilterParamsDTO):
     tmin: float = -0.2
     tmax: float = 0.8
-    stimulus: List[str] = field(default_factory=lambda: [None])
+    stimulus: List[Optional[str]] = field(default_factory=lambda: [None])
     only_labels: ClassVar[bool] = False
 
     _exclude_str_fields: ClassVar[Set[str]] = {"stimulus"}
@@ -277,8 +277,8 @@ class EpochParamsDTO(FilterParamsDTO):
 
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
-    fmin: float = None
-    fmax: float = None
+    fmin: Optional[float] = None
+    fmax: Optional[float] = None
     average: bool = True
     dB: bool = True
     spatial_colors: bool = True
@@ -302,7 +302,7 @@ class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
 @dataclass
 class EvokedParamsDTO(EpochParamsDTO):
     spatial_colors: bool = True
-    gfp: List[Optional[str]] = field(default_factory=lambda: [False, True, "only"])
+    gfp: List[Union[str, bool]] = field(default_factory=lambda: [False, True, "only"])  # True/"only"
     average_line: bool = True
     scale_mode: List[str] = field(default_factory=lambda: ["per-plot", "uniform-grid"])
 
@@ -351,7 +351,7 @@ class TableInfoDTO(FilterParamsDTO):
 # ---- AI DTOs ----
 @dataclass
 class AIBaseDTO(EpochParamsDTO):
-    model: List[str] = field(default_factory=lambda: [None])
+    model: List[Optional[str]] = field(default_factory=lambda: [None])
 
 
 @dataclass

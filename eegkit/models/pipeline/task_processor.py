@@ -1,7 +1,7 @@
 import numpy as np
 import mne
 from mne import Epochs, events_from_annotations
-from ..dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
+from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ...cache import CacheKey
 import logging
 from ...utils import EEGCleaner
@@ -40,7 +40,7 @@ def register_preprocessor(task_name: str):
 
 class EEGTaskProcessor:
 
-    def __init__(self, get_raw_fn, get_events_fn, task_dto: BaseTaskDTO, cache):
+    def __init__(self, get_raw_fn, get_events_fn, task_dto: TaskDTO, cache):
         self.get_raw = get_raw_fn
         self.get_events = get_events_fn
         self.task_dto = task_dto

@@ -4,7 +4,10 @@ import matplotlib.pyplot as plt
 import textwrap
 
 
-def finalize_figure(fig: plt.Figure, task_dto, stimulus=None, caption_line: str = None,
+from typing import Optional
+
+
+def finalize_figure(fig: plt.Figure, task_dto, stimulus=None, caption_line: Optional[str] = None,
                     plot_name="EEG Plot", x=15, y=10, max_line_chars: int = 110,
                     title_y: float = 0.995, gap_under_title: float = 0.030,
                     subject_line_spacing: float = 0.022, caption_line_spacing: float = 0.016,
