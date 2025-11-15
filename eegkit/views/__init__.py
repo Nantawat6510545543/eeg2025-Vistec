@@ -1,3 +1,3 @@
-from .gui import EEGUI as EEGUI
+from .gui import EEGUI
 
 __all__ = ["EEGUI"]
