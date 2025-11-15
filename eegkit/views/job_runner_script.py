@@ -1,4 +1,6 @@
-import json, matplotlib, sys
+import json
+import matplotlib
+import sys
 import resource
 from pathlib import Path
 import pandas as pd
@@ -120,7 +122,6 @@ def main(spec_path: str):
     try:
         result = controller.show(task_dto, SPEC['group'], SPEC['key'], params_dto)
     except Exception as e:
-        import traceback
         log.exception('[JOB][ERROR] %s', e)
         (JOB_DIR / 'ERROR').write_text(str(e))
         error_json = {
@@ -149,7 +150,7 @@ def main(spec_path: str):
         (JOB_DIR / 'batch_manifest.json').write_text(json.dumps(manifest, indent=2))
         try:
             pd.DataFrame(summary_rows).to_csv(JOB_DIR / 'subjects.csv', index=False)
-        except Exception as e:
+        except Exception:
             (JOB_DIR / 'subjects.json').write_text(json.dumps(summary_rows, indent=2))
         try:
             meta_df = subject_model.get_subjects_metadata(manifest['subjects'])

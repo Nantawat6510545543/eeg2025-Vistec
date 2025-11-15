@@ -21,6 +21,6 @@ def register_grid_plot(name: str, dto_cls: Type[Any]) -> Callable[[Callable[...,
 
 
 # Import submodules to populate registry
-from . import psd_grid  # noqa: F401
-from . import snr_grid  # noqa: F401
-from . import evoked_grid  # noqa: F401
+from . import psd_grid  # noqa: E402,F401
+from . import snr_grid  # noqa: E402,F401
+from . import evoked_grid  # noqa: E402,F401

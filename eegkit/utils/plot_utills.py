@@ -10,8 +10,7 @@
 from __future__ import annotations
 
 import numpy as np
-import mne
-from typing import List, Tuple, Callable, Optional
+from typing import Tuple, Callable, Optional
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from tqdm.auto import tqdm

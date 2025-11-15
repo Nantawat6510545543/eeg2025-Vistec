@@ -12,7 +12,6 @@ from typing import Callable, Dict, List, Type
 import ipywidgets as widgets
 
 from ..ui.widgets import is_subject_schema, field_default, make_widget, make_range_widget, read_widget
-from ..ui_support.cache import UIParamCache  # only for typing reference if needed
 
 
 class SchemaPanel:

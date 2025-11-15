@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
-from typing import Optional, Dict, Any
-import numpy as np
+from typing import Dict, Any
 
 # Models are needed for dynamic param preparation
 from ..models import EpochParamsDTO

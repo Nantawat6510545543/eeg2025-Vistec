@@ -29,9 +29,9 @@ def register_plot(name: str, dto_cls: Type[Any]) -> Callable[[Callable[..., Any]
 
 
 # Import all plot modules so they register themselves on import
-from . import sensors  # noqa: F401
-from . import time_domain  # noqa: F401
-from . import frequency  # noqa: F401
-from . import epochs  # noqa: F401
-from . import evoked  # noqa: F401
-from . import snr  # noqa: F401
+from . import sensors  # noqa: E402,F401
+from . import time_domain  # noqa: E402,F401
+from . import frequency  # noqa: E402,F401
+from . import epochs  # noqa: E402,F401
+from . import evoked  # noqa: E402,F401
+from . import snr  # noqa: E402,F401

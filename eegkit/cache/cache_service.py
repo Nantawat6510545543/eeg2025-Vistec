@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
-import hashlib, json
+import hashlib
+import json
 import logging
 import mne
 

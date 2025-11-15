@@ -5,9 +5,9 @@ from ..dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ...cache import CacheKey
 import logging
 from ...utils import EEGCleaner
+import itertools
 
 mne.set_log_level('WARNING')
-import itertools
 
 # fixed mapping
 BACKGROUND = [0, 1]

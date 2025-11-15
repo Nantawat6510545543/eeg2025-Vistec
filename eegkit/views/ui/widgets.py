@@ -39,7 +39,6 @@ def make_widget(value, field=None):
         ftype = getattr(field, 'type', None)
         origin = get_origin(ftype)
         args = get_args(ftype) if origin is not None else ()
-        base = origin or ftype
         is_opt_float = (origin is not None and float in args)
         is_opt_int = (origin is not None and int in args)
 

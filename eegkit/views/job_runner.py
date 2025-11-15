@@ -33,7 +33,6 @@ class JobRunner:
     def _create_job_dir(self, group: str, key: str, task_name: str) -> Path:
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_task = self._safe_name(task_name, "task")
-        safe_group = self._safe_name(group, "group")
         safe_key = self._safe_name(key, "plot")
         base_dir = self.jobs_root / safe_task / safe_key
         base_dir.mkdir(parents=True, exist_ok=True)

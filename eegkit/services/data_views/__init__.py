@@ -20,7 +20,7 @@ def register_data(name: str, dto_cls: Type[Any] | None) -> Callable[[Callable[..
 
 
 # Import submodules to populate registry
-from . import eeg_table  # noqa: F401
-from . import epochs_table  # noqa: F401
-from . import annotations  # noqa: F401
-from . import metadata  # noqa: F401
+from . import eeg_table  # noqa: E402,F401
+from . import epochs_table  # noqa: E402,F401
+from . import annotations  # noqa: E402,F401
+from . import metadata  # noqa: E402,F401
