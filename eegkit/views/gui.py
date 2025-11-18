@@ -15,7 +15,7 @@ from IPython.display import display, clear_output
 from .job_runner import JobRunner
 from pathlib import Path
 
-from ..models import TaskDTO, SubjectFilterDTO
+from ..models.dtos import TaskDTO, SubjectFilterDTO
 from .ui.widgets import (
     is_subject_schema,
 )

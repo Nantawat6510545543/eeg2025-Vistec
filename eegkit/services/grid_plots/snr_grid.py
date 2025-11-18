@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from ...models import BaseTaskDTO, EpochPSDParamsDTO
+from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
 from ...utils.plot import render_label_grid
 from ...utils.channels import prepare_channels
 from ...utils.signal import snr_spectrum

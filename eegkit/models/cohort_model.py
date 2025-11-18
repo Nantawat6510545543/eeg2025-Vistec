@@ -2,7 +2,7 @@ import pandas as pd
 from mne import concatenate_raws, concatenate_epochs, grand_average
 
 from .dtos import SubjectFilterDTO, FilterParamsDTO, EpochParamsDTO
-from .pipeline import EEGTaskModel
+from .pipeline.task_model import EEGTaskModel
 from tqdm.auto import tqdm
 from .interfaces import TaskLike
 import logging

@@ -4,7 +4,7 @@ from abc import ABC
 from typing import Dict, Any
 
 # Models are needed for dynamic param preparation
-from ..models import EpochParamsDTO
+from ..models.dtos import EpochParamsDTO
 
 
 class BaseService(ABC):

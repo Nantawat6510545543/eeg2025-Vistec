@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import numpy as np
 
-from ...models import BaseTaskDTO, EvokedParamsDTO
+from ...models.dtos import BaseTaskDTO, EvokedParamsDTO
 from ...utils.plot import render_label_grid, draw_evoked_response
 from ...utils.channels import prepare_channels
 from . import register_grid_plot

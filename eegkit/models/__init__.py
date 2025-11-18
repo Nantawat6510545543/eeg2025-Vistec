@@ -1,51 +1,17 @@
-from .subject_model import EEGSubjectModel
-from .dtos import (
-    BaseTaskDTO,
-    TaskDTO,
-    SubjectFilterDTO,
-    FilterParamsDTO,
-    EpochParamsDTO,
-    PSDParamsDTO,
-    TimeDomainParamsDTO,
-    TableInfoDTO,
-    EpochPSDParamsDTO,
-    EvokedParamsDTO,
-    EvokedTopoParamsDTO,
-    EvokedJointParamsDTO,
-    AIBaseDTO,
-    AITrainParamsDTO,
-    AIPredictParamsDTO,
-)
+"""Models package.
 
-from .pipeline import (
-    EEGTaskModel,
-    EEGTaskLoader,
-    EEGTaskProcessor,
-    register_preprocessor,
-)
+Holds the data access layer, DTO definitions, and the processing pipeline.
+- subject_model: entrypoint for subject/task access and caching
+- dtos: typed parameter and schema objects used across services and UI
+- pipeline: task model, loader, processor, and task-specific constants
+"""
+
+from . import subject_model as subject_model  # noqa: F401
+from . import dtos as dtos  # noqa: F401
+from . import pipeline as pipeline  # noqa: F401
 
 __all__ = [
-    # models
-    "EEGSubjectModel",
-    # dtos
-    "BaseTaskDTO",
-    "TaskDTO",
-    "SubjectFilterDTO",
-    "FilterParamsDTO",
-    "EpochParamsDTO",
-    "PSDParamsDTO",
-    "TimeDomainParamsDTO",
-    "TableInfoDTO",
-    "EpochPSDParamsDTO",
-    "EvokedParamsDTO",
-    "EvokedTopoParamsDTO",
-    "EvokedJointParamsDTO",
-    "AIBaseDTO",
-    "AITrainParamsDTO",
-    "AIPredictParamsDTO",
-    # pipeline
-    "EEGTaskModel",
-    "EEGTaskLoader",
-    "EEGTaskProcessor",
-    "register_preprocessor",
+    'subject_model',
+    'dtos',
+    'pipeline',
 ]

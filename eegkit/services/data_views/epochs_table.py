@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ...models import BaseTaskDTO, EpochParamsDTO
+from ...models.dtos import BaseTaskDTO, EpochParamsDTO
 from . import register_data
 
 

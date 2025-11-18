@@ -1,16 +1,10 @@
 """Utilities package
 
-API: import from categorized subpackages for clarity.
-
-- utils.plot: plotting/figure helpers
-- utils.signal: signal processing and cleaning
-- utils.channels: channel parsing/selection
-- utils.system: logging and system helpers
-
-Examples:
-    from eegkit.utils.plot import render_label_grid, finalize_figure
-    from eegkit.utils.signal import snr_spectrum, EEGCleaner
-    from eegkit.utils.system import configure_logging
+Common helpers for the EEG Workbench, organized into subpackages:
+- plot: figure/grid utilities for visualization services
+- signal: signal processing routines and cleaning helpers
+- channels: channel parsing and selection conveniences
+- system: logging and small system helpers
 """
 
 # Expose categorized submodules only

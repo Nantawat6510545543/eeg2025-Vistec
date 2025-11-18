@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ...models import BaseTaskDTO, FilterParamsDTO
+from ...models.dtos import BaseTaskDTO, FilterParamsDTO
 from . import register_data
 
 

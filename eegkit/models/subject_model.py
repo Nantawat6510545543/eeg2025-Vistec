@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .pipeline import EEGTaskModel
+from .pipeline.task_model import EEGTaskModel
 from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
 from .cohort_model import EEGCohortModel
 from .participant_manager import ParticipantManager

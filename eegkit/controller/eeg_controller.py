@@ -1,7 +1,8 @@
-from ..models import (
+from ..models.dtos import (
     FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
-from ..services import EEGVisualization, EEGDataService
+from ..services.visualization import EEGVisualization
+from ..services.data_service import EEGDataService
 from ..services.ai_service import EEGAIService
 from ..services.grid_visualization import EEGGridVisualization
 

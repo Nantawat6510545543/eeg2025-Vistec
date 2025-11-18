@@ -11,7 +11,7 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 
 from .base_service import BaseService
-from ..models import (
+from ..models.dtos import (
     BaseTaskDTO,
     EpochParamsDTO,
     FilterParamsDTO,
