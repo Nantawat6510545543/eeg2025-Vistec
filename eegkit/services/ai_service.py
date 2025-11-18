@@ -39,9 +39,6 @@ class EEGAIService(BaseService):
             get_task_func=get_task_func,
         )
 
-    # ---- helpers ----
-    # Stateless helpers moved to ai_actions.helpers
-
     def _build_epoch_dataset(self, task_dto: BaseTaskDTO, params: EpochParamsDTO) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], Dict[str, Any]]:
         """Return (X, y, meta) with epochs transformed into numpy arrays.
 
@@ -66,10 +63,6 @@ class EEGAIService(BaseService):
             "shape": tuple(X.shape),
         }
         return X.astype(np.float32), y, meta
-
-    # ---- training/eval helpers ----
-    # (select_device, encode_labels, model_factory, make_dataloader, model_metadata, available_models)
-    # now live in eegkit.services.ai_actions.helpers and are used by action modules.
 
     def prepare_params(self, task_dto, params_dto) -> Dict[str, Any]:
         """Extend BaseService.prepare_params and inject AI model choices.
