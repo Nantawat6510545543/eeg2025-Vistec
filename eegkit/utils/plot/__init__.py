@@ -1,7 +1,7 @@
 """Plot-related helpers for figures, grids, token parsing, and label mapping."""
 
 from .figure_utils import finalize_figure
-from .plot_utils import (
+from .grid_utils import (
     split_tokens,
     compute_axes_values,
     map_cells_to_labels,

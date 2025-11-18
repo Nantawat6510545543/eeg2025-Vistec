@@ -1,7 +1,4 @@
-"""Signal processing helpers for EEG arrays.
-
-Currently includes an SNR spectrum utility operating on PSD arrays.
-"""
+"""Spectral metrics helpers for EEG arrays."""
 from __future__ import annotations
 
 import numpy as np
@@ -12,22 +9,7 @@ def snr_spectrum(
         noise_n_neighbor_freqs: int = 3,
         noise_skip_neighbor_freqs: int = 1,
 ) -> np.ndarray:
-    """Compute SNR by dividing PSD by a neighborhood-averaged noise estimate.
-
-    Parameters
-    ----------
-    psd : np.ndarray
-        Power spectral density array with shape (..., n_freqs).
-    noise_n_neighbor_freqs : int
-        Number of frequency bins on each side used to compute the noise floor.
-    noise_skip_neighbor_freqs : int
-        Number of bins to skip immediately adjacent to the target bin.
-
-    Returns
-    -------
-    np.ndarray
-        SNR array with the same shape as psd.
-    """
+    """Compute SNR by dividing PSD by a neighborhood-averaged noise estimate."""
     kernel = np.concatenate(
         (
             np.ones(noise_n_neighbor_freqs),
@@ -45,3 +27,5 @@ def snr_spectrum(
     pad = [(0, 0)] * (mean_noise.ndim - 1) + [(edge_width, edge_width)]
     mean_noise = np.pad(mean_noise, pad_width=tuple(pad), constant_values=float("nan"))
     return psd / mean_noise
+
+__all__ = ["snr_spectrum"]
