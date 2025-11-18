@@ -1,8 +1,4 @@
-"""Channel selection helpers category.
-
-    from eegkit.utils.channels import (ChannelsHelper, prepare_channels)
-
-"""
+"""Channel-related helpers: parsing ranges, listing, and selection utilities."""
 
 from .channels_helper import ChannelsHelper, prepare_channels
 
