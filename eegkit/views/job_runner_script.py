@@ -1,3 +1,4 @@
+"""Standalone job runner entry point executed by JobRunner."""
 import json
 import logging
 import sys
@@ -30,6 +31,7 @@ matplotlib.use('Agg')
 
 def save_output(result, out_dir: Path):
     """Save controller result to disk under out_dir.
+
     Supports DataFrame, single Figure, list of Figures, JSON-serializable,
     text, and generic repr fallback. Returns a brief summary dict.
     """
@@ -86,6 +88,7 @@ def save_output(result, out_dir: Path):
 
 
 def main(spec_path: str):
+    """Load a job spec, run the controller action, and persist outputs."""
     configure_logging()
     log = logging.getLogger(__name__)
     with open(spec_path, 'r') as f:

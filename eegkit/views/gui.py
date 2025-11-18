@@ -1,4 +1,4 @@
-"""EEG ipywidgets-based GUI
+"""EEG ipywidgets-based GUI.
 
 Provides a lightweight interface to:
 - Choose input type (single subject or meta filter)
@@ -89,7 +89,7 @@ class EEGUI:
         self._update_param_inputs()
 
     def _on_schema_subject_changed(self):
-        """Callback from SchemaPanel when subject changes."""
+        """Handle SchemaPanel subject change by refreshing parameter inputs."""
         self._update_param_inputs()
 
     def _build_all_param_layouts(self):
@@ -212,7 +212,7 @@ class EEGUI:
             self._apply_overlay(self.param_inputs, overlay)
 
     def _prepare_execution(self):
-        """Builds all required inputs for execution (dto, group, key, params)."""
+        """Build all required inputs for execution (dto, group, key, params)."""
         group = self.actions.mode_selector.value
         key = self.actions.action_selector.value
         spec = self.specs[group][key]

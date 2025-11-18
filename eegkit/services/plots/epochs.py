@@ -1,3 +1,5 @@
+"""Epoch-level plots for single condition or selection."""
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
@@ -12,6 +14,7 @@ plt.ioff()
 
 @register_plot("Epoch Plot", EpochParamsDTO)
 def plot_epochs(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
+    """Plot epochs with channel selection; return finalized Matplotlib figure."""
     epochs, labels = self.get_epochs(task_dto, params)
     if epochs is None:
         return None

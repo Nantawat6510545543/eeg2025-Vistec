@@ -28,7 +28,8 @@ class SchemaPanel:
             controller,
             schemas: List[Type],
             on_subject_change: Callable[[], None] | None = None,
-    ) -> None:
+        ) -> None:
+        """Initialize with controller, available schemas, and optional callback."""
         self.controller = controller
         self.schemas = list(schemas)
         self.on_subject_change = on_subject_change
@@ -40,9 +41,11 @@ class SchemaPanel:
 
     # public API --------------------------------------------------------------
     def get_layout_rows(self, schema_dto: Type) -> List[widgets.Widget]:
+        """Return the previously built layout rows for a schema DTO type."""
         return self.schema_layouts.get(schema_dto, [])
 
     def get_widgets_map(self, schema_dto: Type) -> Dict[str, widgets.Widget | dict]:
+        """Return the widget mapping for a schema DTO type."""
         return self.schema_widgets.get(schema_dto, {})
 
     def build_dto(self, schema_dto: Type):
@@ -75,6 +78,7 @@ class SchemaPanel:
 
     def refresh_task_options(self, schema_dto: Type, init: bool = False) -> None:
         """Populate the task dropdown for the selected subject.
+
         Preserves selection on init when possible.
         """
         wmap = self.schema_widgets.get(schema_dto)

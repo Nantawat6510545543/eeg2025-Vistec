@@ -6,7 +6,10 @@ from IPython.display import display
 
 
 class ProgressArea:
+    """Tiny progress widget group used during longer UI preparations."""
+
     def __init__(self) -> None:
+        """Initialize widgets and container layout."""
         self.label = widgets.HTML(value="")
         self.progress = widgets.IntProgress(value=0, min=0, max=1,
                                             description="0/0",
@@ -16,6 +19,7 @@ class ProgressArea:
                                       layout=widgets.Layout(width="100%"))
 
     def begin(self, total: int, title: str = "Working…") -> None:
+        """Display the progress area and initialize counters and title."""
         self.label.value = f"<b>{title}</b>"
         self.progress.max = max(1, int(total))
         self.progress.value = 0
@@ -25,6 +29,7 @@ class ProgressArea:
         display(self.container)
 
     def update(self, current: int, total: int | None = None, group: str | None = None, key: str | None = None) -> None:
+        """Advance the progress bar and optionally show group/key context."""
         if total is not None:
             self.progress.max = max(self.progress.max, int(total))
         self.progress.value = int(current)
@@ -33,6 +38,7 @@ class ProgressArea:
             self.text.value = f"Building <code>{group}</code> → <code>{key}</code> ({self.progress.description})"
 
     def finish(self, summary: str = "Ready.") -> None:
+        """Mark completion and show a short summary message."""
         self.progress.bar_style = "success"
         self.progress.description = f"{self.progress.value}/{self.progress.max}"
         self.text.value = summary

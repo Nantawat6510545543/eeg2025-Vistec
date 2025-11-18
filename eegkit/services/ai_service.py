@@ -1,3 +1,5 @@
+"""AI service: dataset building, simple training, and model registry introspection."""
+
 from __future__ import annotations
 
 from importlib import import_module
@@ -23,6 +25,8 @@ ai_registry: Dict[str, Dict[str, Any]] = {}
 
 
 def register_ai(name: str, dto_cls):
+    """Register an AI action with its params DTO class and handler function."""
+
     def _decorator(func):
         ai_registry[name] = {"params": dto_cls, "function": func}
         return func
@@ -31,9 +35,12 @@ def register_ai(name: str, dto_cls):
 
 
 class EEGAIService(BaseService):
+    """Provide AI-related actions (list models, build dataset, train, predict placeholder)."""
+
     description = "AI training and inference on epochs (registry-based)."
 
     def __init__(self, *, get_raw_func=None, get_epochs_func=None, get_task_func=None):
+        """Initialize with controller callbacks and bind AI registry to spec."""
         super().__init__(
             registry=ai_registry,
             get_raw_func=get_raw_func,
@@ -150,6 +157,7 @@ class EEGAIService(BaseService):
     # ---- actions ----
     @register_ai("Models", None)
     def list_models(self, task_dto: BaseTaskDTO, params: FilterParamsDTO | None):
+        """Return a DataFrame describing discoverable AI models and metadata."""
         meta = self._model_metadata()
         rows = [
             {"model_name": name, "display_name": m.get("display_name"), "description": m.get("description")}
@@ -159,6 +167,7 @@ class EEGAIService(BaseService):
 
     @register_ai("Build Dataset", AITrainParamsDTO)
     def build_dataset_summary(self, task_dto: BaseTaskDTO, params: AITrainParamsDTO):
+        """Return a one-row DataFrame summarizing dataset size and class balance."""
         X, y, meta = self._build_epoch_dataset(task_dto, params)
         if X is None:
             return pd.DataFrame({"status": [meta.get("reason", "unavailable")]})
@@ -221,7 +230,7 @@ class EEGAIService(BaseService):
 
     @register_ai("Predict", AIPredictParamsDTO)
     def predict(self, task_dto: BaseTaskDTO, params: AIPredictParamsDTO):
-        """Placeholder for future inference; saving/loading handled via tmux jobs later."""
+        """Return placeholder status until checkpoint-based inference is added."""
         return {
             "status": "placeholder",
             "message": "Predict action not implemented yet. Checkpoint-based inference will be added with tmux jobs.",

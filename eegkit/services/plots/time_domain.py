@@ -1,3 +1,5 @@
+"""Time-domain raw signal preview plot."""
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
@@ -12,6 +14,7 @@ plt.ioff()
 
 @register_plot("Time Domain Plot", TimeDomainParamsDTO)
 def plot_time(self, task_dto: BaseTaskDTO, params: TimeDomainParamsDTO):
+    """Plot scrolling raw view with duration/start/channels; return figure list."""
     raw = self.get_raw(task_dto, params)
     raw = prepare_channels(raw, params)
     fig = raw.plot(

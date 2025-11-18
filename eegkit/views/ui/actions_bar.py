@@ -7,7 +7,10 @@ import ipywidgets as widgets
 
 
 class ActionsBar:
+    """Compact bar with mode selector, action selector, and view toggle."""
+
     def __init__(self, specs: Dict[str, dict], mode_info: Dict[str, str] | None = None) -> None:
+        """Initialize widgets from available specs and optional mode descriptions."""
         self.specs = specs or {}
         self.mode_info = mode_info or {}
 
@@ -29,6 +32,7 @@ class ActionsBar:
         ])
 
     def update_actions(self) -> None:
+        """Refresh available actions based on the selected mode."""
         group = self.mode_selector.value
         if not group:
             self.action_selector.options = []
@@ -38,6 +42,7 @@ class ActionsBar:
             self.action_selector.value = self.action_selector.options[0]
 
     def update_mode_description(self) -> None:
+        """Update the mode description helper text under the mode selector."""
         group = self.mode_selector.value
         desc = (self.mode_info or {}).get(group, "")
         if desc:
@@ -46,6 +51,7 @@ class ActionsBar:
             self.mode_description.value = ""
 
     def set_specs(self, specs: Dict[str, dict], mode_info: Dict[str, str] | None = None) -> None:
+        """Replace the available specs and optionally mode descriptions, updating UI."""
         self.specs = specs or {}
         if mode_info is not None:
             self.mode_info = mode_info or {}

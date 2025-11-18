@@ -1,3 +1,5 @@
+"""Evoked-response plot functions (single, topo, joint, per-condition)."""
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
@@ -12,6 +14,7 @@ plt.ioff()
 
 @register_plot("Evoked Plot", EvokedParamsDTO)
 def plot_evoked(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
+    """Plot evoked time course; return finalized figure."""
     evoked = self.get_evoked(task_dto, params)
     if evoked is None:
         return None
@@ -22,6 +25,7 @@ def plot_evoked(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
 
 @register_plot("Evoked Topo Plot", EvokedTopoParamsDTO)
 def plot_evoked_topo(self, task_dto: BaseTaskDTO, params: EvokedTopoParamsDTO):
+    """Plot evoked topomap at selected times; return finalized figure."""
     params.combine_channels = False
     evoked = self.get_evoked(task_dto, params)
     if evoked is None:
@@ -33,6 +37,7 @@ def plot_evoked_topo(self, task_dto: BaseTaskDTO, params: EvokedTopoParamsDTO):
 
 @register_plot("Evoked Plot Joint", EvokedJointParamsDTO)
 def plot_evoked_joint(self, task_dto: BaseTaskDTO, params: EvokedJointParamsDTO):
+    """Plot joint time course + topomap panels; return finalized figure."""
     params.combine_channels = False
     evoked = self.get_evoked(task_dto, params)
     if evoked is None:
@@ -49,6 +54,7 @@ def plot_evoked_joint(self, task_dto: BaseTaskDTO, params: EvokedJointParamsDTO)
 
 @register_plot("Evoked per Condition", EvokedParamsDTO)
 def plot_evoked_per_condition(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
+    """Return list of evoked figures, one per available condition/label."""
     import copy as _copy
 
     epochs, labels = self.get_epochs(task_dto, params)

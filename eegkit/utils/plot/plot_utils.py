@@ -20,11 +20,13 @@ from .figure_utils import finalize_figure
 
 
 def split_tokens(label: str) -> list[str]:
+    """Split a label by underscores and drop empty tokens."""
     return [token for token in (label or '').split('_') if token]
 
 
 def compute_axes_values(tokens_by_label: dict[str, list[str]], mode: int) -> tuple[
     list[Optional[str]], list[Optional[str]], list[Optional[str]]]:
+    """Compute possible values for page/column/row axes based on tokens and mode."""
     axes_values = []
     for token_index in range(mode):
         values = sorted({tokens[token_index] for tokens in tokens_by_label.values() if len(tokens) > token_index})
@@ -36,6 +38,7 @@ def compute_axes_values(tokens_by_label: dict[str, list[str]], mode: int) -> tup
 
 def map_cells_to_labels(tokens_by_label: dict[str, list[str]], mode: int) -> Dict[
     Tuple[Optional[str], Optional[str], Optional[str]], str]:
+    """Map each (page, column, row) triple to the first matching label."""
     mapping: Dict[Tuple[Optional[str], Optional[str], Optional[str]], str] = {}
     for label, tokens in tokens_by_label.items():
         if len(tokens) >= mode:
@@ -50,6 +53,7 @@ def map_cells_to_labels(tokens_by_label: dict[str, list[str]], mode: int) -> Dic
 
 
 def reshape_axes_array(axes, num_rows: int, num_cols: int):
+    """Normalize a Matplotlib axes return value to a 2D array shape."""
     if num_rows == 1 and num_cols == 1:
         return np.array([[axes]])
     if num_rows == 1:
@@ -106,7 +110,7 @@ def render_label_grid(
         scale_mode: str,
         per_cell_draw: Callable[[Axes, str], Optional[Tuple[float, float]]],
 ):
-    """Generic renderer for label-tokenized grids.
+    """Render label-tokenized grids.
 
     per_cell_draw(ax, label) -> tuple[ymin, ymax] | None
     Should perform its plotting on ax and return min/max y contribution for uniform scaling.

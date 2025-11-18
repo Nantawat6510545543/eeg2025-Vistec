@@ -1,3 +1,4 @@
+"""Reusable ipywidgets helpers for building EEG parameter forms."""
 from __future__ import annotations
 
 from dataclasses import fields, MISSING
@@ -141,8 +142,8 @@ def read_widget(widget, default, wrap_list=False, field=None):
 
 
 def ordered_fields(dto_cls):
-    """
-    Return dataclass fields sorted by custom priority:
+    """Return dataclass fields sorted by custom priority.
+
     int/float -> dropdown(list/enum) -> str -> bool -> others.
     """
 

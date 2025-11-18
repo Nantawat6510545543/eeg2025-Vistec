@@ -1,3 +1,5 @@
+"""Discover subjects/tasks and build participants metadata across releases."""
+
 import logging
 import re
 import time
@@ -14,7 +16,10 @@ from .dtos import SubjectFilterDTO
 
 
 class ParticipantManager:
+    """Index participants and tasks on disk; provide lookup and filtering helpers."""
+
     def __init__(self, data_dir: Path):
+        """Initialize with BIDS-like root directory containing release folders."""
         self._log = logging.getLogger(__name__)
         self._data_dir = Path(data_dir)
         # Lazy caches
@@ -28,18 +33,21 @@ class ParticipantManager:
     # ---------- lazy accessors ----------
     @property
     def release_dirs(self) -> List[Path]:
+        """Return list of detected release directories (excluding R5)."""
         if self.__release_dirs is None:
             self.__release_dirs = self._discover_release_dirs()
         return self.__release_dirs
 
     @property
     def release_by_number(self) -> Dict[str, Path]:
+        """Return mapping like 'R3' -> Path for quick reverse lookup."""
         if self.__release_by_number is None:
             self.__release_by_number = self._map_release_numbers()
         return self.__release_by_number
 
     @property
     def task_index(self) -> Dict[str, List[tuple]]:
+        """Return cached mapping subject -> [(task, run), ...]."""
         if self.__task_index is None:
             self.__task_index = self._discover_tasks()
         return self.__task_index
@@ -47,10 +55,12 @@ class ParticipantManager:
     # ---------- paths ----------
     @property
     def _combined_path(self) -> Path:
+        """Return path to combined participants TSV under data root."""
         return self._data_dir / "participants_combine.tsv"
 
     @property
     def subject_dirs(self):
+        """Yield subject directories across releases, skipping R5."""
         for rdir in self.release_dirs:
             if rdir.name.lower().endswith("r5"):
                 continue
@@ -60,6 +70,7 @@ class ParticipantManager:
 
     # ---------- discovery ----------
     def _discover_release_dirs(self) -> List[Path]:
+        """Discover release directories matching cmi_bids_R* pattern."""
         t0 = time.perf_counter()
         dirs = sorted(
             [p for p in self._data_dir.glob("cmi_bids_R*") if p.is_dir() and not p.name.lower().endswith("r5")])
@@ -67,6 +78,7 @@ class ParticipantManager:
         return dirs
 
     def _map_release_numbers(self) -> Dict[str, Path]:
+        """Build map from release number string to directory path."""
         t0 = time.perf_counter()
         out: Dict[str, Path] = {}
         rx = re.compile(r"cmi_bids_(R\d+)$", re.IGNORECASE)
@@ -81,6 +93,7 @@ class ParticipantManager:
         return out
 
     def _discover_tasks(self):
+        """Scan filesystem to build subject -> [(task, run)] mapping."""
         t0 = time.perf_counter()
         task_map = defaultdict(list)
         pat = re.compile(r"(sub-(?P<subject>[^_]+))_task-(?P<task>[^_]+)(?:_run-(?P<run>\d+))?_eeg\.set$",
@@ -113,10 +126,12 @@ class ParticipantManager:
     # ---------- normalization ----------
     @staticmethod
     def _norm(s: Optional[str]) -> str:
+        """Normalize string for comparisons (lowercase alnum only)."""
         return re.sub(r"[^a-z0-9]+", "", (s or "").lower())
 
     @classmethod
     def _norm_bases(cls, col: str) -> Set[str]:
+        """Return normalized base names for a task column (strip suffix/index)."""
         n = cls._norm(col)
         out = {n}
         m = re.match(r"^(.*?)(?:_\d+)$", (col or "").lower())
@@ -128,6 +143,7 @@ class ParticipantManager:
         return {x for x in out if x}
 
     def _subject_task_name_set(self, subject: str, release_dir: Path) -> Set[str]:
+        """Return normalized task names present for a subject in a release."""
         eeg_dir = release_dir / subject / "eeg"
         if not eeg_dir.exists():
             return set()
@@ -139,10 +155,7 @@ class ParticipantManager:
         return names
 
     def _subject_task_pairs(self, subject: str, release_dir: Path) -> List[tuple[str, Optional[str]]]:
-        """Return list of (task, run) pairs found on disk for a single subject in a release.
-        Task is the raw task name extracted from filename; run is a string or None.
-        Cached to avoid repeated directory scans.
-        """
+        """Return list of (task, run) pairs for a subject in a release (cached)."""
         key = (str(release_dir), subject)
         if key in self.__pairs_cache:
             return self.__pairs_cache[key]
@@ -166,6 +179,7 @@ class ParticipantManager:
 
     # ---------- CCD metrics helpers ----------
     def _ccd_event_files(self, subject: str, release_dir: Path) -> List[Path]:
+        """Return sorted list of event TSV files for CCD task of a subject."""
         eeg_dir = release_dir / subject / "eeg"
         if not eeg_dir.exists():
             return []
@@ -173,6 +187,7 @@ class ParticipantManager:
         return sorted(eeg_dir.glob(pattern))
 
     def _compute_ccd_metrics(self, subject: str, release_dir: Path):
+        """Compute CCD accuracy and response time metrics from event files."""
         files = self._ccd_event_files(subject, release_dir)
         if not files:
             return {
@@ -254,6 +269,7 @@ class ParticipantManager:
         }
 
     def _augment_ccd_metrics(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Fill missing CCD columns and augment them from event data if present."""
         for col in [
             "smiley_face", "sad_face", "non_target", "miss_target",
             "smiley_response_time", "sad_response_time",
@@ -285,6 +301,7 @@ class ParticipantManager:
 
     # ---------- combined TSV with validation ----------
     def _validate_participants_file(self, p_path: Path, release_dir: Path) -> pd.DataFrame:
+        """Validate availability columns against actual on-disk files per subject."""
         df = pd.read_csv(p_path, sep="\t")
         status = {"available", "unavailable", "caution", "missing"}
         task_cols = []
@@ -331,6 +348,7 @@ class ParticipantManager:
         return df
 
     def _build_or_load_participants(self) -> pd.DataFrame:
+        """Load combined participants TSV or build it by validating each release."""
         cp = self._combined_path
         self._log.info("Finding participants_combine.tsv on %s", cp)
         if cp.exists():
@@ -371,12 +389,14 @@ class ParticipantManager:
         return combined
 
     def _participants(self) -> pd.DataFrame:
+        """Return cached combined participants DataFrame, building if needed."""
         if self._participants_df is None:
             self._participants_df = self._build_or_load_participants()
         return self._participants_df
 
     # ---------- public API ----------
     def subject_data_dir(self, subject: str) -> Path:
+        """Return release directory path containing a subject (fallback to first)."""
         df = self._participants()
         rows = df[df['participant_id'] == str(subject)]
         if not rows.empty and 'release_number' in rows.columns:
@@ -390,10 +410,12 @@ class ParticipantManager:
         return self.release_dirs[0] if self.release_dirs else self._data_dir
 
     def list_subjects(self) -> List[str]:
+        """List all subject IDs as strings."""
         df = self._participants()
         return df['participant_id'].dropna().sort_values().tolist()
 
     def list_all_tasks(self):
+        """List unique task base names across the dataset."""
         df = self._participants()
         status = {"available", "unavailable", "caution", "missing"}
         task_cols = []
@@ -409,6 +431,7 @@ class ParticipantManager:
         return sorted(merged)
 
     def list_tasks(self, subject: str):
+        """List (task, run) pairs available for a given subject ID."""
         df = self._participants()
         rows = df[df['participant_id'] == str(subject)]
         if rows.empty:
@@ -433,6 +456,7 @@ class ParticipantManager:
         return sorted([(t, r) for (t, r) in disk_pairs if self._norm(t) in avail_bases])
 
     def filter_subjects_by_dto(self, dto: SubjectFilterDTO) -> List[str]:
+        """Filter subjects by availability and DTO constraints; return subject IDs."""
         t0 = time.perf_counter()
         df = self._participants().copy()
         task = dto.task
@@ -484,6 +508,7 @@ class ParticipantManager:
         return sorted(subjects)
 
     def get_subjects_metadata(self, subject_ids: List[str], columns: Optional[List[str]] = None) -> pd.DataFrame:
+        """Return participants rows for given subject IDs (optionally subset columns)."""
         df = self._participants()
         sub_df = df[df['participant_id'].astype(str).isin([str(s) for s in subject_ids])].copy()
         return sub_df.sort_values('participant_id').reset_index(drop=True)

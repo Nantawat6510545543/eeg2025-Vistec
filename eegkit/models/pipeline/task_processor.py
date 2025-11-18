@@ -1,3 +1,5 @@
+"""Signal processing pipeline: filtering, epoching and evoked computation with caching."""
+
 import logging
 
 import mne
@@ -21,6 +23,8 @@ _PREPROCESSORS = {}
 
 
 def register_preprocessor(task_name: str):
+    """Register a preprocessor function for a given task name."""
+
     def _decorator(func):
         _PREPROCESSORS[task_name] = func
         return func
@@ -29,8 +33,10 @@ def register_preprocessor(task_name: str):
 
 
 class EEGTaskProcessor:
+    """Apply preprocessing recipe per task and manage cached intermediate artifacts."""
 
     def __init__(self, get_raw_fn, get_events_fn, task_dto: TaskDTO, cache):
+        """Bind raw/events accessors, DTO and cache handle."""
         self.get_raw = get_raw_fn
         self.get_events = get_events_fn
         self.task_dto = task_dto
@@ -40,6 +46,7 @@ class EEGTaskProcessor:
         self._log = logging.getLogger(__name__)
 
     def get_filtered(self, params: FilterParamsDTO):
+        """Return cleaned Raw using cached prefilter/clean stages when available."""
         # 1) Find cleaned cache
         clean_ck = CacheKey(
             subject=self.task_dto.subject,
@@ -88,6 +95,7 @@ class EEGTaskProcessor:
         return epochs.apply_baseline(baseline=(None, 0.0))
 
     def get_epochs(self, params: EpochParamsDTO):
+        """Return (epochs, labels) via registered task preprocessor with stimulus filter."""
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
         if preprocess_fn is None:
             self._log.warning("Unsupported task for epochs: '%s'", self.task_dto.task)
@@ -125,6 +133,7 @@ class EEGTaskProcessor:
         return epochs_sel, labels
 
     def get_evoked(self, params: EvokedParamsDTO):
+        """Return evoked average from epochs, caching on disk when possible."""
         ck = CacheKey(
             subject=self.task_dto.subject,
             task=self.task_dto.task,

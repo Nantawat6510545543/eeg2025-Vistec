@@ -10,7 +10,10 @@ from IPython.display import display
 
 
 class ExecutionPanel:
+    """Run buttons and a shared output area for controller results."""
+
     def __init__(self) -> None:
+        """Create buttons and an output container."""
         self.tmux_button = widgets.Button(description="Run on Tmux", button_style="success")
         self.inline_button = widgets.Button(description="Run Inline", button_style="success")
         self.output = widgets.Output()

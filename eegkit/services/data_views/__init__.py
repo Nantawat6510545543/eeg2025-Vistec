@@ -12,6 +12,8 @@ data_registry: Dict[str, Dict[str, Any]] = {}
 
 
 def register_data(name: str, dto_cls: Type[Any] | None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Register a data view function under a human-readable name."""
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         data_registry[name] = {"params": dto_cls, "function": func}
         return func

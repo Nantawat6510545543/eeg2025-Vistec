@@ -1,3 +1,5 @@
+"""Grid of evoked responses, one cell per condition/label."""
+
 from __future__ import annotations
 
 import copy
@@ -12,6 +14,7 @@ from ...utils.plot import render_label_grid, draw_evoked_response
 
 @register_grid_plot("Evoked Grid", EvokedParamsDTO)
 def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
+    """Render evoked response per label in a grid; return figure or None."""
     epochs, available_labels = self.get_epochs(task_dto, params)
     if epochs is None:
         return None

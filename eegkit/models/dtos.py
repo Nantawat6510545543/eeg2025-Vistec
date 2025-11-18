@@ -1,3 +1,5 @@
+"""Dataclass DTO definitions for tasks, filtering, epochs, PSD, evoked and AI params."""
+
 from __future__ import annotations
 
 import re
@@ -8,6 +10,7 @@ NumberRange = Tuple[Optional[float], Optional[float]]
 
 
 def make_hashable(value):
+    """Return hashable version of nested value (lists->tuples, sets->frozensets)."""
     if isinstance(value, list):
         return tuple(make_hashable(v) for v in value)
     if isinstance(value, dict):
@@ -19,16 +22,21 @@ def make_hashable(value):
 
 @dataclass
 class BaseTaskDTO:
+    """Base task selector with common hashing behavior for DTOs."""
+
     task: str
     ui_name: ClassVar[str] = "Base"
     ui_value: ClassVar[object] = None
 
     def __hash__(self):
+        """Hash by tuple of field values (normalized to hashable forms)."""
         return hash(tuple(make_hashable(getattr(self, f.name)) for f in fields(self)))
 
 
 @dataclass
 class TaskDTO(BaseTaskDTO):
+    """Concrete single-subject task selector (subject, task, optional run)."""
+
     task: str
     subject: str
     run: Optional[str] = None
@@ -39,11 +47,14 @@ class TaskDTO(BaseTaskDTO):
     __hash__ = BaseTaskDTO.__hash__
 
     def __repr__(self) -> str:
+        """Human-readable summary of subject/task/run."""
         return f"subject = {self.subject}, task = {self.task}, run = {self.run}"
 
 
 @dataclass
 class SubjectFilterDTO(BaseTaskDTO):
+    """Cohort selector with demographic/behavioral filters and options."""
+
     task: str
     subject_limit: Optional[int] = None
     per_subject: bool = False
@@ -63,6 +74,7 @@ class SubjectFilterDTO(BaseTaskDTO):
     __hash__ = BaseTaskDTO.__hash__
 
     def __repr__(self) -> str:
+        """Compact description of active filters (for UI/debug)."""
         def fmt_range(label: str, rng):
             if not (isinstance(rng, (tuple, list)) and len(rng) == 2):
                 return None
@@ -111,6 +123,7 @@ class ReprMixin:
     _exclude_str_fields: ClassVar[Set[str]] = set()
 
     def __str__(self) -> str:
+        """Render non-empty fields as key=value pairs."""
         data = asdict(self)
         parts = []
         for k, v in data.items():
@@ -137,6 +150,8 @@ class ReprMixin:
 
 @dataclass
 class FilterParamsDTO(ReprMixin):
+    """Parameters controlling filtering, channel selection and cleaning."""
+
     l_freq: float = 4.0
     h_freq: float = 30.0
     notch: Optional[float] = 60.0
@@ -213,6 +228,7 @@ class FilterParamsDTO(ReprMixin):
 
     @property
     def channels_list(self):
+        """Parse channels string into unique list like ['E1','E2',...]."""
         if not self.channels or not self.channels.strip():
             return [f"E{i}" for i in range(1, 129)]
 
@@ -252,6 +268,8 @@ class FilterParamsDTO(ReprMixin):
 
 @dataclass
 class EpochParamsDTO(FilterParamsDTO):
+    """Epoch extraction parameters extending filtering/cleaning options."""
+
     tmin: float = -0.2
     tmax: float = 0.8
     stimulus: List[Optional[str]] = field(default_factory=lambda: [None])
@@ -261,6 +279,7 @@ class EpochParamsDTO(FilterParamsDTO):
 
     @property
     def epochs_key(self) -> Dict[str, float]:
+        """Cache key for epoching stage (includes tmin/tmax)."""
         key = {
             **self.cleaning_key,
             "tmin": self.tmin,
@@ -270,6 +289,7 @@ class EpochParamsDTO(FilterParamsDTO):
 
     @property
     def evoked_key(self):
+        """Cache key for evoked stage (epochs_key + stimulus)."""
         key = {
             **self.epochs_key,
             "stimulus": self.stimulus,
@@ -279,6 +299,8 @@ class EpochParamsDTO(FilterParamsDTO):
 
 @dataclass
 class PSDParamsDTO(FilterParamsDTO):
+    """Power Spectral Density parameters (frequency range and display flags)."""
+
     fmin: Optional[float] = None
     fmax: Optional[float] = None
     average: bool = True
@@ -290,6 +312,7 @@ class PSDParamsDTO(FilterParamsDTO):
     }
 
     def __post_init__(self):
+        """Set fmin/fmax to filter band if not provided."""
         if self.fmin is None:
             self.fmin = self.l_freq
         if self.fmax is None:
@@ -298,11 +321,15 @@ class PSDParamsDTO(FilterParamsDTO):
 
 @dataclass
 class EpochPSDParamsDTO(PSDParamsDTO, EpochParamsDTO):
+    """PSD parameters combined with epoching options."""
+
     pass
 
 
 @dataclass
 class EvokedParamsDTO(EpochParamsDTO):
+    """Parameters controlling evoked plotting/averaging options."""
+
     spatial_colors: bool = True
     gfp: List[Union[str, bool]] = field(default_factory=lambda: [False, True, "only"])  # True/"only"
     average_line: bool = True
@@ -315,10 +342,13 @@ class EvokedParamsDTO(EpochParamsDTO):
 
 @dataclass
 class EvokedTopoParamsDTO(EpochParamsDTO):
+    """Parameters for topomap visualization with selected times."""
+
     times: str = 'auto'
 
     @property
     def get_times(self):
+        """Return 'peak'/'auto' or filtered numeric times within [tmin, tmax]."""
         s = (self.times or '').strip().lower()
         if s == 'peak':
             return 'peak'
@@ -334,11 +364,15 @@ class EvokedTopoParamsDTO(EpochParamsDTO):
 
 @dataclass
 class EvokedJointParamsDTO(EvokedParamsDTO, EvokedTopoParamsDTO):
+    """Combined params for joint evoked/time-topo plots."""
+
     pass
 
 
 @dataclass
 class TimeDomainParamsDTO(FilterParamsDTO):
+    """Parameters for raw/time-domain preview plots."""
+
     duration: float = 10.0
     start: float = 0.0
     n_channels: int = 10
@@ -346,6 +380,8 @@ class TimeDomainParamsDTO(FilterParamsDTO):
 
 @dataclass
 class TableInfoDTO(FilterParamsDTO):
+    """Parameters selecting data table type and size for previews."""
+
     table_type: List[str] = field(default_factory=lambda: ["events", "channels", "electrodes"])
     rows: int = 10
 
@@ -353,11 +389,15 @@ class TableInfoDTO(FilterParamsDTO):
 # ---- AI DTOs ----
 @dataclass
 class AIBaseDTO(EpochParamsDTO):
+    """Base AI params including model selection list."""
+
     model: List[Optional[str]] = field(default_factory=lambda: [None])
 
 
 @dataclass
 class AITrainParamsDTO(AIBaseDTO):
+    """Training hyperparameters and target selection for simple trainers."""
+
     batch_size: int = 32
     epochs_n: int = 1
     lr: float = 0.001
@@ -367,4 +407,6 @@ class AITrainParamsDTO(AIBaseDTO):
 
 @dataclass
 class AIPredictParamsDTO(AIBaseDTO):
+    """Prediction params for future checkpoint-based inference."""
+
     checkpoint_path: Optional[str] = None

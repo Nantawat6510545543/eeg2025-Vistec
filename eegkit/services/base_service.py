@@ -1,3 +1,5 @@
+"""Abstract base service wiring controller callbacks and registry specs."""
+
 from __future__ import annotations
 
 from abc import ABC
@@ -30,6 +32,7 @@ class BaseService(ABC):
             get_evoked_func=None,
             get_task_func=None,
     ):
+        """Initialize service wiring controller accessors and binding registry spec."""
         # Wire controller accessors (subclasses may use a subset)
         self.get_raw = get_raw_func
         self.get_epochs = get_epochs_func
@@ -46,6 +49,7 @@ class BaseService(ABC):
     # ----- Shared helpers -----
 
     def prepare_params(self, task_dto, params_dto):
+        """Return dict of param option enrichments (e.g., stimulus label choices)."""
         if EpochParamsDTO and isinstance(params_dto, EpochParamsDTO):
             if self.get_epochs is None:
                 return {}

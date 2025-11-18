@@ -1,3 +1,7 @@
+"""Tabular summary for epoch collections.
+
+Provides a simple per-condition table with counts, sampling rate, and durations.
+"""
 from __future__ import annotations
 
 import pandas as pd
@@ -8,6 +12,10 @@ from ...models.dtos import BaseTaskDTO, EpochParamsDTO
 
 @register_data("Epochs Table", EpochParamsDTO)
 def show_epochs_table(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
+    """Return a per-condition summary DataFrame for the selected epochs.
+
+    Columns include label, number of epochs/channels, sampling rate and durations.
+    """
     epochs, labels = self.get_epochs(task_dto, params)
     if epochs is None:
         return None

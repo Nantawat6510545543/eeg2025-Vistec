@@ -1,8 +1,12 @@
+"""Compact CNN example (EEGNet-inspired) with single binary output head for demos."""
+
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class EEGNet(nn.Module):
+    """Small convolutional network baseline for binary EEG classifications."""
+
     DISPLAY_NAME = "EEGNet (binary head)"
     DESCRIPTION = (
         "Compact CNN for EEG-like 2D inputs; example architecture with a single FC head "
@@ -10,6 +14,7 @@ class EEGNet(nn.Module):
     )
 
     def __init__(self):
+        """Initialize convolutional layers and single-head classifier."""
         super(EEGNet, self).__init__()
         self.T = 120
 
@@ -33,6 +38,7 @@ class EEGNet(nn.Module):
         self.fc1 = nn.Linear(4 * 2 * 7, 1)
 
     def forward(self, x):
+        """Compute prediction for input tensor shaped [B, 1, C, T]."""
         # Layer 1
         x = F.elu(self.conv1(x))
         x = self.batchnorm1(x)

@@ -15,7 +15,7 @@ plot_registry: Dict[str, Dict[str, Any]] = {}
 
 
 def register_plot(name: str, dto_cls: Type[Any]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
-    """Decorator to register a plotting function under a human-readable name.
+    """Register a plotting function under a human-readable name.
 
     The decorated callable must accept `(self, task_dto, params)` and will be
     bound to the concrete `BaseService` subclass instance at runtime.

@@ -1,3 +1,7 @@
+"""Figure utilities for consistent plot headers and layout.
+
+Contains helpers to finalize Matplotlib figures with wrapped titles and captions.
+"""
 from __future__ import annotations
 
 import textwrap

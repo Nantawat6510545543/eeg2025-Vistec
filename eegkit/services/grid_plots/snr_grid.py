@@ -1,3 +1,5 @@
+"""Grid of SNR spectra per condition/label."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -11,6 +13,7 @@ from ...utils.signal import snr_spectrum
 
 @register_grid_plot("SNR Grid", EpochPSDParamsDTO)
 def plot_snr_grid(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
+    """Render SNR spectrum per label in a grid; return figure or None."""
     epochs, available_labels = self.get_epochs(task_dto, params)
     if epochs is None:
         return None

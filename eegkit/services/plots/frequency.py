@@ -1,3 +1,5 @@
+"""Frequency-domain power spectral density plot of epochs."""
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
@@ -12,6 +14,7 @@ plt.ioff()
 
 @register_plot("Frequency Domain", EpochPSDParamsDTO)
 def plot_frequency(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
+    """Plot average PSD with optional dB scaling; return finalized figure."""
     epochs, labels = self.get_epochs(task_dto, params)
     if epochs is None:
         return None

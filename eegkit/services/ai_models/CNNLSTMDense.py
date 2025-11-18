@@ -1,7 +1,11 @@
+"""Temporal model combining Conv1d feature extractor, LSTM and dense classifier."""
+
 import torch.nn as nn
 
 
 class CNNLSTMDense(nn.Module):
+    """Conv1d + LSTM architecture over [B, C, T] input producing class logits."""
+
     DISPLAY_NAME = "CNN + LSTM + Dense"
     DESCRIPTION = (
         "Temporal model: Conv1d feature extractor over channels followed by LSTM and dense classifier; "
@@ -22,6 +26,7 @@ class CNNLSTMDense(nn.Module):
             dropout: float = 0.5,
             pool: str = "mean",  # "mean" or "last" over the LSTM outputs
     ):
+        """Initialize CNN feature extractor, LSTM, and classifier head."""
         super().__init__()
         # --- CNN feature extractor ---
         self.cnn = nn.Sequential(
@@ -58,6 +63,7 @@ class CNNLSTMDense(nn.Module):
         self.pool = pool
 
     def forward(self, x):
+        """Compute logits from input tensor shaped [B, C_in, T]."""
         # x: [B, C_in, T]
         x = self.cnn(x)  # [B, 128, T’]
         x = x.transpose(1, 2)  # [B, T’, 128] for LSTM (batch_first=True)

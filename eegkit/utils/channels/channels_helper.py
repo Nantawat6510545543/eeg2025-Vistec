@@ -21,12 +21,14 @@ class ChannelsHelper:
     """
 
     def __init__(self, params, inst):
+        """Initialize helper with parameter object and MNE instance."""
         self.params = params
         self.inst = inst
         self.picks: List[int] | None = None
         self.pick_names: List[str] | None = None
 
     def pick_channels(self) -> None:
+        """Select channel indices honoring params.channels_list and showbad flag."""
         ch = getattr(self.params, 'channels_list', []) or []
         # Respect showbad: exclude marked bads from candidates unless requested
         if getattr(self.params, 'showbad', False):
@@ -42,6 +44,7 @@ class ChannelsHelper:
         self.pick_names = [self.inst.ch_names[i] for i in picks]
 
     def filter_by_uv(self) -> None:
+        """Optionally filter previously selected channels by µV min/max bounds."""
         # Coerce uv_min/uv_max to floats or None (UI may provide empty strings)
         def _to_float_or_none(x):
             if x is None:

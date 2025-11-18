@@ -1,4 +1,4 @@
-"""Utilities package
+"""Utilities package.
 
 Common helpers for the EEG Workbench, organized into subpackages:
 - plot: figure/grid utilities for visualization services

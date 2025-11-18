@@ -1,3 +1,7 @@
+"""Signal processing helpers for EEG arrays.
+
+Currently includes an SNR spectrum utility operating on PSD arrays.
+"""
 from __future__ import annotations
 
 import numpy as np

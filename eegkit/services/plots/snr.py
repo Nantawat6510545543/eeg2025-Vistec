@@ -1,3 +1,5 @@
+"""Signal-to-noise ratio spectrum plot of epochs."""
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
@@ -14,6 +16,7 @@ plt.ioff()
 
 @register_plot("SNR Spectrum", EpochPSDParamsDTO)
 def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
+    """Plot mean SNR spectrum with shaded variability; return finalized figure."""
     epochs, labels = self.get_epochs(task_dto, params)
     if epochs is None:
         return None

@@ -17,7 +17,10 @@ from ..ui_support.grouping import derive_param_groups
 
 
 class ParamPanel:
+    """Builder for parameter input widgets grouped by owning classes."""
+
     def __init__(self, controller, ui_param_cache: UIParamCache) -> None:
+        """Store controller, cache, and initialize layout registries."""
         self.controller = controller
         self.ui_param_cache = ui_param_cache
         self.param_layouts: Dict[Tuple[str, str], List[widgets.Widget]] = {}
@@ -27,6 +30,7 @@ class ParamPanel:
         self._wired_layouts: set[Tuple[str, str]] = set()
 
     def ensure_layout(self, group: str, key: str, params_cls: Any | None) -> None:
+        """Build and cache the layout/widgets for a (group, key) action if missing."""
         layout_key = (group, key)
         if layout_key in self.param_layouts:
             return
@@ -120,6 +124,7 @@ class ParamPanel:
         self._wired_layouts.add(layout_key)
 
     def collect_params(self, group: str, key: str, spec: dict, param_widgets: Dict[Tuple[str, str], Dict[str, Any]]):
+        """Collect current widget values and construct the params DTO instance."""
         params_cls = spec.get("params")
         if not params_cls:
             return None

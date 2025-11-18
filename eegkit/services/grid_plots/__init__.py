@@ -13,6 +13,8 @@ grid_plot_registry: Dict[str, Dict[str, Any]] = {}
 
 
 def register_grid_plot(name: str, dto_cls: Type[Any]) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Register a grid plotting function under a human-readable name."""
+
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         grid_plot_registry[name] = {"params": dto_cls, "function": func}
         return func

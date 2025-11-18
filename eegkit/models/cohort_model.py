@@ -1,3 +1,5 @@
+"""Cohort-level aggregation model combining multiple per-subject task models."""
+
 import logging
 import time
 
@@ -11,7 +13,10 @@ from .pipeline.task_model import EEGTaskModel
 
 
 class EEGCohortModel(TaskLike):
+    """Aggregate operations (filter, epochs, evoked) across a set of task models."""
+
     def __init__(self, task_dto: SubjectFilterDTO, task_model_list: list[EEGTaskModel], subject_length: int):
+        """Initialize cohort with filter DTO, task models and subject count."""
         self.task_dto = task_dto
         self.task_model_list = task_model_list
         self.subject_length = subject_length
@@ -27,6 +32,7 @@ class EEGCohortModel(TaskLike):
 
     @property
     def events(self):
+        """Concatenate per-task events into a single DataFrame (computed lazily)."""
         if self._events_concat is None:
             t0 = time.perf_counter()
             events_list = []
@@ -40,23 +46,27 @@ class EEGCohortModel(TaskLike):
 
     @property
     def electrodes(self):
+        """Return electrodes table from the first task (cached)."""
         if not self._electrodes and self.task_model_list:
             self._electrodes = getattr(self.task_model_list[0], "electrodes", None)
         return self._electrodes
 
     @property
     def metadata(self):
+        """Return metadata JSON from the first task (cached)."""
         if not self._metadata and self.task_model_list:
             self._metadata = getattr(self.task_model_list[0], "metadata", None)
         return self._metadata
 
     @property
     def channels(self):
+        """Return channels table from the first task (cached)."""
         if not self._channels and self.task_model_list:
             self._channels = self.task_model_list[0].channels
         return self._channels
 
     def get_filtered_raw(self, filter_params: FilterParamsDTO):
+        """Filter and concatenate Raw objects across all tasks (with cache)."""
         if self.filtered_raw is not None:
             return self.filtered_raw
 
@@ -91,6 +101,7 @@ class EEGCohortModel(TaskLike):
         return self.filtered_raw
 
     def get_epochs(self, epoch_params: EpochParamsDTO):
+        """Build and concatenate Epochs across tasks; return (epochs, labels)."""
         if self.epochs is not None:
             return self.epochs, self.labels
 
@@ -126,6 +137,7 @@ class EEGCohortModel(TaskLike):
         return self.epochs, self.labels
 
     def get_evoked(self, epoch_params: EpochParamsDTO):
+        """Compute per-subject averages then grand-average across subjects."""
         if self.evoked is not None:
             return self.evoked
 

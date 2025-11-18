@@ -1,3 +1,5 @@
+"""High-level orchestration layer bridging models and services for UI actions."""
+
 from ..models.dtos import (
     FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
@@ -8,7 +10,10 @@ from ..services.visualization import EEGVisualization
 
 
 class EEGController:
+    """Facade providing filtered data, epochs, evoked responses and service specs."""
+
     def __init__(self, subject_model):
+        """Initialize controller with subject model and bind service instances."""
         self.subject_model = subject_model
         self.visualizer = EEGVisualization(
             get_raw_func=self.get_filtered_raw,
@@ -53,27 +58,34 @@ class EEGController:
         }
 
     def get_filtered_raw(self, task_dto: BaseTaskDTO, filter_params: FilterParamsDTO):
+        """Return filtered Raw for given task using provided filter params (with caching)."""
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_filtered_raw(filter_params)
 
     def get_epochs(self, task_dto: BaseTaskDTO, epoch_params: EpochParamsDTO):
+        """Return (epochs, labels) tuple built from filtered raw for task."""
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_epochs(epoch_params)
 
     def get_evoked(self, task_dto: BaseTaskDTO, epoch_params: EpochParamsDTO):
+        """Return evoked response (grand-average if cohort) for task."""
         task_model = self.subject_model.get_task(task_dto)
         return task_model.get_evoked(epoch_params)
 
     def list_subjects(self):
+        """List all available subject IDs."""
         return self.subject_model.list_subjects()
 
     def list_all_tasks(self):
+        """List all (subject, task, run) tuples across dataset."""
         return self.subject_model.list_all_tasks()
 
     def list_tasks(self, subject):
+        """List (task, run) entries for a single subject."""
         return self.subject_model.list_tasks(subject)
 
     def get_specs(self):
+        """Return mode -> spec dict describing available actions for UI."""
         return {k: v["spec"] for k, v in self._modes.items()}
 
     def get_modes_info(self):
@@ -81,6 +93,7 @@ class EEGController:
         return {k: v.get("description", "") for k, v in self._modes.items()}
 
     def prepare(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
+        """Return parameter enrichment (dropdown choices etc.) for an action."""
         if group == "Plot":
             return self.visualizer.prepare_params(task_dto, params_dto)
         if group == "Grid Plot":
@@ -90,6 +103,7 @@ class EEGController:
         return {}
 
     def show(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
+        """Execute a visualization/data/AI action and return its result."""
         # Per-subject expansion mode
         if isinstance(task_dto, SubjectFilterDTO) and getattr(task_dto, 'per_subject', False):
             dtos = self.subject_model.get_filter_subjects_dto(task_dto)

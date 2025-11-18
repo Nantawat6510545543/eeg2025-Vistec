@@ -1,3 +1,5 @@
+"""Grid of PSD curves per condition/label."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -10,6 +12,7 @@ from ...utils.plot import render_label_grid
 
 @register_grid_plot("PSD Grid", EpochPSDParamsDTO)
 def plot_psd_grid(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
+    """Render PSD per label in a grid; return figure or None."""
     epochs, available_labels = self.get_epochs(task_dto, params)
     if epochs is None:
         return None
