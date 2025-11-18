@@ -106,6 +106,7 @@ class ChannelsHelper:
         self.picks = final_picks
         self.pick_names = [self.inst.ch_names[i] for i in final_picks]
         
+
 def prepare_channels(inst, params):
     """End-to-end channel preparation as a simple module function.
 

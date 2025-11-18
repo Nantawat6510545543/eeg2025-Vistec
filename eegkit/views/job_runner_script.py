@@ -22,7 +22,7 @@ from eegkit.models.dtos import (
     EvokedTopoParamsDTO,
     EvokedJointParamsDTO,
 )
-from eegkit.utils.logging_utils import configure_logging
+from eegkit.utils.system import configure_logging
 
 matplotlib.use('Agg')
 

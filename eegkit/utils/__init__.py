@@ -1,29 +1,27 @@
-from .figure_utils import finalize_figure
-from .plot_utils import (
-    split_tokens,
-    compute_axes_values,
-    map_cells_to_labels,
-    reshape_axes_array,
-    draw_evoked_response,
-    render_label_grid,
-)
-from .channels_helper import ChannelsHelper, prepare_channels
-from .signal_utils import snr_spectrum
-from .cleaning_utils import EEGCleaner
-from .logging_utils import silence_console_logs, configure_logging
+"""Utilities package
+
+API: import from categorized subpackages for clarity.
+
+- utils.plot: plotting/figure helpers
+- utils.signal: signal processing and cleaning
+- utils.channels: channel parsing/selection
+- utils.system: logging and system helpers
+
+Examples:
+    from eegkit.utils.plot import render_label_grid, finalize_figure
+    from eegkit.utils.signal import snr_spectrum, EEGCleaner
+    from eegkit.utils.system import configure_logging
+"""
+
+# Expose categorized submodules only
+from . import plot as plot  # noqa: F401
+from . import signal as signal  # noqa: F401
+from . import channels as channels  # noqa: F401
+from . import system as system  # noqa: F401
 
 __all__ = [
-    "finalize_figure",
-    "split_tokens",
-    "compute_axes_values",
-    "map_cells_to_labels",
-    "reshape_axes_array",
-    "draw_evoked_response",
-    "render_label_grid",
-    "ChannelsHelper",
-    "prepare_channels",
-    "snr_spectrum",
-    "EEGCleaner",
-    "silence_console_logs",
-    "configure_logging",
+    "plot",
+    "signal",
+    "channels",
+    "system",
 ]
