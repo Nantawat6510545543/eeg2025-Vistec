@@ -8,8 +8,9 @@ This module provides ChannelsHelper used by visualization utilities to:
 from __future__ import annotations
 
 from typing import List
-import numpy as np
+
 import mne
+import numpy as np
 
 
 class ChannelsHelper:
@@ -105,7 +106,7 @@ class ChannelsHelper:
         final_picks = kept if kept else picks
         self.picks = final_picks
         self.pick_names = [self.inst.ch_names[i] for i in final_picks]
-        
+
 
 def prepare_channels(inst, params):
     """End-to-end channel preparation as a simple module function.

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
-from ...utils.plot import render_label_grid
-from ...utils.channels import prepare_channels
-from ...utils.signal import snr_spectrum
 from . import register_grid_plot
+from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
+from ...utils.channels import prepare_channels
+from ...utils.plot import render_label_grid
+from ...utils.signal import snr_spectrum
 
 
 @register_grid_plot("SNR Grid", EpochPSDParamsDTO)
@@ -17,7 +17,8 @@ def plot_snr_grid(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
 
     sfreq = float(epochs.info.get("sfreq", 0.0))
     nfft = int(
-        max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (params.tmax is not None and params.tmin is not None) else 1.0))
+        max(8, sfreq * max(0.5, (params.tmax - params.tmin) if (
+                params.tmax is not None and params.tmin is not None) else 1.0))
     )
 
     scale_mode = getattr(params, 'scale_mode', 'per-plot')

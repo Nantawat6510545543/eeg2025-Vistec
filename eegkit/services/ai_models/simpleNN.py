@@ -7,6 +7,7 @@ class SimpleNN(nn.Module):
         "Minimal fully-connected network; expects flattened features; "
         "good for smoke tests and tabular-like baselines."
     )
+
     def __init__(self, input_dim, num_classes):
         super().__init__()
         self.layers = nn.Sequential(

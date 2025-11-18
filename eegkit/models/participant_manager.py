@@ -1,12 +1,13 @@
-from pathlib import Path
-import re
-from collections import defaultdict
-from typing import List, Optional, Dict, Set
-import pandas as pd
-import numpy as np
 import logging
+import re
 import time
+from collections import defaultdict
 from dataclasses import fields as dc_fields
+from pathlib import Path
+from typing import List, Optional, Dict, Set
+
+import numpy as np
+import pandas as pd
 from tqdm.auto import tqdm
 
 from .dtos import SubjectFilterDTO

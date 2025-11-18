@@ -1,8 +1,10 @@
-from pathlib import Path
 import json
-import pandas as pd
-import mne
 import warnings
+from pathlib import Path
+
+import mne
+import pandas as pd
+
 from ..dtos import TaskDTO
 
 

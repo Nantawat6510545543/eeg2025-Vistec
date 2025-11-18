@@ -17,13 +17,11 @@ EVENT_ID = {
     for i, (b, f, s) in enumerate(itertools.product(BACKGROUND, FOREGROUND, STIM))
 }
 
-
 # Resting-state events
 RESTING_STATE_EVENT_ID = {
     'open': 1,
     'close': 2,
 }
-
 
 # Contrast Change Detection (CCD) events
 CCD_EVENT_ID = {

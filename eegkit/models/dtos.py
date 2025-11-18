@@ -1,6 +1,8 @@
+from __future__ import annotations
+
+import re
 from dataclasses import dataclass, field, fields, asdict
 from typing import Optional, List, Tuple, ClassVar, Dict, Set, Union
-import re
 
 NumberRange = Tuple[Optional[float], Optional[float]]
 
@@ -360,7 +362,7 @@ class AITrainParamsDTO(AIBaseDTO):
     epochs_n: int = 1
     lr: float = 0.001
     device: List[str] = field(default_factory=lambda: ["auto", "cpu", "cuda"])
-    target: List[str] = field(default_factory=lambda: ["stimulus"]) 
+    target: List[str] = field(default_factory=lambda: ["stimulus"])
 
 
 @dataclass

@@ -10,21 +10,22 @@ Notes:
 - If exposed in the form, the per-subject batch option runs the chosen action
     separately for each subject matched by the filter (subject limit respected).
 """
-import ipywidgets as widgets
-from IPython.display import display, clear_output
-from .job_runner import JobRunner
 from pathlib import Path
 
-from ..models.dtos import TaskDTO, SubjectFilterDTO
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+
+from .job_runner import JobRunner
+from .ui.actions_bar import ActionsBar
+from .ui.execution_panel import ExecutionPanel
+from .ui.param_panel import ParamPanel
+from .ui.progress_area import ProgressArea
+from .ui.schema_panel import SchemaPanel
 from .ui.widgets import (
     is_subject_schema,
 )
 from .ui_support.cache import UIParamCache
-from .ui.schema_panel import SchemaPanel
-from .ui.param_panel import ParamPanel
-from .ui.actions_bar import ActionsBar
-from .ui.execution_panel import ExecutionPanel
-from .ui.progress_area import ProgressArea
+from ..models.dtos import TaskDTO, SubjectFilterDTO
 
 
 class EEGUI:
@@ -60,7 +61,7 @@ class EEGUI:
             self.schemas,
             on_subject_change=self._on_schema_subject_changed,
         )
-        
+
         self.ui_param_cache = UIParamCache()
         self.param_panel = ParamPanel(self.controller, self.ui_param_cache)
         self._build_all_param_layouts()
@@ -245,4 +246,3 @@ class EEGUI:
     def show(self):
         """Display the assembled UI in the current notebook output cell."""
         display(self.ui)
-

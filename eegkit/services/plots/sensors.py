@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 
-from ...models.dtos import BaseTaskDTO, FilterParamsDTO
 from ..plots import register_plot
+from ...models.dtos import BaseTaskDTO, FilterParamsDTO
 
 plt.ioff()
 

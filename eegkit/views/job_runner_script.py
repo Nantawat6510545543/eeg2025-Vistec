@@ -1,14 +1,14 @@
 import json
-import matplotlib
-import sys
-import resource
-from pathlib import Path
-import pandas as pd
-import matplotlib.pyplot as plt
 import logging
+import sys
+from pathlib import Path
+
+import matplotlib
+import matplotlib.pyplot as plt
+import pandas as pd
+import resource
 
 from eegkit.controller.eeg_controller import EEGController
-from eegkit.models.subject_model import EEGSubjectModel
 from eegkit.models.dtos import (
     TaskDTO,
     SubjectFilterDTO,
@@ -22,6 +22,7 @@ from eegkit.models.dtos import (
     EvokedTopoParamsDTO,
     EvokedJointParamsDTO,
 )
+from eegkit.models.subject_model import EEGSubjectModel
 from eegkit.utils.system import configure_logging
 
 matplotlib.use('Agg')

@@ -22,13 +22,13 @@ class BaseService(ABC):
     description: str = ""
 
     def __init__(
-        self,
-        *,
-        registry: Dict[str, Dict[str, Any]],
-        get_raw_func=None,
-        get_epochs_func=None,
-        get_evoked_func=None,
-        get_task_func=None,
+            self,
+            *,
+            registry: Dict[str, Dict[str, Any]],
+            get_raw_func=None,
+            get_epochs_func=None,
+            get_evoked_func=None,
+            get_task_func=None,
     ):
         # Wire controller accessors (subclasses may use a subset)
         self.get_raw = get_raw_func

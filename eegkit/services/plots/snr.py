@@ -3,11 +3,11 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
-from ...utils.plot import finalize_figure
-from ...utils.channels import prepare_channels
-from ...utils.signal import snr_spectrum
 from ..plots import register_plot
+from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
+from ...utils.channels import prepare_channels
+from ...utils.plot import finalize_figure
+from ...utils.signal import snr_spectrum
 
 plt.ioff()
 

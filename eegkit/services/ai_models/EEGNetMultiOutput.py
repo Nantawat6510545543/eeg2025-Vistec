@@ -9,6 +9,7 @@ class EEGNetMultiOutput(nn.Module):
         "EEGNet variant with three classification heads (background/foreground/stimulus); "
         "useful for multi-task setups."
     )
+
     def __init__(self, n_classes=(2, 4, 3)):
         super().__init__()
         self.n_classes = n_classes

@@ -1,10 +1,10 @@
 from ..models.dtos import (
     FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
-from ..services.visualization import EEGVisualization
-from ..services.data_service import EEGDataService
 from ..services.ai_service import EEGAIService
+from ..services.data_service import EEGDataService
 from ..services.grid_visualization import EEGGridVisualization
+from ..services.visualization import EEGVisualization
 
 
 class EEGController:

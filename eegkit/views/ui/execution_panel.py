@@ -1,11 +1,12 @@
 """Execution panel: run buttons and output area for results."""
 from __future__ import annotations
 
+import json
+
 import ipywidgets as widgets
-from IPython.display import display
 import matplotlib.pyplot as plt
 import pandas as pd
-import json
+from IPython.display import display
 
 
 class ExecutionPanel:

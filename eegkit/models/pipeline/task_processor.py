@@ -1,18 +1,17 @@
-import numpy as np
-import mne
-from mne import Epochs, events_from_annotations
-from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
-from ...cache import CacheKey
 import logging
-from ...utils.signal import EEGCleaner
+
+import mne
+import numpy as np
+from mne import Epochs, events_from_annotations
+
 from .constants import (
-    BACKGROUND,
-    FOREGROUND,
-    STIM,
     EVENT_ID,
     RESTING_STATE_EVENT_ID,
     CCD_EVENT_ID,
 )
+from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
+from ...cache import CacheKey
+from ...utils.signal import EEGCleaner
 
 mne.set_log_level('WARNING')
 
@@ -219,9 +218,10 @@ class EEGTaskProcessor:
         df = self.get_events()
         if df is None:
             return None, None
-        
+
         starts = df[df.get('value') == 'resting_start'].get('onset') if 'value' in df and 'onset' in df else None
-        ends = df[df.get('value').isin(['break cnt', 'resting_end'])]['onset'] if 'value' in df and 'onset' in df else None
+        ends = df[df.get('value').isin(['break cnt', 'resting_end'])][
+            'onset'] if 'value' in df and 'onset' in df else None
         if starts is not None and len(starts) > 0 and ends is not None and len(ends) > 0:
             t_start = float(starts.iloc[0])
             t_end = float(ends.iloc[-1])

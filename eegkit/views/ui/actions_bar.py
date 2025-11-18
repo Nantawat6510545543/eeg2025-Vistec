@@ -1,8 +1,9 @@
 """Actions bar for EEG GUI: mode, description, action, and view toggle."""
 from __future__ import annotations
 
-import ipywidgets as widgets
 from typing import Dict
+
+import ipywidgets as widgets
 
 
 class ActionsBar:

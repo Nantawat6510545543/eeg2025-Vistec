@@ -24,10 +24,10 @@ class SchemaPanel:
     """
 
     def __init__(
-        self,
-        controller,
-        schemas: List[Type],
-        on_subject_change: Callable[[], None] | None = None,
+            self,
+            controller,
+            schemas: List[Type],
+            on_subject_change: Callable[[], None] | None = None,
     ) -> None:
         self.controller = controller
         self.schemas = list(schemas)
@@ -126,6 +126,7 @@ class SchemaPanel:
                 label = widgets.Label(value=f"{name}:", layout=widgets.Layout(width='200px'))
                 if subject_schema and name == "subject":
                     w = widgets.Dropdown(options=all_subjects, layout=widgets.Layout(width='220px'))
+
                     # Wire subject changes: refresh tasks and bubble up
                     def _handler(change, _schema=schema_dto):
                         if change.get('name') != 'value':
@@ -133,6 +134,7 @@ class SchemaPanel:
                         self.refresh_task_options(_schema, init=False)
                         if callable(self.on_subject_change):
                             self.on_subject_change()
+
                     w.observe(_handler, names="value")
                 elif subject_schema and name == "task":
                     w = widgets.Dropdown(options=[], layout=widgets.Layout(width='220px'))

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ...models.dtos import BaseTaskDTO, FilterParamsDTO
 from . import register_data
+from ...models.dtos import BaseTaskDTO, FilterParamsDTO
 
 
 @register_data("Annotations", FilterParamsDTO)

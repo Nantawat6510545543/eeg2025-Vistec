@@ -9,10 +9,10 @@ Provides the main building blocks of the EEG Workbench:
 """
 
 from . import controller as controller  # noqa: F401
-from . import views as views  # noqa: F401
 from . import models as models  # noqa: F401
 from . import services as services  # noqa: F401
 from . import utils as utils  # noqa: F401
+from . import views as views  # noqa: F401
 
 __all__ = [
     'controller',

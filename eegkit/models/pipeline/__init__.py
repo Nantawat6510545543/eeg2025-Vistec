@@ -7,10 +7,10 @@ Task-level EEG processing components:
 - constants: shared arrays/mappings used by preprocessors
 """
 
-from . import task_model as task_model  # noqa: F401
-from . import task_loader as task_loader  # noqa: F401
-from . import task_processor as task_processor  # noqa: F401
 from . import constants as constants  # noqa: F401
+from . import task_loader as task_loader  # noqa: F401
+from . import task_model as task_model  # noqa: F401
+from . import task_processor as task_processor  # noqa: F401
 
 __all__ = [
     'task_model',

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import textwrap
-
-
 from typing import Optional
+
+import matplotlib.pyplot as plt
 
 
 def finalize_figure(fig: plt.Figure, task_dto, stimulus=None, caption_line: Optional[str] = None,

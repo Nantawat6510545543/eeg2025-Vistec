@@ -9,11 +9,13 @@
 """
 from __future__ import annotations
 
-import numpy as np
 from typing import Tuple, Callable, Optional, Dict
+
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.axes import Axes
 from tqdm.auto import tqdm
+
 from .figure_utils import finalize_figure
 
 
@@ -21,7 +23,8 @@ def split_tokens(label: str) -> list[str]:
     return [token for token in (label or '').split('_') if token]
 
 
-def compute_axes_values(tokens_by_label: dict[str, list[str]], mode: int) -> tuple[list[Optional[str]], list[Optional[str]], list[Optional[str]]]:
+def compute_axes_values(tokens_by_label: dict[str, list[str]], mode: int) -> tuple[
+    list[Optional[str]], list[Optional[str]], list[Optional[str]]]:
     axes_values = []
     for token_index in range(mode):
         values = sorted({tokens[token_index] for tokens in tokens_by_label.values() if len(tokens) > token_index})
@@ -31,7 +34,8 @@ def compute_axes_values(tokens_by_label: dict[str, list[str]], mode: int) -> tup
     return tuple(axes_values)
 
 
-def map_cells_to_labels(tokens_by_label: dict[str, list[str]], mode: int) -> Dict[Tuple[Optional[str], Optional[str], Optional[str]], str]:
+def map_cells_to_labels(tokens_by_label: dict[str, list[str]], mode: int) -> Dict[
+    Tuple[Optional[str], Optional[str], Optional[str]], str]:
     mapping: Dict[Tuple[Optional[str], Optional[str], Optional[str]], str] = {}
     for label, tokens in tokens_by_label.items():
         if len(tokens) >= mode:

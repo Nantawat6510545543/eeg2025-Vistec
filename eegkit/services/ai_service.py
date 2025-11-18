@@ -1,11 +1,10 @@
 from __future__ import annotations
-from typing import Dict, Any, List
 
 from importlib import import_module
+from typing import Dict, Any, List
 
 import numpy as np
 import pandas as pd
-
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
@@ -29,6 +28,7 @@ def register_ai(name: str, dto_cls):
         return func
 
     return _decorator
+
 
 class EEGAIService(BaseService):
     description = "AI training and inference on epochs (registry-based)."
@@ -68,7 +68,7 @@ class EEGAIService(BaseService):
 
     def _available_models(self) -> List[str]:
         return list(self._model_metadata().keys())
-        
+
     def _build_epoch_dataset(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
         """Return (X, y, meta) with epochs transformed into numpy arrays.
 
@@ -135,7 +135,6 @@ class EEGAIService(BaseService):
         except Exception as e:
             return None, {"reason": f"model init error: {e}"}
 
-
     def prepare_params(self, task_dto, params_dto):
         """Extend BaseService.prepare_params and inject AI model choices.
 
@@ -185,11 +184,13 @@ class EEGAIService(BaseService):
             return {"status": "unavailable", "reason": meta.get("reason")}
         y_idx, classes = self._encode_labels(y_raw)
 
-        device = self._select_device((params.device or ["auto"])[0] if isinstance(params.device, list) else params.device)
+        device = self._select_device(
+            (params.device or ["auto"])[0] if isinstance(params.device, list) else params.device)
         X_t = torch.from_numpy(X)
         y_t = torch.from_numpy(y_idx)
         n_e, n_c, n_t = X.shape
-        model, info = self._model_factory((params.model or [None])[0] if isinstance(params.model, list) else params.model, n_c, n_t, len(classes))
+        model, info = self._model_factory(
+            (params.model or [None])[0] if isinstance(params.model, list) else params.model, n_c, n_t, len(classes))
         if model is None:
             return {"status": "unsupported", **info}
         model = model.to(device)

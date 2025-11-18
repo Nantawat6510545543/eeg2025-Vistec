@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from .pipeline.task_model import EEGTaskModel
-from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
-from .cohort_model import EEGCohortModel
-from .participant_manager import ParticipantManager
-from .interfaces import TaskLike
 import logging
 import time
+
+from .cohort_model import EEGCohortModel
+from .dtos import BaseTaskDTO, TaskDTO, SubjectFilterDTO
+from .interfaces import TaskLike
+from .participant_manager import ParticipantManager
+from .pipeline.task_model import EEGTaskModel
 
 
 class EEGSubjectModel:

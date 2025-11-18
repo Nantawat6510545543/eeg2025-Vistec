@@ -1,20 +1,21 @@
+from typing import Optional, Type
+
 from .task_loader import EEGTaskLoader
 from .task_processor import EEGTaskProcessor
 from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO
-from ...cache import LocalCache, PIPELINE_VERSION
 from ..interfaces import TaskLike
-from typing import Optional, Type
+from ...cache import LocalCache, PIPELINE_VERSION
 
 
 class EEGTaskModel(TaskLike):
     def __init__(
-        self,
-        task_dto: TaskDTO,
-        data_dir,
-        *,
-        cache: Optional[LocalCache] = None,
-        loader_class: Type[EEGTaskLoader] = EEGTaskLoader,
-        processor_class: Type[EEGTaskProcessor] = EEGTaskProcessor,
+            self,
+            task_dto: TaskDTO,
+            data_dir,
+            *,
+            cache: Optional[LocalCache] = None,
+            loader_class: Type[EEGTaskLoader] = EEGTaskLoader,
+            processor_class: Type[EEGTaskProcessor] = EEGTaskProcessor,
     ):
         self.task_dto = task_dto
         self._data_dir = data_dir

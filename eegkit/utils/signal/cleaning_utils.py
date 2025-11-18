@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import logging
 import time
-import numpy as np
-import mne
+
 import asrpy
+import mne
+import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view as swv
 
 log = logging.getLogger(__name__)

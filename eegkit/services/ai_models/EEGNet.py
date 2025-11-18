@@ -8,6 +8,7 @@ class EEGNet(nn.Module):
         "Compact CNN for EEG-like 2D inputs; example architecture with a single FC head "
         "suited for binary/continuous outputs in demos."
     )
+
     def __init__(self):
         super(EEGNet, self).__init__()
         self.T = 120

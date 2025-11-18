@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Tuple
 import ipywidgets as widgets
 
 from ..ui.widgets import make_widget, ordered_fields, read_widget
-from ..ui_support.grouping import derive_param_groups
 from ..ui_support.cache import UIParamCache
+from ..ui_support.grouping import derive_param_groups
 
 
 class ParamPanel:
@@ -108,6 +108,7 @@ class ParamPanel:
                         return
                     val = getattr(_w, 'value', None)
                     self.ui_param_cache.set_value(_owner, _name, val)
+
                 return _on_change
 
             if isinstance(w, dict):

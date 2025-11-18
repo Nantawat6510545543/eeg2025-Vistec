@@ -7,10 +7,10 @@ Common helpers for the EEG Workbench, organized into subpackages:
 - system: logging and small system helpers
 """
 
+from . import channels as channels  # noqa: F401
 # Expose categorized submodules only
 from . import plot as plot  # noqa: F401
 from . import signal as signal  # noqa: F401
-from . import channels as channels  # noqa: F401
 from . import system as system  # noqa: F401
 
 __all__ = [

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from ...models.dtos import BaseTaskDTO, FilterParamsDTO
 from . import register_data
+from ...models.dtos import BaseTaskDTO, FilterParamsDTO
 
 
 @register_data("Metadata", None)
