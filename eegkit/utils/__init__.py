@@ -1,5 +1,5 @@
 from .figure_utils import finalize_figure
-from .plot_utills import (
+from .plot_utils import (
     split_tokens,
     compute_axes_values,
     map_cells_to_labels,
