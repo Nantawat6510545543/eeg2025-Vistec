@@ -53,7 +53,7 @@ class ParamPanel:
                     if not hasattr(params_obj, name):
                         continue
                     val = getattr(params_obj, name)
-                    w = make_widget(val, field=next(f for f in fields(params_obj) if f.name == name))
+                    w = make_widget(val, field=next(f for f in fields(params_obj) if f.name == name), owner_cls=owner)
                     widgets_dict[name] = w
                     row = widgets.HBox([
                         widgets.Label(value=f"{name}:", layout=widgets.Layout(width='200px')),
@@ -129,6 +129,6 @@ class ParamPanel:
         values: Dict[str, Any] = {}
         for f in fields(defaults):
             values[f.name] = read_widget(
-                widgets_map.get(f.name), getattr(defaults, f.name), wrap_list=False, field=f
+                widgets_map.get(f.name), getattr(defaults, f.name), wrap_list=False, field=f, owner_cls=type(defaults)
             )
         return params_cls(**values)

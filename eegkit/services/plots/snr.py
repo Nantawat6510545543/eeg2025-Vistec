@@ -67,7 +67,6 @@ def plot_snr(self, task_dto: BaseTaskDTO, params: EpochPSDParamsDTO):
         title="SNR spectrum",
         xlabel="Frequency [Hz]",
         ylabel="SNR",
-        ylim=[-2, 30],
         xlim=[params.fmin, params.fmax],
     )
     return finalize_figure(fig, task_dto, params.stimulus, caption_line=str(params), plot_name="SNR Spectrum")

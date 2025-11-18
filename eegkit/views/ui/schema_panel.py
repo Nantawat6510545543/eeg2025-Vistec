@@ -66,7 +66,7 @@ class SchemaPanel:
                 continue
             default_val = field_default(f)
             wrap_list = (not subject_schema and isinstance(default_val, list))
-            val = read_widget(wmap[name], default_val, wrap_list=wrap_list, field=f)
+            val = read_widget(wmap[name], default_val, wrap_list=wrap_list, field=f, owner_cls=schema_dto)
             if subject_schema and name == "task":
                 if isinstance(val, (tuple, list)) and len(val) == 2:
                     kwargs["task"], kwargs["run"] = val[0], val[1]
@@ -149,7 +149,7 @@ class SchemaPanel:
                     w = make_range_widget(default_val)
                 else:
                     default_val = field_default(f)
-                    w = make_widget(default_val, field=f)
+                    w = make_widget(default_val, field=f, owner_cls=schema_dto)
 
                 wmap[name] = w
                 if isinstance(w, dict):

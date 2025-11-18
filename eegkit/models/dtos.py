@@ -270,8 +270,8 @@ class FilterParamsDTO(ReprMixin):
 class EpochParamsDTO(FilterParamsDTO):
     """Epoch extraction parameters extending filtering/cleaning options."""
 
-    tmin: float = -0.2
-    tmax: float = 0.8
+    tmin: float = -2.0
+    tmax: float = 0.0
     stimulus: List[Optional[str]] = field(default_factory=lambda: [None])
     only_labels: ClassVar[bool] = False
 
