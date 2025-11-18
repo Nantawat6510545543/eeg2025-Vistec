@@ -47,11 +47,7 @@ class ParamPanel:
                 field_names = g["field_names"]
                 rows_for_owner: List[widgets.Widget] = []
                 pair_buf: List[widgets.Widget] = []
-                # Order fields within this group using ordered_fields(owner)
-                try:
-                    ordered_owner_fields = [f.name for f in ordered_fields(owner)]
-                except Exception:
-                    ordered_owner_fields = field_names
+                ordered_owner_fields = [f.name for f in ordered_fields(owner)]
                 ordered_names = [n for n in ordered_owner_fields if n in field_names] or field_names
                 for name in ordered_names:
                     if not hasattr(params_obj, name):

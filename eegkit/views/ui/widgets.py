@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import fields, MISSING
-from typing import get_origin, get_args
+from typing import get_origin, get_args, get_type_hints, Annotated
 
 import ipywidgets as widgets
 
@@ -148,13 +148,31 @@ def ordered_fields(dto_cls):
     """
 
     def priority(f):
-        t = f.type
-        origin = get_origin(t)
+        # Resolve postponed annotations to real types when possible
+        try:
+            hints = get_type_hints(dto_cls, include_extras=True)
+        except Exception:
+            hints = {}
+        t = hints.get(f.name, f.type)
+
+        # Unwrap Annotated[...] to its underlying type
+        t_origin = get_origin(t)
+        if t_origin is Annotated:
+            t = get_args(t)[0] if get_args(t) else t
+            t_origin = get_origin(t)
+
+        origin = t_origin
         args = get_args(t) if origin is not None else ()
         base = origin or t
 
         def _is_optional_of(py_t):
-            return (origin is None and base is py_t) or (origin is not None and py_t in args)
+            # Optional[T] is Union[T, NoneType] in modern typing; also allow bare T
+            if origin is None:
+                return base is py_t
+            try:
+                return any((a is py_t) for a in args)
+            except Exception:
+                return False
 
         # 1. Numeric first (including Optional[int/float])
         if _is_optional_of(int) or _is_optional_of(float):
