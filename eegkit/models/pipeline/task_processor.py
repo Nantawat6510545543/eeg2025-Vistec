@@ -5,27 +5,18 @@ from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ...cache import CacheKey
 import logging
 from ...utils import EEGCleaner
-import itertools
+from .constants import (
+    BACKGROUND,
+    FOREGROUND,
+    STIM,
+    EVENT_ID,
+    RESTING_STATE_EVENT_ID,
+    CCD_EVENT_ID,
+)
 
 mne.set_log_level('WARNING')
 
-# fixed mapping
-BACKGROUND = [0, 1]
-FOREGROUND = [0.0, 0.3, 0.6, 1.0]
-STIM = [1, 2, 3]
-EVENT_ID = {
-    f"bg{b}_fg{f:.1f}_stim{s}": i + 1
-    for i, (b, f, s) in enumerate(itertools.product(BACKGROUND, FOREGROUND, STIM))
-}
-
-RESTING_STATE_EVENT_ID = {
-    'open': 1,
-    'close': 2,
-}
-
-CCD_EVENT_ID = {
-    'trial_start': 1,
-}
+# Constants now sourced from .constants
 
 _PREPROCESSORS = {}
 

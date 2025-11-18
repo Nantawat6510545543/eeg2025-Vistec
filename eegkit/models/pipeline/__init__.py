@@ -2,6 +2,8 @@ from .task_loader import EEGTaskLoader
 from .task_processor import (
     EEGTaskProcessor,
     register_preprocessor,
+)
+from .constants import (
     BACKGROUND,
     FOREGROUND,
     STIM,
