@@ -4,7 +4,7 @@ from mne import Epochs, events_from_annotations
 from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ...cache import CacheKey
 import logging
-from ...utils import EEGCleaner
+from ...utils.signal import EEGCleaner
 from .constants import (
     BACKGROUND,
     FOREGROUND,

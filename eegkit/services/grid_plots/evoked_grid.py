@@ -4,7 +4,8 @@ import copy
 import numpy as np
 
 from ...models import BaseTaskDTO, EvokedParamsDTO
-from ...utils import render_label_grid, draw_evoked_response, prepare_channels
+from ...utils.plot import render_label_grid, draw_evoked_response
+from ...utils.channels import prepare_channels
 from . import register_grid_plot
 
 

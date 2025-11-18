@@ -3,7 +3,8 @@ from __future__ import annotations
 import matplotlib.pyplot as plt
 
 from ...models.dtos import BaseTaskDTO, EpochParamsDTO
-from ...utils import finalize_figure, prepare_channels
+from ...utils.plot import finalize_figure
+from ...utils.channels import prepare_channels
 from ..plots import register_plot
 
 plt.ioff()

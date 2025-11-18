@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
-from ...utils import finalize_figure, prepare_channels, snr_spectrum
+from ...utils.plot import finalize_figure
+from ...utils.channels import prepare_channels
+from ...utils.signal import snr_spectrum
 from ..plots import register_plot
 
 plt.ioff()
