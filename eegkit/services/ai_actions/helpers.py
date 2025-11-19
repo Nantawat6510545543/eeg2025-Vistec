@@ -72,31 +72,6 @@ def encode_labels(y: np.ndarray) -> Tuple[np.ndarray, List[str]]:
     return y_idx, classes
 
 
-def model_factory(name: Optional[str], n_channels: int, n_times: int, n_classes: int):
-    """Instantiate supported models by internal name and return (model, info)."""
-    if not name:
-        return None, {"reason": "model name not provided"}
-    try:
-        mod = import_module('eegkit.services.ai_models')
-    except Exception as exc:  # pragma: no cover - defensive guard
-        logger.warning("Unable to import ai models package: %s", exc)
-        return None, {"reason": "ai_models package not importable"}
-    cls = getattr(mod, name, None)
-    if cls is None:
-        return None, {"reason": f"unknown model '{name}'"}
-    try:
-        if name == "SimpleNN":
-            model = cls(input_dim=int(n_channels * n_times), num_classes=int(n_classes))
-            return model, {"input_adapter": "flatten"}
-        if name == "CNNLSTMDense":
-            model = cls(in_channels=int(n_channels), num_classes=int(n_classes))
-            return model, {"input_adapter": "channels_times"}
-        return None, {"reason": f"model '{name}' not yet supported by trainer"}
-    except Exception as e:  # pragma: no cover - defensive guard
-        logger.exception("Model init error for %s: %s", name, e)
-        return None, {"reason": f"model init error: {e}"}
-
-
 def make_dataloader(X: np.ndarray, y_idx: np.ndarray, batch_size: int):
     """Build a PyTorch DataLoader from numpy arrays."""
     if torch is None:  # pragma: no cover

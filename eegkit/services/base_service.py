@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from abc import ABC
+import logging
 from typing import Dict, Any
 
 # Models are needed for dynamic param preparation
 from ..models.dtos import EpochParamsDTO
+
+
+logger = logging.getLogger(__name__)
 
 
 class BaseService(ABC):
@@ -34,6 +38,7 @@ class BaseService(ABC):
     ):
         """Initialize service wiring controller accessors and binding registry spec."""
         # Wire controller accessors (subclasses may use a subset)
+        self._log = logging.getLogger(__name__)
         self.get_raw = get_raw_func
         self.get_epochs = get_epochs_func
         self.get_evoked = get_evoked_func

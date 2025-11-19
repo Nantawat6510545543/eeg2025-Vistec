@@ -30,9 +30,9 @@ from .filter import (
     TableInfoDTO,
 )
 from .ai import (
-    AIBaseDTO,
     AITrainParamsDTO,
     AIPredictParamsDTO,
+    EEGNetMultiRegTrainParamsDTO,
 )
 
 __all__ = [
@@ -54,7 +54,7 @@ __all__ = [
     "TimeDomainParamsDTO",
     "TableInfoDTO",
     # ai
-    "AIBaseDTO",
     "AITrainParamsDTO",
     "AIPredictParamsDTO",
+    "EEGNetMultiRegTrainParamsDTO",
 ]

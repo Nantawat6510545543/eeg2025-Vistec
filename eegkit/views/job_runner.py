@@ -5,6 +5,8 @@ import re
 import shutil
 import subprocess
 import uuid
+import sys
+import shlex
 from dataclasses import fields
 from pathlib import Path
 
@@ -19,6 +21,8 @@ class JobRunner:
         self.jobs_root.mkdir(exist_ok=True, parents=True)
         self.runner_module = runner_module
         self._runs_log_path = self.jobs_root / "runs.log"
+        # Use the same Python executable as the current process to avoid env issues in tmux
+        self.python_exec = sys.executable or "python"
 
     def schedule(self, group: str, key: str, dto, params_dto):
         """Create a job directory, persist its spec, and launch it."""
@@ -148,10 +152,11 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
         log_path = job_dir / 'job.log'
 
         if tmux_path:
+            shell_cmd = f"{shlex.quote(self.python_exec)} {shlex.quote(str(runner_path))} 2>&1 | tee -a {shlex.quote(str(log_path))}"
             cmd = [
                 tmux_path,
                 "new-session", "-d", "-s", session_name,
-                f"python {runner_path.as_posix()} 2>&1 | tee -a {log_path.as_posix()}"
+                shell_cmd,
             ]
             print("[DEBUG] tmux launch command:", " ".join(cmd))
             try:
@@ -175,9 +180,9 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
                 print(f"[WARN] Failed to start tmux session ({e}). Falling back to background process...")
 
         # fallback: non-blocking background process with stdout/err redirected
-        print("[DEBUG] subprocess launch command: python", runner_path.as_posix())
+        print("[DEBUG] subprocess launch command:", self.python_exec, runner_path.as_posix())
         with open(log_path, 'a') as log_file:
-            proc = subprocess.Popen(["python", runner_path.as_posix()], stdout=log_file, stderr=subprocess.STDOUT,
+            proc = subprocess.Popen([self.python_exec, runner_path.as_posix()], stdout=log_file, stderr=subprocess.STDOUT,
                                     close_fds=True)
         (job_dir / 'pid').write_text(str(proc.pid))
         self._append_session_log(f"pid_{proc.pid}", job_dir)

@@ -10,19 +10,11 @@ import pandas as pd
 import resource
 
 from eegkit.controller.eeg_controller import EEGController
-from eegkit.models.dtos import (
-    TaskDTO,
-    SubjectFilterDTO,
-    FilterParamsDTO,
-    EpochParamsDTO,
-    PSDParamsDTO,
-    EpochPSDParamsDTO,
-    TimeDomainParamsDTO,
-    TableInfoDTO,
-    EvokedParamsDTO,
-    EvokedTopoParamsDTO,
-    EvokedJointParamsDTO,
-)
+import inspect
+import importlib
+import pkgutil
+from eegkit.models import dtos as dtos_pkg
+from eegkit.models.dtos.base import BaseTaskDTO
 from eegkit.models.subject_model import EEGSubjectModel
 from eegkit.utils.system import configure_logging
 
@@ -96,11 +88,29 @@ def main(spec_path: str):
     JOB_DIR = Path(SPEC['job_dir'])
     JOB_DIR.mkdir(exist_ok=True, parents=True)
 
-    schema_map = {c.__name__: c for c in [TaskDTO, SubjectFilterDTO]}
-    params_map = {c.__name__: c for c in [
-        FilterParamsDTO, EpochParamsDTO, PSDParamsDTO,
-        EpochPSDParamsDTO, TimeDomainParamsDTO, TableInfoDTO, EvokedParamsDTO, EvokedTopoParamsDTO, EvokedJointParamsDTO
-    ]}
+    # Build schema/params maps dynamically from exported DTOs to avoid manual updates.
+    # - schema_map: subclasses of BaseTaskDTO (e.g., TaskDTO, SubjectFilterDTO)
+    # - params_map: any class whose name ends with "ParamsDTO" (filtering, epoching, AI, etc.)
+    # Collect classes from all submodules under eegkit.models.dtos
+    discovered: dict[str, type] = {}
+    # Ensure the package is imported; then scan submodules
+    for modinfo in pkgutil.walk_packages(dtos_pkg.__path__, dtos_pkg.__name__ + "."):
+        try:
+            module = importlib.import_module(modinfo.name)
+        except Exception:  # pragma: no cover - defensive; skip broken imports
+            continue
+        for name, obj in vars(module).items():
+            if inspect.isclass(obj) and getattr(obj, "__module__", "").startswith("eegkit.models.dtos"):
+                discovered[name] = obj
+
+    schema_map = {
+        name: cls for name, cls in discovered.items()
+        if issubclass(cls, BaseTaskDTO) and cls is not BaseTaskDTO
+    }
+    params_map = {
+        name: cls for name, cls in discovered.items()
+        if name.endswith("ParamsDTO")
+    }
 
     SchemaCls = schema_map.get(SPEC['schema_class'])
     if SchemaCls is None:

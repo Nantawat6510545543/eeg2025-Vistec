@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional, Type
 
-from ...models.dtos import AIBaseDTO
+from ...models.dtos import AITrainParamsDTO
 
 # Shared registry: name -> {"params": DTO class | None, "function": unbound callable}
 ai_registry: Dict[str, Dict[str, Any]] = {}
 
 
-def register_ai(name: str, dto_cls: Optional[Type[AIBaseDTO]]):
+def register_ai(name: str, dto_cls: Optional[Type[AITrainParamsDTO]]):
     """Register an AI action with its params DTO class and handler function."""
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -27,7 +27,5 @@ def register_ai(name: str, dto_cls: Optional[Type[AIBaseDTO]]):
 
 
 # Import submodules to populate registry on package import
-from . import list_models  # noqa: E402,F401
-from . import dataset  # noqa: E402,F401
-from . import train  # noqa: E402,F401
-from . import predict  # noqa: E402,F401
+from . import dataset
+from . import train_eegnet_multireg

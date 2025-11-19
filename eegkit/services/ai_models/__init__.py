@@ -9,6 +9,7 @@ in_channels, n_classes or num_classes).
 from .CNNLSTMDense import CNNLSTMDense
 from .EEGNet import EEGNet
 from .EEGNetMultiOutput import EEGNetMultiOutput
+from .EEGNetMultiReg import EEGNetMultiReg
 from .simpleNN import SimpleNN
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "EEGNetMultiOutput",
     "SimpleNN",
     "CNNLSTMDense",
+    "EEGNetMultiReg",
 ]
