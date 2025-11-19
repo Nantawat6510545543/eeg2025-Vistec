@@ -17,8 +17,9 @@ import numpy as np
 from matplotlib.axes import Axes
 from tqdm.auto import tqdm
 
-from .figure_utils import finalize_figure
+from ...utils.plot.figure_utils import finalize_figure
 
+# ---- token & axis helpers ----
 
 def split_tokens(label: str) -> list[str]:
     """Split a label by underscores and drop empty tokens."""
@@ -49,7 +50,7 @@ def map_cells_to_labels(tokens_by_label: dict[str, list[str]], mode: int) -> Dic
                 key = (None, tokens[0], tokens[1])
             else:
                 key = (tokens[0], tokens[1], tokens[2])
-            mapping.setdefault(key, label)  # first-come deterministic
+            mapping.setdefault(key, label)
     return mapping
 
 
@@ -63,6 +64,7 @@ def reshape_axes_array(axes, num_rows: int, num_cols: int):
         return np.array([[axis] for axis in axes])
     return axes
 
+# ---- drawing helpers ----
 
 def draw_evoked_response(axis, evoked, params):
     """Draw evoked time series onto a Matplotlib axis."""
@@ -87,6 +89,7 @@ def draw_evoked_response(axis, evoked, params):
     axis.axvline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
     axis.axhline(0, color='k', linestyle='--', linewidth=0.8, alpha=0.6)
 
+# ---- main grid renderer ----
 
 def render_label_grid(
         *,

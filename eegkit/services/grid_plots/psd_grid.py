@@ -7,7 +7,7 @@ import numpy as np
 from . import register_grid_plot
 from ...models.dtos import BaseTaskDTO, EpochPSDParamsDTO
 from ...utils.channels import prepare_channels
-from ...utils.plot import render_label_grid
+from .helpers import render_label_grid
 
 
 @register_grid_plot("PSD Grid", EpochPSDParamsDTO)
