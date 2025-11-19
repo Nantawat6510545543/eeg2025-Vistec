@@ -1,18 +1,37 @@
-import json, matplotlib, sys
-import resource
-from pathlib import Path
-import pandas as pd
-import matplotlib.pyplot as plt
+"""Standalone job runner entry point executed by JobRunner."""
+import json
 import logging
+import sys
+from pathlib import Path
 
-from eegkit import *
-from eegkit.utils.logging_utils import configure_logging
+import matplotlib
+import matplotlib.pyplot as plt
+import pandas as pd
+import resource
+
+from eegkit.controller.eeg_controller import EEGController
+from eegkit.models.dtos import (
+    TaskDTO,
+    SubjectFilterDTO,
+    FilterParamsDTO,
+    EpochParamsDTO,
+    PSDParamsDTO,
+    EpochPSDParamsDTO,
+    TimeDomainParamsDTO,
+    TableInfoDTO,
+    EvokedParamsDTO,
+    EvokedTopoParamsDTO,
+    EvokedJointParamsDTO,
+)
+from eegkit.models.subject_model import EEGSubjectModel
+from eegkit.utils.system import configure_logging
 
 matplotlib.use('Agg')
 
 
 def save_output(result, out_dir: Path):
     """Save controller result to disk under out_dir.
+
     Supports DataFrame, single Figure, list of Figures, JSON-serializable,
     text, and generic repr fallback. Returns a brief summary dict.
     """
@@ -31,10 +50,7 @@ def save_output(result, out_dir: Path):
     if hasattr(result, 'savefig'):
         fp = out_dir / 'figure.png'
         result.savefig(fp, dpi=150, bbox_inches='tight')
-        try:
-            _plt.close(result)
-        except Exception:
-            pass
+        _plt.close(result)
         summary.update({"type": "figure", "path": str(fp)})
         return summary
 
@@ -45,10 +61,7 @@ def save_output(result, out_dir: Path):
         for i, fig in enumerate(result, start=1):
             fp = mdir / f'fig_{i:02d}.png'
             fig.savefig(fp, dpi=150, bbox_inches='tight')
-            try:
-                _plt.close(fig)
-            except Exception:
-                pass
+            _plt.close(fig)
         summary.update({"type": "figures", "count": len(result), "path": str(mdir)})
         return summary
 
@@ -75,6 +88,7 @@ def save_output(result, out_dir: Path):
 
 
 def main(spec_path: str):
+    """Load a job spec, run the controller action, and persist outputs."""
     configure_logging()
     log = logging.getLogger(__name__)
     with open(spec_path, 'r') as f:
@@ -106,16 +120,12 @@ def main(spec_path: str):
     log.info("[JOB] Starting %s -> %s/%s", SPEC['job_id'], SPEC['group'], SPEC['key'])
     log.info("[JOB] task_dto = %s", task_dto)
     log.info("[JOB] params    = %s", params_dto)
-    try:
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        log.info("[JOB][RSS] start: %s KB", usage.ru_maxrss)
-    except Exception:
-        pass
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    log.info("[JOB][RSS] start: %s KB", usage.ru_maxrss)
 
     try:
         result = controller.show(task_dto, SPEC['group'], SPEC['key'], params_dto)
     except Exception as e:
-        import traceback
         log.exception('[JOB][ERROR] %s', e)
         (JOB_DIR / 'ERROR').write_text(str(e))
         error_json = {
@@ -144,7 +154,7 @@ def main(spec_path: str):
         (JOB_DIR / 'batch_manifest.json').write_text(json.dumps(manifest, indent=2))
         try:
             pd.DataFrame(summary_rows).to_csv(JOB_DIR / 'subjects.csv', index=False)
-        except Exception as e:
+        except Exception:
             (JOB_DIR / 'subjects.json').write_text(json.dumps(summary_rows, indent=2))
         try:
             meta_df = subject_model.get_subjects_metadata(manifest['subjects'])
@@ -158,12 +168,9 @@ def main(spec_path: str):
         info = save_output(result, JOB_DIR)
         log.info("[JOB] Saved output -> %s", info.get('path', info.get('dir')))
 
-    try:
-        plt.close('all')
-        usage = resource.getrusage(resource.RUSAGE_SELF)
-        log.info("[JOB][RSS] end: %s KB", usage.ru_maxrss)
-    except Exception:
-        pass
+    plt.close('all')
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    log.info("[JOB][RSS] end: %s KB", usage.ru_maxrss)
     log.info('[JOB] Done.')
 
 

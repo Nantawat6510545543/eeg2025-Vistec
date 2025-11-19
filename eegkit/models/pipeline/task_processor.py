@@ -1,36 +1,30 @@
-import numpy as np
-import mne
-from mne import Epochs, events_from_annotations
-from .dtos import BaseTaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
-from ..cache import CacheKey
+"""Signal processing pipeline: filtering, epoching and evoked computation with caching."""
+
 import logging
-from ..utils import EEGCleaner
+
+import mne
+import numpy as np
+from mne import Epochs, events_from_annotations
+
+from .constants import (
+    EVENT_ID,
+    RESTING_STATE_EVENT_ID,
+    CCD_EVENT_ID,
+)
+from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
+from ...cache import CacheKey
+from ...utils.signal import EEGCleaner
 
 mne.set_log_level('WARNING')
-import itertools
 
-# fixed mapping
-BACKGROUND = [0, 1]
-FOREGROUND = [0.0, 0.3, 0.6, 1.0]
-STIM = [1, 2, 3]
-EVENT_ID = {
-    f"bg{b}_fg{f:.1f}_stim{s}": i + 1
-    for i, (b, f, s) in enumerate(itertools.product(BACKGROUND, FOREGROUND, STIM))
-}
-
-RESTING_STATE_EVENT_ID = {
-    'open': 1,
-    'close': 2,
-}
-
-CCD_EVENT_ID = {
-    'trial_start': 1,
-}
+# Constants now sourced from .constants
 
 _PREPROCESSORS = {}
 
 
 def register_preprocessor(task_name: str):
+    """Register a preprocessor function for a given task name."""
+
     def _decorator(func):
         _PREPROCESSORS[task_name] = func
         return func
@@ -39,8 +33,10 @@ def register_preprocessor(task_name: str):
 
 
 class EEGTaskProcessor:
+    """Apply preprocessing recipe per task and manage cached intermediate artifacts."""
 
-    def __init__(self, get_raw_fn, get_events_fn, task_dto: BaseTaskDTO, cache):
+    def __init__(self, get_raw_fn, get_events_fn, task_dto: TaskDTO, cache):
+        """Bind raw/events accessors, DTO and cache handle."""
         self.get_raw = get_raw_fn
         self.get_events = get_events_fn
         self.task_dto = task_dto
@@ -50,6 +46,7 @@ class EEGTaskProcessor:
         self._log = logging.getLogger(__name__)
 
     def get_filtered(self, params: FilterParamsDTO):
+        """Return cleaned Raw using cached prefilter/clean stages when available."""
         # 1) Find cleaned cache
         clean_ck = CacheKey(
             subject=self.task_dto.subject,
@@ -98,6 +95,7 @@ class EEGTaskProcessor:
         return epochs.apply_baseline(baseline=(None, 0.0))
 
     def get_epochs(self, params: EpochParamsDTO):
+        """Return (epochs, labels) via registered task preprocessor with stimulus filter."""
         preprocess_fn = self.preprocessors.get(self.task_dto.task)
         if preprocess_fn is None:
             self._log.warning("Unsupported task for epochs: '%s'", self.task_dto.task)
@@ -122,11 +120,8 @@ class EEGTaskProcessor:
         if epochs is None:
             return None, "unavailable"
 
-        try:
-            if epochs.info.get('bads'):
-                epochs = epochs.interpolate_bads(reset_bads=True)
-        except Exception:
-            pass
+        if epochs.info.get('bads'):
+            epochs = epochs.interpolate_bads(reset_bads=True)
 
         if self.cache and ck:
             self.cache.save_epochs(epochs, ck, labels=labels)
@@ -138,6 +133,7 @@ class EEGTaskProcessor:
         return epochs_sel, labels
 
     def get_evoked(self, params: EvokedParamsDTO):
+        """Return evoked average from epochs, caching on disk when possible."""
         ck = CacheKey(
             subject=self.task_dto.subject,
             task=self.task_dto.task,
@@ -155,11 +151,8 @@ class EEGTaskProcessor:
         if epochs is None:
             return None
 
-        try:
-            if epochs.info.get('bads'):
-                epochs = epochs.interpolate_bads(reset_bads=True)
-        except Exception:
-            pass
+        if epochs.info.get('bads'):
+            epochs = epochs.interpolate_bads(reset_bads=True)
 
         evoked = epochs.average()
         if self.cache and ck:
@@ -234,14 +227,18 @@ class EEGTaskProcessor:
         df = self.get_events()
         if df is None:
             return None, None
-        try:
-            t_start = df[df['value'] == 'resting_start']['onset'].values[0]
-            t_end = df[df['value'] == 'break cnt']['onset'].values[1]
-        except Exception:
-            return None, None
-        filtered.crop(tmin=t_start, tmax=t_end)
 
-        events_arr, ann_event_id = events_from_annotations(self.get_raw())
+        starts = df[df.get('value') == 'resting_start'].get('onset') if 'value' in df and 'onset' in df else None
+        ends = df[df.get('value').isin(['break cnt', 'resting_end'])][
+            'onset'] if 'value' in df and 'onset' in df else None
+        if starts is not None and len(starts) > 0 and ends is not None and len(ends) > 0:
+            t_start = float(starts.iloc[0])
+            t_end = float(ends.iloc[-1])
+            if t_end > t_start:
+                filtered.crop(tmin=t_start, tmax=t_end)
+
+        # Compute events from annotations on the Raw
+        events_arr, ann_event_id = events_from_annotations(filtered)
         open_code = ann_event_id.get('instructed_toOpenEyes')
         close_code = ann_event_id.get('instructed_toCloseEyes')
         new_events_list = []

@@ -1,5 +1,8 @@
+"""Reusable ipywidgets helpers for building EEG parameter forms."""
+from __future__ import annotations
+
 from dataclasses import fields, MISSING
-from typing import get_origin, get_args
+from typing import get_origin, get_args, get_type_hints, Annotated
 
 import ipywidgets as widgets
 
@@ -18,7 +21,7 @@ def field_default(f):
     return None
 
 
-def make_widget(value, field=None):
+def make_widget(value, field=None, owner_cls=None):
     """Create a widget appropriate for the given field/value type.
 
     - Uses dataclass field.type when available to correctly handle Optional[float]/Optional[int].
@@ -31,21 +34,33 @@ def make_widget(value, field=None):
             "max": widgets.FloatText(value=vmax, layout=widgets.Layout(width='100px')),
         }
 
-    # Prefer field.type when provided (covers Optional[...] cases)
-    is_opt_float = is_opt_int = False
+    # Prefer resolved annotations when provided (covers Optional[...] and Annotated)
     if field is not None:
         ftype = getattr(field, 'type', None)
-        origin = get_origin(ftype)
-        args = get_args(ftype) if origin is not None else ()
-        base = origin or ftype
-        is_opt_float = (origin is not None and float in args)
-        is_opt_int = (origin is not None and int in args)
+        try:
+            hints = get_type_hints(owner_cls, include_extras=True) if owner_cls is not None else {}
+        except Exception:
+            hints = {}
+        ann = hints.get(getattr(field, 'name', None), ftype)
+        t_origin = get_origin(ann)
+        if t_origin is Annotated:
+            inner = get_args(ann)
+            ann = inner[0] if inner else ann
+            t_origin = get_origin(ann)
+        origin = t_origin
+        args = get_args(ann) if origin is not None else ()
+        base = origin or ann
+
+        args_set = set(args) if args else set()
+        is_optional = any(a is type(None) for a in args_set)
+        has_float = (float in args_set) or (base is float)
+        has_int = (int in args_set) or (base is int)
 
         # Optional numeric widgets: render as Text with placeholder showing current value
-        if is_opt_float:
+        if is_optional and has_float:
             ph = "" if value is None else str(value)
             return widgets.Text(value="", placeholder=ph, layout=widgets.Layout(width='150px'))
-        if is_opt_int:
+        if is_optional and has_int:
             ph = "" if value is None else str(int(value))
             return widgets.Text(value="", placeholder=ph, layout=widgets.Layout(width='150px'))
 
@@ -80,7 +95,7 @@ def make_range_widget(default_value):
     }
 
 
-def read_widget(widget, default, wrap_list=False, field=None):
+def read_widget(widget, default, wrap_list=False, field=None, owner_cls=None):
     """Read current widget value(s) and coerce to the expected type/shape.
 
     - For range dicts, returns a (lower, upper) with blanks mapped to None.
@@ -99,31 +114,41 @@ def read_widget(widget, default, wrap_list=False, field=None):
     val = getattr(widget, "value", None)
     if wrap_list and isinstance(default, list):
         return [val]
-    # Prefer field.type over default's type when available (handles Optional[...] types)
+    # Prefer resolved annotations when available (handles Optional[...] and Annotated)
     if field is not None:
         ftype = getattr(field, 'type', None)
-        origin = get_origin(ftype)
-        args = get_args(ftype) if origin is not None else ()
+        try:
+            hints = get_type_hints(owner_cls, include_extras=True) if owner_cls is not None else {}
+        except Exception:
+            hints = {}
+        ann = hints.get(getattr(field, 'name', None), ftype)
+        t_origin = get_origin(ann)
+        if t_origin is Annotated:
+            inner = get_args(ann)
+            ann = inner[0] if inner else ann
+            t_origin = get_origin(ann)
 
-        def _is_optional_of(py_t):
-            return (origin is None and ftype is py_t) or (origin is not None and py_t in args)
+        origin = t_origin
+        args = get_args(ann) if origin is not None else ()
+        args_set = set(args) if args else set()
+        is_optional = any(a is type(None) for a in args_set)
 
         # Optional numeric fields: empty input -> None (placeholder does not set value)
-        if _is_optional_of(float):
+        if (float in args_set or ann is float) and (is_optional or ann is float):
             try:
                 if isinstance(val, str) and val.strip() == "":
                     return None
                 return float(val)
             except Exception:
                 return None
-        if _is_optional_of(int):
+        if (int in args_set or ann is int) and (is_optional or ann is int):
             try:
                 if isinstance(val, str) and val.strip() == "":
                     return None
                 return int(float(val))
             except Exception:
                 return None
-        if _is_optional_of(bool):
+        if (bool in args_set or ann is bool):
             try:
                 return bool(val)
             except Exception:
@@ -140,19 +165,37 @@ def read_widget(widget, default, wrap_list=False, field=None):
 
 
 def ordered_fields(dto_cls):
-    """
-    Return dataclass fields sorted by custom priority:
+    """Return dataclass fields sorted by custom priority.
+
     int/float -> dropdown(list/enum) -> str -> bool -> others.
     """
 
     def priority(f):
-        t = f.type
-        origin = get_origin(t)
+        # Resolve postponed annotations to real types when possible
+        try:
+            hints = get_type_hints(dto_cls, include_extras=True)
+        except Exception:
+            hints = {}
+        t = hints.get(f.name, f.type)
+
+        # Unwrap Annotated[...] to its underlying type
+        t_origin = get_origin(t)
+        if t_origin is Annotated:
+            t = get_args(t)[0] if get_args(t) else t
+            t_origin = get_origin(t)
+
+        origin = t_origin
         args = get_args(t) if origin is not None else ()
         base = origin or t
 
         def _is_optional_of(py_t):
-            return (origin is None and base is py_t) or (origin is not None and py_t in args)
+            # Optional[T] is Union[T, NoneType] in modern typing; also allow bare T
+            if origin is None:
+                return base is py_t
+            try:
+                return any((a is py_t) for a in args)
+            except Exception:
+                return False
 
         # 1. Numeric first (including Optional[int/float])
         if _is_optional_of(int) or _is_optional_of(float):
@@ -181,4 +224,15 @@ def ordered_fields(dto_cls):
         # 5. Everything else last
         return 4
 
-    return sorted(fields(dto_cls), key=priority)
+    from dataclasses import fields as _fields
+    return sorted(_fields(dto_cls), key=priority)
+
+
+__all__ = [
+    "is_subject_schema",
+    "field_default",
+    "make_widget",
+    "make_range_widget",
+    "read_widget",
+    "ordered_fields",
+]

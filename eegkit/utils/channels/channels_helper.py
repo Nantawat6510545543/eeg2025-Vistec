@@ -8,8 +8,9 @@ This module provides ChannelsHelper used by visualization utilities to:
 from __future__ import annotations
 
 from typing import List
-import numpy as np
+
 import mne
+import numpy as np
 
 
 class ChannelsHelper:
@@ -20,12 +21,14 @@ class ChannelsHelper:
     """
 
     def __init__(self, params, inst):
+        """Initialize helper with parameter object and MNE instance."""
         self.params = params
         self.inst = inst
         self.picks: List[int] | None = None
         self.pick_names: List[str] | None = None
 
     def pick_channels(self) -> None:
+        """Select channel indices honoring params.channels_list and showbad flag."""
         ch = getattr(self.params, 'channels_list', []) or []
         # Respect showbad: exclude marked bads from candidates unless requested
         if getattr(self.params, 'showbad', False):
@@ -41,6 +44,7 @@ class ChannelsHelper:
         self.pick_names = [self.inst.ch_names[i] for i in picks]
 
     def filter_by_uv(self) -> None:
+        """Optionally filter previously selected channels by µV min/max bounds."""
         # Coerce uv_min/uv_max to floats or None (UI may provide empty strings)
         def _to_float_or_none(x):
             if x is None:
@@ -105,7 +109,8 @@ class ChannelsHelper:
         final_picks = kept if kept else picks
         self.picks = final_picks
         self.pick_names = [self.inst.ch_names[i] for i in final_picks]
-        
+
+
 def prepare_channels(inst, params):
     """End-to-end channel preparation as a simple module function.
 
@@ -117,11 +122,8 @@ def prepare_channels(inst, params):
     Returns a new instance (picked or channel-combined), leaving the input unmodified.
     """
     # Ensure data is loaded for objects that support lazy loading (e.g., Epochs)
-    try:
-        if hasattr(inst, "event_id") and hasattr(inst, "load_data"):
-            inst = inst.copy().load_data()
-    except Exception:
-        pass
+    if hasattr(inst, "event_id") and hasattr(inst, "load_data"):
+        inst = inst.copy().load_data()
 
     helper = ChannelsHelper(params, inst)
     helper.pick_channels()

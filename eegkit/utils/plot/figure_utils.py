@@ -1,10 +1,16 @@
+"""Figure utilities for consistent plot headers and layout.
+
+Contains helpers to finalize Matplotlib figures with wrapped titles and captions.
+"""
 from __future__ import annotations
 
-import matplotlib.pyplot as plt
 import textwrap
+from typing import Optional
+
+import matplotlib.pyplot as plt
 
 
-def finalize_figure(fig: plt.Figure, task_dto, stimulus=None, caption_line: str = None,
+def finalize_figure(fig: plt.Figure, task_dto, stimulus=None, caption_line: Optional[str] = None,
                     plot_name="EEG Plot", x=15, y=10, max_line_chars: int = 110,
                     title_y: float = 0.995, gap_under_title: float = 0.030,
                     subject_line_spacing: float = 0.022, caption_line_spacing: float = 0.016,
@@ -32,11 +38,8 @@ def finalize_figure(fig: plt.Figure, task_dto, stimulus=None, caption_line: str 
         fig.set_constrained_layout(False)
     # Disable new layout engine (Matplotlib >=3.8) to allow subplots_adjust
     if hasattr(fig, 'get_layout_engine') and hasattr(fig, 'set_layout_engine'):
-        try:
-            if fig.get_layout_engine() is not None:
-                fig.set_layout_engine(None)
-        except Exception:
-            pass
+        if fig.get_layout_engine() is not None:
+            fig.set_layout_engine(None)
 
     # Title fixed at title_y
     fig.text(0.5, title_y, plot_name.title(), ha='center', va='top', fontsize=18, fontweight='bold')

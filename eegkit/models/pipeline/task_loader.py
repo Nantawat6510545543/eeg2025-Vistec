@@ -1,17 +1,25 @@
-from pathlib import Path
+"""Low-level file loading helpers for raw EEG, metadata, events and channel tables."""
+
 import json
-import pandas as pd
-import mne
 import warnings
-from .dtos import TaskDTO
+from pathlib import Path
+
+import mne
+import pandas as pd
+
+from ..dtos import TaskDTO
 
 
 class EEGTaskLoader:
+    """Load raw data & associated tables for a given TaskDTO from disk."""
+
     def __init__(self, task_dto: TaskDTO, data_dir):
+        """Bind DTO and root data directory for subsequent file lookups."""
         self.task_dto = task_dto
         self.data_dir = Path(data_dir)
 
     def load_raw(self):
+        """Load EEGLAB .set into MNE Raw with montage and optional preload."""
         path = self.get_file("eeg.set")
         fdt_path = path.with_suffix('.fdt')
         preload = not fdt_path.exists()
@@ -24,18 +32,23 @@ class EEGTaskLoader:
         return raw
 
     def load_metadata(self):
+        """Load task-level metadata JSON (returns {} if missing)."""
         return self._load_json("eeg.json")
 
     def load_events(self):
+        """Load events TSV as DataFrame (or None)."""
         return self._load_tsv("events.tsv")
 
     def load_channels(self):
+        """Load channels TSV as DataFrame (or None)."""
         return self._load_tsv("channels.tsv")
 
     def load_electrodes(self):
+        """Load electrodes TSV as DataFrame (or None)."""
         return self._load_tsv("electrodes.tsv")
 
     def get_file(self, ext):
+        """Return path for file with given extension under subject/eeg folder."""
         base = f"{self.task_dto.subject}_task-{self.task_dto.task}"
         if self.task_dto.run:
             base += f"_run-{self.task_dto.run}"
