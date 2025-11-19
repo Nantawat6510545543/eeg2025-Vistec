@@ -1,13 +1,8 @@
-"""Utilities for grouping dataclass params by their defining class.
-
-Goal: derive human-friendly groups (tabs/bookmarks) for params DTOs that use
-multiple inheritance, so the UI can show sections like "Filtering & Cleaning",
-"Epochs", "PSD", "Evoked", etc., based on which class introduced each field.
-"""
+"""Group parameter fields by defining class (no ipywidgets dependency)."""
 from __future__ import annotations
 
 from dataclasses import is_dataclass, fields
-from typing import Any, Dict, Iterable, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type
 
 
 def _camel_to_title(name: str) -> str:
@@ -40,7 +35,6 @@ TITLE_OVERRIDES: Dict[str, str] = {
 
 def _dataclass_field_names(cls_or_obj: Any) -> List[str]:
     if not is_dataclass(cls_or_obj):
-        # If class provided instead of instance, it may not be a dataclass() instance yet
         if isinstance(cls_or_obj, type) and hasattr(cls_or_obj, "__dataclass_fields__"):
             return [f.name for f in fields(cls_or_obj)]
         return []
@@ -51,20 +45,15 @@ def derive_param_groups(cls_or_instance: Any) -> List[Dict[str, Any]]:
     """Return ordered groups derived from MRO.
 
     Each group is a dict: {"owner": type, "title": str, "field_names": [str, ...]}
-
-    Ordering: base-most first, subclass-most last. Owners with no new fields are skipped.
-    Only dataclass fields that exist on the params are considered.
     """
-    # Support both class and instance
     params_cls: Type[Any] = cls_or_instance if isinstance(cls_or_instance, type) else type(cls_or_instance)
 
     all_field_names = set(_dataclass_field_names(cls_or_instance))
     if not all_field_names:
         return []
 
-    # Walk reversed MRO to show base groups first
     mro = list(params_cls.__mro__)
-    # Exclude object and "dataclass helpers" that don't matter
+
     def _is_valid_owner(t: Type[Any]) -> bool:
         return t is not object and hasattr(t, "__dict__")
 
@@ -80,7 +69,6 @@ def derive_param_groups(cls_or_instance: Any) -> List[Dict[str, Any]]:
             assigned[n] = owner
         groups_rev.append((owner, owned))
 
-    # Build final group dicts
     result: List[Dict[str, Any]] = []
     for owner, names in groups_rev:
         title = TITLE_OVERRIDES.get(owner.__name__, _camel_to_title(owner.__name__))

@@ -1,15 +1,19 @@
+"""Background job runner utilities for launching EEG tasks out-of-band."""
+import datetime
+import json
+import re
+import shutil
+import subprocess
+import uuid
 from dataclasses import fields
 from pathlib import Path
-import json
-import subprocess
-import shutil
-import datetime
-import uuid
-import re
 
 
 class JobRunner:
+    """Create job specs and launch them via tmux or subprocess."""
+
     def __init__(self, controller, jobs_root: Path, runner_module: str = "eegkit.views.job_runner_script"):
+        """Initialize the job runner with a controller and jobs root directory."""
         self.controller = controller
         self.jobs_root = Path(jobs_root)
         self.jobs_root.mkdir(exist_ok=True, parents=True)
@@ -17,6 +21,7 @@ class JobRunner:
         self._runs_log_path = self.jobs_root / "runs.log"
 
     def schedule(self, group: str, key: str, dto, params_dto):
+        """Create a job directory, persist its spec, and launch it."""
         job_dir = self._create_job_dir(group, key, getattr(dto, "task", "task"))
         spec_path = job_dir / "spec.json"
         self._write_spec(spec_path, group, key, dto, params_dto, job_dir)
@@ -25,15 +30,16 @@ class JobRunner:
         self._launch(job_dir, runner_path)
 
     def _safe_name(self, value: str, default: str = "na") -> str:
+        """Return a filesystem-safe token from an arbitrary string."""
         if not value:
             return default
         value = re.sub(r"[^A-Za-z0-9]+", "_", str(value)).strip("_")
         return value or default
 
     def _create_job_dir(self, group: str, key: str, task_name: str) -> Path:
+        """Create and return a unique job directory path for this run."""
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_task = self._safe_name(task_name, "task")
-        safe_group = self._safe_name(group, "group")
         safe_key = self._safe_name(key, "plot")
         base_dir = self.jobs_root / safe_task / safe_key
         base_dir.mkdir(parents=True, exist_ok=True)
@@ -43,6 +49,7 @@ class JobRunner:
         return job_dir
 
     def _write_spec(self, spec_path: Path, group: str, key: str, dto, params_dto, job_dir: Path):
+        """Serialize the execution spec to JSON on disk."""
         schema_cls_name = type(dto).__name__
         params_cls_name = type(params_dto).__name__ if params_dto else None
         data_dir = self.controller.subject_model.data_dir
@@ -70,6 +77,7 @@ class JobRunner:
         spec_path.write_text(json.dumps(spec, indent=2))
 
     def _write_runner(self, job_dir: Path, spec_path: Path) -> Path:
+        """Write a small bootstrap script that imports and invokes the runner module."""
         runner_path = job_dir / "run.py"
         code = f"""#!/usr/bin/env python3
 import sys
@@ -113,6 +121,7 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
         return runner_path
 
     def _log_run(self, job_dir: Path, group: str, key: str, dto, params_dto):
+        """Append a JSON line describing the scheduled run to runs.log."""
         entry = {
             "timestamp": datetime.datetime.now().isoformat() + "Z",
             "job_id": job_dir.name,
@@ -133,10 +142,7 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
             pass
 
     def _launch(self, job_dir: Path, runner_path: Path):
-        """
-        Launch the job in a detached tmux session when available;
-        otherwise fall back to a background subprocess with log capture.
-        """
+        """Launch via tmux when available, otherwise a background subprocess."""
         tmux_path = shutil.which("tmux")
         session_name = f"{job_dir.parent.name}_{job_dir.name}"[:48]
         log_path = job_dir / 'job.log'
@@ -180,6 +186,7 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
         print(f"[INFO] Job directory: {job_dir}")
 
     def _append_session_log(self, session_name: str, job_dir: Path):
+        """Record tmux session or process id alongside the job directory."""
         record = {
             "timestamp": datetime.datetime.now().isoformat() + "Z",
             "session": session_name,

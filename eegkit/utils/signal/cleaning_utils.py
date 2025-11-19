@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import logging
 import time
-import numpy as np
-import mne
+
 import asrpy
+import mne
+import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view as swv
 
 log = logging.getLogger(__name__)
@@ -216,10 +217,7 @@ class EEGCleaner:
                 model = asrpy.ASR(sfreq=sfreq, cutoff=max_std)
                 # Best-effort: some versions expose attribute to set window length
                 if window_sec and hasattr(model, 'window_length'):
-                    try:
-                        setattr(model, 'window_length', window_sec)
-                    except Exception:
-                        pass
+                    setattr(model, 'window_length', window_sec)
 
             cleaned_uv = model.fit_transform(data_uv)
 

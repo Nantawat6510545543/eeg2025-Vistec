@@ -1,3 +1,4 @@
+"""Lightweight logging configuration helpers for notebooks and apps."""
 from __future__ import annotations
 
 import logging
@@ -6,6 +7,11 @@ from typing import Optional
 
 
 def configure_logging(level: Optional[str] = None) -> None:
+    """Configure root logging once with a simple console formatter.
+
+    The level defaults to the LOG_LEVEL environment variable or INFO when unset.
+    Subsequent calls are no-ops if handlers are already configured.
+    """
     if logging.getLogger().handlers:
         return
 
@@ -23,9 +29,9 @@ def configure_logging(level: Optional[str] = None) -> None:
 
 
 def silence_console_logs(min_level: Optional[str] = "WARNING") -> None:
-    """
-    Reduce verbosity of console (stream) logging so UI/notebook output stays clean.
-    Does not touch file handlers or other handlers; only raises the level of StreamHandlers.
+    """Raise the level of console StreamHandlers to reduce notebook noise.
+
+    Only stream handlers are adjusted; file or other handlers are left unchanged.
     Example (in notebook):
         from eegkit.utils.logging_utils import silence_console_logs
         silence_console_logs("WARNING")

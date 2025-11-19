@@ -1,20 +1,21 @@
-from .figure_utils import finalize_figure
-from .plot_utills import (
-    split_tokens,
-    compute_axes_values,
-    map_cells_to_labels,
-    reshape_axes_array,
-    draw_evoked_response,
-    render_label_grid,
-)
-from .channels_helper import ChannelsHelper, prepare_channels
-from .ui_utils import (
-    is_subject_schema,
-    field_default,
-    make_widget,
-    make_range_widget,
-    read_widget,
-    ordered_fields,
-)
-from .cleaning_utils import EEGCleaner
-from .logging_utils import silence_console_logs, configure_logging
+"""Utilities package.
+
+Common helpers for the EEG Workbench, organized into subpackages:
+- plot: figure/grid utilities for visualization services
+- signal: signal processing routines and cleaning helpers
+- channels: channel parsing and selection conveniences
+- system: logging and small system helpers
+"""
+
+from . import channels as channels  # noqa: F401
+# Expose categorized submodules only
+from . import plot as plot  # noqa: F401
+from . import signal as signal  # noqa: F401
+from . import system as system  # noqa: F401
+
+__all__ = [
+    "plot",
+    "signal",
+    "channels",
+    "system",
+]

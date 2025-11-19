@@ -1,15 +1,21 @@
+"""EEGNet variant with three classification heads (background/foreground/stimulus)."""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class EEGNetMultiOutput(nn.Module):
+    """Multi-head CNN producing logits for separate background, foreground and stimulus tasks."""
+
     DISPLAY_NAME = "EEGNet (multi-output)"
     DESCRIPTION = (
         "EEGNet variant with three classification heads (background/foreground/stimulus); "
         "useful for multi-task setups."
     )
+
     def __init__(self, n_classes=(2, 4, 3)):
+        """Initialize shared CNN trunk and three task-specific heads."""
         super().__init__()
         self.n_classes = n_classes
 
@@ -32,6 +38,7 @@ class EEGNetMultiOutput(nn.Module):
         self.fc_stim = nn.LazyLinear(self.n_classes[2])
 
     def forward(self, x):
+        """Return tuple of logits for (background, foreground, stimulus)."""
         if x.ndim == 3:
             x = x.unsqueeze(1)
 
