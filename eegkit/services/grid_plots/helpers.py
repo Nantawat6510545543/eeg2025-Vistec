@@ -71,18 +71,43 @@ def draw_evoked_response(axis, evoked, params):
     times = evoked.times
     data_microvolts = evoked.data * 1e6
 
-    if getattr(params, 'gfp', None) != "only":
+    # Normalize selectable option values possibly provided as lists by the UI.
+    error_band = getattr(params, 'error_band', None)
+    if isinstance(error_band, (list, tuple)) and error_band:
+        error_band = error_band[0]
+
+    # When an error band is requested, suppress individual traces and GFP.
+    draw_individual = (getattr(params, 'gfp', None) != "only") and (error_band not in {"std", "sem"})
+    if draw_individual:
         for ch in range(data_microvolts.shape[0]):
             axis.plot(times, data_microvolts[ch], color='0.75', linewidth=0.6, zorder=1)
 
     if getattr(params, 'average_line', False):
         if data_microvolts.ndim == 2 and data_microvolts.shape[0] > 1:
             mean_signal = np.nanmean(data_microvolts, axis=0)
+            std_signal = np.nanstd(data_microvolts, axis=0)
+            n_channels = float(data_microvolts.shape[0])
         else:
             mean_signal = data_microvolts[0] if data_microvolts.ndim == 2 else np.asarray(data_microvolts)
-        axis.plot(times, mean_signal, color='tab:orange', linewidth=1.2, zorder=2.4, alpha=0.95)
+            std_signal = np.zeros_like(mean_signal)
+            n_channels = 1.0
 
-    if getattr(params, 'gfp', None) is True or getattr(params, 'gfp', None) == "only":
+        # Draw the mean line.
+        line_color = 'tab:red' if error_band in {"std", "sem"} else 'tab:orange'
+        axis.plot(times, mean_signal, color=line_color, linewidth=1.2, zorder=2.4, alpha=0.95)
+
+        # Optional shaded error band (SEM or STD across channels).
+        if error_band in {"std", "sem"}:
+            if error_band == "sem" and n_channels > 0:
+                band = std_signal / np.sqrt(n_channels)
+            else:
+                band = std_signal
+            upper = mean_signal + band
+            lower = mean_signal - band
+            axis.fill_between(times, lower, upper, color='tab:red', alpha=0.2, linewidth=0.0, zorder=2.3)
+
+    # Draw GFP only if not suppressed by error band request.
+    if (error_band not in {"std", "sem"}) and (getattr(params, 'gfp', None) is True or getattr(params, 'gfp', None) == "only"):
         gfp_signal = np.std(data_microvolts, axis=0) if data_microvolts.shape[0] > 1 else data_microvolts[0]
         axis.plot(times, gfp_signal, color='k', linewidth=1.2, zorder=2.6)
 

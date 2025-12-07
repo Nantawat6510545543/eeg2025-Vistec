@@ -271,6 +271,12 @@ class EEGCleaner:
         notch = params.notch
         log.info("[prefilter] start l=%.3f, h=%.3f, fs=%s, notch=%s", float(l_freq), float(h_freq), resample_fs, notch)
         raw.load_data()
+        if notch and float(notch) > 0:
+            raw.notch_filter(
+                freqs=notch,
+                fir_design='firwin',
+                skip_by_annotation='edge',
+            )
         raw.filter(
             l_freq=l_freq,
             h_freq=h_freq,
@@ -281,12 +287,6 @@ class EEGCleaner:
         cur_fs = float(raw.info.get('sfreq', 0.0) or 0.0)
         if target_fs > 0 and abs(cur_fs - target_fs) > 1e-6:
             raw.resample(target_fs)
-        if notch and float(notch) > 0:
-            raw.notch_filter(
-                freqs=notch,
-                fir_design='firwin',
-                skip_by_annotation='edge',
-            )
         log.info("[prefilter] done: sfreq=%.3f (t=%.3fs)", float(raw.info.get('sfreq', 0.0)), time.perf_counter() - t0)
         return raw
 
