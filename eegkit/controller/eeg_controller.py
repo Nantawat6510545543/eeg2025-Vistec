@@ -40,18 +40,18 @@ class EEGController:
         )
 
         self._modes = {
-            # "Plot": {
-            #     "description": getattr(self.visualizer, 'description', "Single-figure visualizations."),
-            #     "spec": self.visualizer.spec,
-            # },
-            # "Grid Plot": {
-            #     "description": getattr(self.grid_visualizer, 'description', "Grid-based visualizations."),
-            #     "spec": self.grid_visualizer.spec,
-            # },
-            # "Data": {
-            #     "description": getattr(self.data_service, 'description', "Data tables and exports."),
-            #     "spec": self.data_service.spec,
-            # },
+            "Plot": {
+                "description": getattr(self.visualizer, 'description', "Single-figure visualizations."),
+                "spec": self.visualizer.spec,
+            },
+            "Grid Plot": {
+                "description": getattr(self.grid_visualizer, 'description', "Grid-based visualizations."),
+                "spec": self.grid_visualizer.spec,
+            },
+            "Data": {
+                "description": getattr(self.data_service, 'description', "Data tables and exports."),
+                "spec": self.data_service.spec,
+            },
             "AI": {
                 "description": getattr(self.ai_service, 'description', "AI training and inference."),
                 "spec": self.ai_service.spec,

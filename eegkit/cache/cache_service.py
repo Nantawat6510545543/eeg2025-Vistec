@@ -183,7 +183,14 @@ class LocalCache:
             n = -1
         n_str = str(n) if n >= 0 else "?"
         self._log_save("epochs", p, key, extra=f"n={n_str}, ver={key.pipeline_ver}")
-        epochs.save(p.as_posix(), overwrite=True)
+        try:
+            epochs.save(p.as_posix(), overwrite=True)
+        except Exception as e:
+            # Gracefully handle cases like "No data in this range" when dropping bad.
+            msg = str(e)
+            log.error("[cache] SAVE epochs failed: %s", msg)
+            # Do not raise; upstream can still proceed with in-memory epochs.
+            return p
         if labels is not None:
             labels_file = p.with_suffix(".labels.json")
             with open(labels_file, "w") as f:

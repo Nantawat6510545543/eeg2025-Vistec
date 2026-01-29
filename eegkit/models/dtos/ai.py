@@ -18,6 +18,7 @@ class AITrainParamsDTO(EpochPSDParamsDTO):
     lr: float = 0.001
     device: List[str] = field(default_factory=lambda: ["auto", "cpu", "cuda"])
     val_split: float = 0.2
+    test_split: float = 0.2
     seed: int = 42
     save_checkpoint: bool = True
     weight_classes: bool = False

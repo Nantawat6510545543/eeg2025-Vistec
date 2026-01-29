@@ -160,8 +160,10 @@ class EvokedParamsDTO(EpochParamsDTO):
     gfp: List[Union[str, bool]] = field(default_factory=lambda: [False, True, "only"])  # True/"only"
     average_line: bool = True
     error_band: List[Optional[str]] = field(default_factory=lambda: [None, "sem", "std"]) 
+    display_tmin: Optional[float] = None
+    display_tmax: Optional[float] = None
     scale_mode: List[str] = field(default_factory=lambda: ["per-plot", "uniform-grid"])
-    _exclude_str_fields: ClassVar[Set[str]] = {"spatial_colors", "gfp", "average_line", "error_band", "scale_mode"}
+    _exclude_str_fields: ClassVar[Set[str]] = {"spatial_colors", "gfp", "average_line", "error_band", "display_tmin", "display_tmax", "scale_mode"}
 
 
 @dataclass
