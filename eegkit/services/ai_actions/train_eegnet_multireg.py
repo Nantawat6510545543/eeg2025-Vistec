@@ -74,17 +74,43 @@ def train_eegnet_multireg(self, task_dto: BaseTaskDTO, params: EEGNetMultiRegTra
             "n_samples": int(X.shape[0])
         })
 
-    # Train/validation split
+    # Train/validation/test split (epoch-wise for single subject, person-wise for cohort)
     val_split = max(0.0, min(0.9, float(params.val_split)))
+    test_split = max(0.0, min(0.9, float(getattr(params, "test_split", 0.2))))
     rng = np.random.default_rng(int(params.seed))
-    indices = np.arange(X.shape[0])
-    rng.shuffle(indices)
-    val_n = int(round(val_split * X.shape[0])) if val_split > 0 else 0
-    val_idx = indices[:val_n]
-    train_idx = indices[val_n:]
+
+    subj_ids = meta.get("subject_ids")
+    if isinstance(subj_ids, (list, np.ndarray)) and len(set(subj_ids)) > 1:
+        # Cohort split by subject id
+        uniq = list({str(s) for s in subj_ids})
+        rng.shuffle(uniq)
+        n_subj = len(uniq)
+        n_val = int(round(val_split * n_subj)) if val_split > 0 else 0
+        n_test = int(round(test_split * n_subj)) if test_split > 0 else 0
+        val_subjects = set(uniq[:n_val])
+        test_subjects = set(uniq[n_val:n_val + n_test])
+        train_subjects = set(uniq[n_val + n_test:])
+        subj_ids_arr = np.array([str(s) for s in subj_ids])
+        train_idx = np.nonzero(np.isin(subj_ids_arr, list(train_subjects)))[0]
+        val_idx = np.nonzero(np.isin(subj_ids_arr, list(val_subjects)))[0]
+        test_idx = np.nonzero(np.isin(subj_ids_arr, list(test_subjects)))[0]
+    else:
+        # Single subject: split epochs
+        n = X.shape[0]
+        indices = np.arange(n)
+        rng.shuffle(indices)
+        n_test = int(round(test_split * n)) if test_split > 0 else 0
+        n_val = int(round(val_split * n)) if val_split > 0 else 0
+        test_idx = indices[:n_test]
+        val_idx = indices[n_test:n_test + n_val]
+        train_idx = indices[n_test + n_val:]
+
+    if train_idx.size == 0:
+        return to_json({"status": "split_error", "reason": "empty train set after splitting"})
 
     X_train, y_train = X[train_idx], y[train_idx]
-    X_val, y_val = (X[val_idx], y[val_idx]) if val_n > 0 else (None, None)
+    X_val, y_val = (X[val_idx], y[val_idx]) if val_idx.size > 0 else (None, None)
+    X_test, y_test = (X[test_idx], y[test_idx]) if test_idx.size > 0 else (None, None)
 
     try:
         import torch
@@ -108,6 +134,7 @@ def train_eegnet_multireg(self, task_dto: BaseTaskDTO, params: EEGNetMultiRegTra
 
     dl_train = make_loader(X_train, y_train)
     dl_val = make_loader(X_val, y_val) if X_val is not None else None
+    dl_test = make_loader(X_test, y_test) if X_test is not None else None
 
     history: list[dict[str, Any]] = []
     best_loss = float("inf")
@@ -212,6 +239,71 @@ def train_eegnet_multireg(self, task_dto: BaseTaskDTO, params: EEGNetMultiRegTra
                                     "val_loss": val_loss, "val_mae": val_mae, "val_r2": val_r2})
                     break
 
+        # Evaluate train and test metrics for reporting
+        train_mae = None
+        train_r2 = None
+        try:
+            model.eval()
+            preds_all = []
+            y_all = []
+            with torch.no_grad():
+                for xb, yb in dl_train:
+                    xb, yb = xb.to(device), yb.to(device)
+                    out = model(xb)
+                    preds_all.append(out.cpu().numpy())
+                    y_all.append(yb.cpu().numpy())
+            if preds_all:
+                Yp = np.concatenate(preds_all, axis=0)
+                Yt = np.concatenate(y_all, axis=0)
+                train_mae = float(np.nanmean(np.abs(Yp - Yt)))
+                ss_res = np.nansum((Yt - Yp) ** 2, axis=0)
+                y_mean = np.nanmean(Yt, axis=0)
+                ss_tot = np.nansum((Yt - y_mean) ** 2, axis=0)
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    r2_each = 1.0 - (ss_res / np.where(ss_tot == 0.0, np.nan, ss_tot))
+                train_r2 = float(np.nanmean(r2_each))
+        except Exception:
+            train_mae = None
+            train_r2 = None
+
+        test_mae = None
+        test_r2 = None
+        if dl_test is not None:
+            try:
+                model.eval()
+                preds_all = []
+                y_all = []
+                with torch.no_grad():
+                    for xb, yb in dl_test:
+                        xb, yb = xb.to(device), yb.to(device)
+                        out = model(xb)
+                        preds_all.append(out.cpu().numpy())
+                        y_all.append(yb.cpu().numpy())
+                if preds_all:
+                    Yp = np.concatenate(preds_all, axis=0)
+                    Yt = np.concatenate(y_all, axis=0)
+                    test_mae = float(np.nanmean(np.abs(Yp - Yt)))
+                    ss_res = np.nansum((Yt - Yp) ** 2, axis=0)
+                    y_mean = np.nanmean(Yt, axis=0)
+                    ss_tot = np.nansum((Yt - y_mean) ** 2, axis=0)
+                    with np.errstate(invalid="ignore", divide="ignore"):
+                        r2_each = 1.0 - (ss_res / np.where(ss_tot == 0.0, np.nan, ss_tot))
+                    test_r2 = float(np.nanmean(r2_each))
+            except Exception:
+                test_mae = None
+                test_r2 = None
+
+        # Print epoch-style summary similar to the reference image, adapted to regression
+        try:
+            print(f"\nEpoch  {epoch}")
+            print(['mae', 'r2'])
+            print("Training Loss", train_loss)
+            print("Train - ", [train_mae, train_r2])
+            print("Validation - ", [val_mae, val_r2])
+            print("Test - ", [test_mae, test_r2])
+        except Exception:
+            pass
+
         history.append({
             "epoch": epoch + 1,
             "train_loss": train_loss,
@@ -252,6 +344,11 @@ def train_eegnet_multireg(self, task_dto: BaseTaskDTO, params: EEGNetMultiRegTra
             "dataset_shape": X.shape,
             "targets": int(y.shape[1]),
             "target_cols": meta.get("target_cols"),
+            "split": {
+                "val_split": float(val_split),
+                "test_split": float(test_split),
+                "cohort_split": bool(isinstance(subj_ids, (list, np.ndarray)) and len(set(subj_ids)) > 1),
+            },
             "duration_sec": round(time.perf_counter() - t0, 4),
             "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }

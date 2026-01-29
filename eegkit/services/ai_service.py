@@ -82,6 +82,7 @@ class EEGAIService(BaseService):
                 return None, None, {"reason": "no_task_models"}
             X_parts: List[np.ndarray] = []
             y_parts: List[Any] = []
+            subj_ids: List[str] = []
             for tm in task_models:
                 epochs, _labels = tm.get_epochs(params)
                 if epochs is None:
@@ -101,11 +102,12 @@ class EEGAIService(BaseService):
                     except Exception:  # pragma: no cover
                         values = []
                 # Convert to floats when possible (NaN if not convertible)
+                n_ep = len(epochs)
                 if values:
                     vec = [_to_float(v) for v in values]
                     # Numeric regression mode if at least one finite value exists
                     if np.any(np.isfinite(vec)):
-                        for _ in range(len(epochs)):
+                        for _ in range(n_ep):
                             y_parts.append(vec)
                     else:
                         # Fall back to classification-like label
@@ -113,9 +115,10 @@ class EEGAIService(BaseService):
                             val = values[0]
                         else:
                             val = "|".join(str(v) for v in values)
-                        y_parts.extend([val] * len(epochs))
+                        y_parts.extend([val] * n_ep)
                 else:
-                    y_parts.extend([None] * len(epochs))
+                    y_parts.extend([None] * n_ep)
+                subj_ids.extend([str(subj)] * n_ep)
             if not X_parts:
                 return None, None, {"reason": "empty_cohort_epochs"}
             X = np.concatenate(X_parts, axis=0)
@@ -140,7 +143,7 @@ class EEGAIService(BaseService):
                     break
             sfreq = float(ref_epochs.info.get("sfreq", 0.0)) if ref_epochs is not None else 0.0
             ch_names = list(ref_epochs.ch_names) if ref_epochs is not None else []
-            meta = {"sfreq": sfreq, "ch_names": ch_names, "event_id": {}, "shape": tuple(X.shape), "target_cols": cols}
+            meta = {"sfreq": sfreq, "ch_names": ch_names, "event_id": {}, "shape": tuple(X.shape), "target_cols": cols, "subject_ids": subj_ids}
             self._log.info("Built cohort dataset with participants target %s (shape=%s)", cols, X.shape)
             return X.astype(np.float32), y, meta
 
@@ -185,6 +188,7 @@ class EEGAIService(BaseService):
             "shape": tuple(X.shape),
             "warning": "constant_label_single_subject_meta_target",
             "target_cols": cols,
+            "subject_ids": [str(subj)] * len(X),
         }
         self._log.info("Single-subject participants target(epochs=%d, target_cols=%s)", len(X), cols)
         return X.astype(np.float32), y, meta

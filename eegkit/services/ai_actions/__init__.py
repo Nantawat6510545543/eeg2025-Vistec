@@ -27,5 +27,6 @@ def register_ai(name: str, dto_cls: Optional[Type[AITrainParamsDTO]]):
 
 
 # Import submodules to populate registry on package import
-from . import dataset
-from . import train_eegnet_multireg
+from . import dataset  # noqa: F401
+from . import train_eegnet_multireg  # noqa: F401
+from . import summary  # noqa: F401

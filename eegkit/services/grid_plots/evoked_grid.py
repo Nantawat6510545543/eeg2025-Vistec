@@ -44,13 +44,16 @@ def plot_evoked_grid(self, task_dto: BaseTaskDTO, params: EvokedParamsDTO):
             return dmin, dmax
         return None
 
+    # Use display window if provided, else epoch window.
+    x_lo = params.display_tmin if getattr(params, 'display_tmin', None) is not None else params.tmin
+    x_hi = params.display_tmax if getattr(params, 'display_tmax', None) is not None else params.tmax
     return render_label_grid(
         task_dto=task_dto,
         epochs=epochs,
         available_labels=available_labels,
         params=params,
         plot_name="Evoked Grid",
-        xlim=(params.tmin, params.tmax),
+        xlim=(x_lo, x_hi),
         xlabel="Time [s]",
         unit_tag="µV",
         scale_mode=scale_mode,
