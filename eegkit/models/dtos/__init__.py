@@ -35,6 +35,7 @@ from .ai import (
     AIPredictParamsDTO,
     EEGNetMultiRegTrainParamsDTO,
     MLTrainDatasetParamsDTO,
+    MLTestDatasetModelParamsDTO,
 )
 
 __all__ = [
@@ -61,4 +62,5 @@ __all__ = [
     "AIPredictParamsDTO",
     "EEGNetMultiRegTrainParamsDTO",
     "MLTrainDatasetParamsDTO",
+    "MLTestDatasetModelParamsDTO",
 ]

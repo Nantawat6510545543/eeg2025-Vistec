@@ -46,16 +46,26 @@ class EEGNetMultiRegTrainParamsDTO():
 
 
 @dataclass
-class MLTrainDatasetParamsDTO():
-    """Parameters for selecting a discovered dataset and training placeholder settings."""
+class MLTrainDatasetParamsDTO(AITrainParamsDTO):
+    """Parameters for selecting dataset and training a classical ML model."""
 
     dataset_path: List[Optional[str]] = field(default_factory=lambda: [None])
     run_name: str = "ml_train_placeholder"
-    estimator: List[str] = field(default_factory=lambda: ["logistic_regression", "random_forest", "svm"])
+    estimator: List[str] = field(default_factory=lambda: ["svm", "knn", "random_forest"])
+
+
+@dataclass
+class MLTestDatasetModelParamsDTO(AITrainParamsDTO):
+    """Parameters for testing saved ML models on selected datasets."""
+
+    model_path: List[Optional[str]] = field(default_factory=lambda: ["__all__"])
+    dataset_path: List[Optional[str]] = field(default_factory=lambda: ["__all__"])
+    display_mode: List[str] = field(default_factory=lambda: ["table", "graph"])
 
 __all__ = [
     "AITrainParamsDTO",
     "AIPredictParamsDTO",
     "EEGNetMultiRegTrainParamsDTO",
     "MLTrainDatasetParamsDTO",
+    "MLTestDatasetModelParamsDTO",
 ]

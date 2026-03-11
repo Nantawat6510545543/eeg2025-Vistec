@@ -27,3 +27,4 @@ def register_ml(name: str, dto_cls: Optional[Type[Any]], category: str = "deep")
 # Import submodules to populate registry.
 from . import build_epoch_feature_dataset  # noqa: E402,F401
 from . import train_feature_model  # noqa: E402,F401
+from . import test_feature_models  # noqa: E402,F401

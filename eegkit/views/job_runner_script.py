@@ -32,6 +32,7 @@ def save_output(result, out_dir: Path):
     import pandas as _pd
     import matplotlib.pyplot as _plt
     import numpy as _np
+    from joblib import dump as _joblib_dump
 
     if isinstance(result, _pd.DataFrame):
         fp = out_dir / 'dataframe.csv'
@@ -96,6 +97,32 @@ def save_output(result, out_dir: Path):
         })
         return summary
 
+    # Trained model payload: persist estimator object and metadata.
+    if isinstance(result, dict) and "model" in result:
+        model_obj = result.get("model")
+        model_name = str(result.get("model_name") or "model")
+        safe_name = ''.join(ch if (ch.isalnum() or ch in ('-', '_')) else '_' for ch in model_name).strip('_')
+        model_fp = out_dir / f"{safe_name or 'model'}_model.gz"
+        _joblib_dump(model_obj, model_fp)
+
+        metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
+        metadata = {**metadata, "model_path": str(model_fp)}
+        meta_fp = model_fp.with_suffix(".json")
+        meta_fp.write_text(json.dumps(metadata, indent=2, default=str))
+
+        summary_payload = {k: v for k, v in result.items() if k != "model"}
+        summary_payload["model_path"] = str(model_fp)
+        output_fp = out_dir / 'output.json'
+        output_fp.write_text(json.dumps(summary_payload, indent=2, default=str))
+
+        summary.update({
+            "type": "model",
+            "model_path": str(model_fp),
+            "metadata_path": str(meta_fp),
+            "path": str(output_fp),
+        })
+        return summary
+
     # JSON-like (dict/list)
     if isinstance(result, (dict, list)):
         fp = out_dir / 'output.json'
@@ -126,6 +153,14 @@ def main(spec_path: str):
         SPEC = json.load(f)
     JOB_DIR = Path(SPEC['job_dir'])
     JOB_DIR.mkdir(exist_ok=True, parents=True)
+
+    jobs_root = None
+    for parent in [JOB_DIR, *JOB_DIR.parents]:
+        if parent.name == "jobs":
+            jobs_root = parent
+            break
+    if jobs_root is None:
+        jobs_root = JOB_DIR.parent
 
     # Build schema/params maps dynamically from exported DTOs to avoid manual updates.
     # - schema_map: subclasses of BaseTaskDTO (e.g., TaskDTO, SubjectFilterDTO)
@@ -164,7 +199,7 @@ def main(spec_path: str):
 
     task_dto = SchemaCls(**SPEC['schema_kwargs'])
     subject_model = EEGSubjectModel(SPEC['data_dir'])
-    controller = EEGController(subject_model)
+    controller = EEGController(subject_model, jobs_root=jobs_root)
 
     log.info("[JOB] Starting %s -> %s/%s", SPEC['job_id'], SPEC['group'], SPEC['key'])
     log.info("[JOB] task_dto = %s", task_dto)
@@ -187,7 +222,8 @@ def main(spec_path: str):
     # Per-subject batch dict handling (subject -> result).
     # Keep dataset payloads {x, y, group} on the normal save_output path.
     is_dataset_payload = isinstance(result, dict) and {"x", "y", "group"}.issubset(result.keys())
-    if isinstance(result, dict) and result and not is_dataset_payload and all(isinstance(k, str) for k in result.keys()):
+    is_model_payload = isinstance(result, dict) and "model" in result
+    if isinstance(result, dict) and result and not is_dataset_payload and not is_model_payload and all(isinstance(k, str) for k in result.keys()):
         manifest = {"subjects": [], "errors": {}}
         summary_rows = []
         for subj, value in result.items():
