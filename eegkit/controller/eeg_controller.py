@@ -3,7 +3,8 @@
 from ..models.dtos import (
     FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
-from ..services.ai_service import EEGAIService
+from ..services.ml_service import EEGMLService
+from ..services.dl_service import EEGDLService
 from ..services.data_service import EEGDataService
 from ..services.grid_visualization import EEGGridVisualization
 from ..services.visualization import EEGVisualization
@@ -32,7 +33,13 @@ class EEGController:
             get_epochs_func=self.get_epochs,
             get_task_func=self.subject_model.get_task
         )
-        self.ai_service = EEGAIService(
+        self.ml_service = EEGMLService(
+            get_raw_func=self.get_filtered_raw,
+            get_epochs_func=self.get_epochs,
+            get_task_func=self.subject_model.get_task,
+            get_subjects_metadata_func=self.subject_model.get_subjects_metadata,
+        )
+        self.dl_service = EEGDLService(
             get_raw_func=self.get_filtered_raw,
             get_epochs_func=self.get_epochs,
             get_task_func=self.subject_model.get_task,
@@ -44,18 +51,22 @@ class EEGController:
                 "description": getattr(self.visualizer, 'description', "Single-figure visualizations."),
                 "spec": self.visualizer.spec,
             },
-            "Grid Plot": {
-                "description": getattr(self.grid_visualizer, 'description', "Grid-based visualizations."),
-                "spec": self.grid_visualizer.spec,
+            # "Grid Plot": {
+            #     "description": getattr(self.grid_visualizer, 'description', "Grid-based visualizations."),
+            #     "spec": self.grid_visualizer.spec,
+            # },
+            # "Data": {
+            #     "description": getattr(self.data_service, 'description', "Data tables and exports."),
+            #     "spec": self.data_service.spec,
+            # },
+            "Machine Learning": {
+                "description": getattr(self.ml_service, 'description', "Machine learning training and inference."),
+                "spec": self.ml_service.spec,
             },
-            "Data": {
-                "description": getattr(self.data_service, 'description', "Data tables and exports."),
-                "spec": self.data_service.spec,
-            },
-            "AI": {
-                "description": getattr(self.ai_service, 'description', "AI training and inference."),
-                "spec": self.ai_service.spec,
-            },
+            "Deep Learning": {
+                "description": getattr(self.dl_service, 'description', "Deep learning training and inference."),
+                "spec": self.dl_service.spec,
+            }
         }
 
     def get_filtered_raw(self, task_dto: BaseTaskDTO, filter_params: FilterParamsDTO):

@@ -12,7 +12,8 @@ from . import grid_plots as grid_plots  # noqa: F401
 from . import grid_visualization as grid_visualization  # noqa: F401
 from . import plots as plots  # noqa: F401
 from . import visualization as visualization  # noqa: F401
-from . import ai_service as ai_service  # noqa: F401
+from . import dl_actions as dl_actions  # noqa: F401
+from . import ml_actions as ml_actions  # noqa: F401
 
 __all__ = [
     'visualization',
@@ -20,5 +21,6 @@ __all__ = [
     'grid_visualization',
     'plots',
     'grid_plots',
-    'ai_service',
+    'dl_actions',
+    'ml_actions',
 ]

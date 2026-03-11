@@ -5,14 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, List
 
-from .filter import EpochPSDParamsDTO
-
 
 @dataclass
-class AITrainParamsDTO(EpochPSDParamsDTO):
-    """Base training params shared across models."""
+class AIBaseDTO():
     train: List[str] = field(default_factory=lambda: ["epoch", "evoked", "psd"])
-    target: List[str] = field(default_factory=lambda: ["stimulus","ccd_accuracy", "ccd_response_time"])
+    target: List[str] = field(default_factory=lambda: ["stimulus", "accuracy", "ccd_accuracy", "ccd_response_time"])
+
+@dataclass
+class AITrainParamsDTO(AIBaseDTO):
+    """Base training params shared across models."""
     batch_size: int = 32
     epochs_n: int = 50
     lr: float = 0.001
@@ -26,13 +27,13 @@ class AITrainParamsDTO(EpochPSDParamsDTO):
 
 
 @dataclass
-class AIPredictParamsDTO(EpochPSDParamsDTO):
+class AIPredictParamsDTO(AIBaseDTO):
     """Prediction params for future checkpoint-based inference."""
     checkpoint_path: Optional[str] = None
 
 
 @dataclass
-class EEGNetMultiRegTrainParamsDTO(AITrainParamsDTO):
+class EEGNetMultiRegTrainParamsDTO(AIBaseDTO):
     """Training params for EEGNetMultiReg with regression targets.
 
     Provide selectable regression target options sourced from participants metadata.

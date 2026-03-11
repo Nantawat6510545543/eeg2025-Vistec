@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class EEGNet(nn.Module):
+class EEGNetAliasVishnu(nn.Module):
     """Small convolutional network baseline for binary EEG classifications."""
 
     DISPLAY_NAME = "EEGNet (binary head)"
@@ -15,7 +15,7 @@ class EEGNet(nn.Module):
 
     def __init__(self):
         """Initialize convolutional layers and single-head classifier."""
-        super(EEGNet, self).__init__()
+        super(EEGNetAliasVishnu, self).__init__()
         self.T = 120
 
         # Layer 1

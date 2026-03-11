@@ -31,6 +31,7 @@ def save_output(result, out_dir: Path):
     summary = {"dir": str(out_dir)}
     import pandas as _pd
     import matplotlib.pyplot as _plt
+    import numpy as _np
 
     if isinstance(result, _pd.DataFrame):
         fp = out_dir / 'dataframe.csv'
@@ -55,6 +56,41 @@ def save_output(result, out_dir: Path):
             fig.savefig(fp, dpi=150, bbox_inches='tight')
             _plt.close(fig)
         summary.update({"type": "figures", "count": len(result), "path": str(mdir)})
+        return summary
+
+    # ML dataset dict: persist x/y/group as arrays + csv.
+    if isinstance(result, dict) and {"x", "y", "group"}.issubset(result.keys()):
+        ds_dir = out_dir / 'dataset'
+        ds_dir.mkdir(exist_ok=True)
+
+        x = _np.asarray(result.get('x'))
+        y = _np.asarray(result.get('y'))
+        group = _np.asarray(result.get('group'))
+
+        x_fp = ds_dir / 'x.npy'
+        y_fp = ds_dir / 'y.npy'
+        g_fp = ds_dir / 'group.npy'
+        _np.save(x_fp, x)
+        _np.save(y_fp, y)
+        _np.save(g_fp, group)
+
+        # Optional tabular export for quick inspection.
+        rows = int(min(len(y), len(group), x.shape[0] if x.ndim > 0 else 0))
+        preview = _pd.DataFrame({
+            'y': y[:rows].tolist(),
+            'group': group[:rows].tolist(),
+        })
+        preview_fp = ds_dir / 'labels_groups.csv'
+        preview.to_csv(preview_fp, index=False)
+
+        summary.update({
+            "type": "dataset",
+            "path": str(ds_dir),
+            "x_path": str(x_fp),
+            "y_path": str(y_fp),
+            "group_path": str(g_fp),
+            "rows": rows,
+        })
         return summary
 
     # JSON-like (dict/list)
@@ -145,8 +181,10 @@ def main(spec_path: str):
         (JOB_DIR / 'error.json').write_text(json.dumps(error_json, indent=2))
         sys.exit(1)
 
-    # Per-subject batch dict handling (subject -> result)
-    if isinstance(result, dict) and result and all(isinstance(k, str) for k in result.keys()):
+    # Per-subject batch dict handling (subject -> result).
+    # Keep dataset payloads {x, y, group} on the normal save_output path.
+    is_dataset_payload = isinstance(result, dict) and {"x", "y", "group"}.issubset(result.keys())
+    if isinstance(result, dict) and result and not is_dataset_payload and all(isinstance(k, str) for k in result.keys()):
         manifest = {"subjects": [], "errors": {}}
         summary_rows = []
         for subj, value in result.items():

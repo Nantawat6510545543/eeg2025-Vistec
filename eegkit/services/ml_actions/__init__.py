@@ -13,20 +13,18 @@ from typing import Any, Callable, Dict, Optional, Type
 from ...models.dtos import AITrainParamsDTO
 
 # Shared registry: name -> {"params": DTO class | None, "function": unbound callable}
-ai_registry: Dict[str, Dict[str, Any]] = {}
+ml_registry: Dict[str, Dict[str, Any]] = {}
 
 
-def register_ai(name: str, dto_cls: Optional[Type[AITrainParamsDTO]]):
-    """Register an AI action with its params DTO class and handler function."""
+def register_ml(name: str, dto_cls: Optional[Type[AITrainParamsDTO]], category: str = "deep"):
+    """Register an machine learning action with params DTO, handler function, and category."""
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-        ai_registry[name] = {"params": dto_cls, "function": func}
+        ml_registry[name] = {"params": dto_cls, "function": func, "category": category}
         return func
 
     return decorator
 
 
-# Import submodules to populate registry on package import
-from . import dataset  # noqa: F401
-from . import train_eegnet_multireg  # noqa: F401
-from . import summary  # noqa: F401
+# Import submodules to populate registry.
+from . import build_dataset  # noqa: E402,F401
