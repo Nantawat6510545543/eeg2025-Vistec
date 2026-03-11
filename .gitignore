@@ -3,6 +3,9 @@
 .idea/
 jobs/
 .github/copilot-instructions.md
+models/
+doc/
+refs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
