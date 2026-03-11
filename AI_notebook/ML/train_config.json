@@ -1,0 +1,50 @@
+{
+  "logging": {
+    "level": "INFO",
+    "mne_level": "WARNING"
+  },
+  "data": {
+    "data_dir": "/mount/NAS-public-dataset/HBN-EEG/",
+    "task": "contrastChangeDetection",
+    "n_subjects": 200
+  },
+  "epoch_params": {
+    "tmin": -2.0,
+    "tmax": 0.0,
+    "stimulus": [null],
+    "channels": "69-76,81-83,88,89",
+    "notch": null,
+    "uv_min": null,
+    "uv_max": null,
+    "clean_flatline_sec": null,
+    "clean_hf_noise_sd_max": null,
+    "clean_corr_min": null,
+    "clean_asr_max_std": null,
+    "clean_power_min_sd": null,
+    "clean_power_max_sd": null,
+    "clean_max_outbound_pct": null,
+    "clean_window_sec": null
+  },
+  "features": {
+    "mode": "paper18",
+    "fs": 100.0
+  },
+  "cache": {
+    "enabled": true,
+    "dir": "/mount/NAS-workspace-portal/eeg2025-Vistec/models/data/config_runs",
+    "key_prefix": "ccd_ml"
+  },
+  "split": {
+    "test_size": 0.2,
+    "val_size": 0.2,
+    "seed": 42
+  },
+  "model": {
+    "type": "svm",
+    "name": "ccd_svm_paper18_200"
+  },
+  "output": {
+    "model_dir": "/mount/NAS-workspace-portal/eeg2025-Vistec/models/ml/config_runs",
+    "report_dir": "/mount/NAS-workspace-portal/eeg2025-Vistec/models/ml/config_runs/reports"
+  }
+}

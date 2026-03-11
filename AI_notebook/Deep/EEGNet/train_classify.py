@@ -3,16 +3,17 @@
 import argparse
 import csv
 import importlib.util
+import json
 import os
 import random
-from dataclasses import dataclass
-import json
 import sys
+from dataclasses import dataclass
 
 import numpy as np
 import torch
 import torch.nn as nn
 from sklearn.model_selection import GroupShuffleSplit
+from sklearn.utils.class_weight import compute_class_weight
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset as TorchDataset
 from torch.utils.data import WeightedRandomSampler
@@ -245,31 +246,52 @@ def split_group_50_25_25(X, y, groups):
 
 
 def parse_args():
-    """Parse command line arguments."""
+    """Parse command line arguments with optional JSON config defaults."""
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--config", type=str, default="")
+    pre_args, _ = pre_parser.parse_known_args()
+
+    config = {}
+    if pre_args.config:
+        if not os.path.exists(pre_args.config):
+            raise FileNotFoundError(f"config file not found: {pre_args.config}")
+        with open(pre_args.config, "r", encoding="utf-8") as file:
+            config = json.load(file)
+        if not isinstance(config, dict):
+            raise ValueError("config file must contain a JSON object")
+
     parser = argparse.ArgumentParser(description="Train binary EEG model from cached X/y/groups.")
-    parser.add_argument("--cache_dir", type=str, default="/mount/NAS-workspace-portal/eeg2025-Vistec/models/data")
-    parser.add_argument("--params_json", type=str, default="")
-    parser.add_argument("--n_subjects", type=int, required=True)
-    parser.add_argument("--cache_key", type=str, default="")
-    parser.add_argument("--output_root", type=str, default="/mount/NAS-workspace-portal/eeg2025-Vistec/jobs")
-    parser.add_argument("--run_name", type=str, default="notebook_binary_run")
-    parser.add_argument("--cuda_device", type=str, default="cpu")
+    parser.add_argument("--config", type=str, default=pre_args.config)
+    parser.add_argument(
+        "--cache_dir", type=str, default=config.get("cache_dir", "/mount/NAS-workspace-portal/eeg2025-Vistec/models/data")
+    )
+    parser.add_argument("--params_json", type=str, default=config.get("params_json", ""))
+    parser.add_argument("--n_subjects", type=int, default=config.get("n_subjects"), required="n_subjects" not in config)
+    parser.add_argument("--cache_key", type=str, default=config.get("cache_key", ""))
+    parser.add_argument(
+        "--output_root", type=str, default=config.get("output_root", "/mount/NAS-workspace-portal/eeg2025-Vistec/jobs")
+    )
+    parser.add_argument("--run_name", type=str, default=config.get("run_name", "notebook_binary_run"))
+    parser.add_argument("--cuda_device", type=str, default=config.get("cuda_device", "cpu"))
 
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--min_lr", type=float, default=1e-6)
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--patience", type=int, default=10)
-    parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--es_patience", type=int, default=20)
-    parser.add_argument("--factor", type=float, default=0.5)
-    parser.add_argument("--early_stopping_enabled", type=str2bool, default=False)
-    parser.add_argument("--inference_only", type=str2bool, default=False)
-    parser.add_argument("--loss_type", type=str, choices=["ce", "focal"], default="ce")
-    parser.add_argument("--focal_gamma", type=float, default=2.0)
-    parser.add_argument("--focal_alpha", type=float, default=1.0)
-    parser.add_argument("--weighted_sampler_enabled", type=str2bool, default=True)
+    parser.add_argument("--lr", type=float, default=config.get("lr", 1e-3))
+    parser.add_argument("--min_lr", type=float, default=config.get("min_lr", 1e-6))
+    parser.add_argument("--batch_size", type=int, default=config.get("batch_size", 64))
+    parser.add_argument("--patience", type=int, default=config.get("patience", 10))
+    parser.add_argument("--epochs", type=int, default=config.get("epochs", 100))
+    parser.add_argument("--es_patience", type=int, default=config.get("es_patience", 20))
+    parser.add_argument("--factor", type=float, default=config.get("factor", 0.5))
+    parser.add_argument("--early_stopping_enabled", type=str2bool, default=config.get("early_stopping_enabled", False))
+    parser.add_argument("--inference_only", type=str2bool, default=config.get("inference_only", False))
+    parser.add_argument("--loss_type", type=str, choices=["ce", "focal"], default=config.get("loss_type", "ce"))
+    parser.add_argument("--focal_gamma", type=float, default=config.get("focal_gamma", 2.0))
+    parser.add_argument("--focal_alpha", type=float, default=config.get("focal_alpha", 1.0))
+    parser.add_argument("--class_weights_enabled", type=str2bool, default=config.get("class_weights_enabled", True))
+    parser.add_argument(
+        "--weighted_sampler_enabled", type=str2bool, default=config.get("weighted_sampler_enabled", True)
+    )
 
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=config.get("seed", 42))
     return parser.parse_args()
 
 
@@ -297,6 +319,23 @@ def build_dataloaders(x_train, y_train, x_val, y_val, x_test, y_test, batch_size
     val_dl = DataLoader(val_ds, batch_size=batch_size, shuffle=False, pin_memory=True)
     test_dl = DataLoader(test_ds, batch_size=batch_size, shuffle=False, pin_memory=True)
     return train_dl, val_dl, test_dl
+
+
+def build_class_weight_tensor(y_train: np.ndarray, device: str, enabled: bool = True):
+    """Build balanced class weights tensor from train labels."""
+    class_counts = np.bincount(y_train, minlength=2)
+    if not enabled:
+        return None, class_counts, None
+
+    classes = np.array([0, 1], dtype=np.int64)
+    if np.all(class_counts > 0):
+        class_weights = compute_class_weight(class_weight="balanced", classes=classes, y=y_train).astype(np.float32)
+    else:
+        safe_counts = np.maximum(class_counts, 1)
+        class_weights = (safe_counts.sum() / (2.0 * safe_counts)).astype(np.float32)
+
+    class_weight_tensor = torch.tensor(class_weights, dtype=torch.float32, device=device)
+    return class_weight_tensor, class_counts, class_weights
 
 
 def main():
@@ -354,11 +393,11 @@ def main():
         patience=cfg.patience,
         min_lr=cfg.min_lr,
     )
-    # Build class weights from train split for imbalance handling.
-    class_counts = np.bincount(y_train, minlength=2)
-    class_counts = np.maximum(class_counts, 1)
-    class_weights_np = (class_counts.sum() / (2.0 * class_counts)).astype(np.float32)
-    class_weight_tensor = torch.tensor(class_weights_np, dtype=torch.float32, device=args.cuda_device)
+    class_weight_tensor, class_counts, class_weights_np = build_class_weight_tensor(
+        y_train=y_train,
+        device=args.cuda_device,
+        enabled=args.class_weights_enabled,
+    )
 
     if args.loss_type == "focal":
         loss_fn = FocalLoss(
@@ -386,8 +425,9 @@ def main():
     )
 
     print(
-        f"loss_type={args.loss_type}, weighted_sampler_enabled={args.weighted_sampler_enabled}, "
-        f"class_counts={class_counts.tolist()}, class_weights={class_weights_np.tolist()}"
+        f"loss_type={args.loss_type}, class_weights_enabled={args.class_weights_enabled}, "
+        f"weighted_sampler_enabled={args.weighted_sampler_enabled}, class_counts={class_counts.tolist()}, "
+        f"class_weights={(class_weights_np.tolist() if class_weights_np is not None else None)}"
     )
 
     trainer = TrainerClassify(
