@@ -60,7 +60,9 @@ def save_output(result, out_dir: Path):
 
     # ML dataset dict: persist x/y/group as arrays + csv.
     if isinstance(result, dict) and {"x", "y", "group"}.issubset(result.keys()):
-        ds_dir = out_dir / 'dataset'
+        dataset_name = str(result.get('name') or 'dataset')
+        safe_name = ''.join(ch if (ch.isalnum() or ch in ('-', '_')) else '_' for ch in dataset_name).strip('_')
+        ds_dir = out_dir / (safe_name or 'dataset')
         ds_dir.mkdir(exist_ok=True)
 
         x = _np.asarray(result.get('x'))
@@ -85,6 +87,7 @@ def save_output(result, out_dir: Path):
 
         summary.update({
             "type": "dataset",
+            "name": dataset_name,
             "path": str(ds_dir),
             "x_path": str(x_fp),
             "y_path": str(y_fp),

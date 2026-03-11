@@ -28,11 +28,13 @@ from .filter import (
     EvokedJointParamsDTO,
     TimeDomainParamsDTO,
     TableInfoDTO,
+    EpochFeatureDatasetParamsDTO,
 )
 from .ai import (
     AITrainParamsDTO,
     AIPredictParamsDTO,
     EEGNetMultiRegTrainParamsDTO,
+    MLTrainDatasetParamsDTO,
 )
 
 __all__ = [
@@ -53,8 +55,10 @@ __all__ = [
     "EvokedJointParamsDTO",
     "TimeDomainParamsDTO",
     "TableInfoDTO",
+    "EpochFeatureDatasetParamsDTO",
     # ai
     "AITrainParamsDTO",
     "AIPredictParamsDTO",
     "EEGNetMultiRegTrainParamsDTO",
+    "MLTrainDatasetParamsDTO",
 ]

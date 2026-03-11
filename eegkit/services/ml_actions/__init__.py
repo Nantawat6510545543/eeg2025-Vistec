@@ -10,13 +10,11 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional, Type
 
-from ...models.dtos import AITrainParamsDTO
-
 # Shared registry: name -> {"params": DTO class | None, "function": unbound callable}
 ml_registry: Dict[str, Dict[str, Any]] = {}
 
 
-def register_ml(name: str, dto_cls: Optional[Type[AITrainParamsDTO]], category: str = "deep"):
+def register_ml(name: str, dto_cls: Optional[Type[Any]], category: str = "deep"):
     """Register an machine learning action with params DTO, handler function, and category."""
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -27,4 +25,5 @@ def register_ml(name: str, dto_cls: Optional[Type[AITrainParamsDTO]], category: 
 
 
 # Import submodules to populate registry.
-from . import build_dataset  # noqa: E402,F401
+from . import build_epoch_feature_dataset  # noqa: E402,F401
+from . import train_feature_model  # noqa: E402,F401

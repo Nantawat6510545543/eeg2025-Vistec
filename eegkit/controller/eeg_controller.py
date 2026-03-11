@@ -1,5 +1,7 @@
 """High-level orchestration layer bridging models and services for UI actions."""
 
+from pathlib import Path
+
 from ..models.dtos import (
     FilterParamsDTO, EpochParamsDTO, BaseTaskDTO, SubjectFilterDTO
 )
@@ -13,9 +15,11 @@ from ..services.visualization import EEGVisualization
 class EEGController:
     """Facade providing filtered data, epochs, evoked responses and service specs."""
 
-    def __init__(self, subject_model):
+    def __init__(self, subject_model, jobs_root: Path = None):
         """Initialize controller with subject model and bind service instances."""
         self.subject_model = subject_model
+        self.jobs_root = Path(jobs_root or "jobs")
+        self.jobs_root.mkdir(exist_ok=True, parents=True)
         self.visualizer = EEGVisualization(
             get_raw_func=self.get_filtered_raw,
             get_epochs_func=self.get_epochs,
@@ -38,6 +42,7 @@ class EEGController:
             get_epochs_func=self.get_epochs,
             get_task_func=self.subject_model.get_task,
             get_subjects_metadata_func=self.subject_model.get_subjects_metadata,
+            jobs_root=self.jobs_root,
         )
         self.dl_service = EEGDLService(
             get_raw_func=self.get_filtered_raw,
@@ -106,12 +111,16 @@ class EEGController:
 
     def prepare(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):
         """Return parameter enrichment (dropdown choices etc.) for an action."""
-        if group == "Plot":
-            return self.visualizer.prepare_params(task_dto, params_dto)
-        if group == "Grid Plot":
-            return self.grid_visualizer.prepare_params(task_dto, params_dto)
-        if group == "AI":
-            return self.ai_service.prepare_params(task_dto, params_dto)
+        service_map = {
+            "Plot": self.visualizer,
+            "Grid Plot": self.grid_visualizer,
+            "Data": self.data_service,
+            "Machine Learning": self.ml_service,
+            "Deep Learning": self.dl_service,
+        }
+        service = service_map.get(group)
+        if service is not None:
+            return service.prepare_params(task_dto, params_dto)
         return {}
 
     def show(self, task_dto: BaseTaskDTO, group: str, key: str, params_dto):

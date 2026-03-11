@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 from typing import Optional, List
 
 
-@dataclass
-class AIBaseDTO():
-    train: List[str] = field(default_factory=lambda: ["epoch", "evoked", "psd"])
-    target: List[str] = field(default_factory=lambda: ["stimulus", "accuracy", "ccd_accuracy", "ccd_response_time"])
+# @dataclass
+# class AIBaseDTO():
+#     train: List[str] = field(default_factory=lambda: ["epoch", "evoked", "psd"])
+#     target: List[str] = field(default_factory=lambda: ["stimulus", "accuracy", "ccd_accuracy", "ccd_response_time"])
 
 @dataclass
-class AITrainParamsDTO(AIBaseDTO):
+class AITrainParamsDTO():
     """Base training params shared across models."""
     batch_size: int = 32
     epochs_n: int = 50
@@ -27,13 +27,13 @@ class AITrainParamsDTO(AIBaseDTO):
 
 
 @dataclass
-class AIPredictParamsDTO(AIBaseDTO):
+class AIPredictParamsDTO():
     """Prediction params for future checkpoint-based inference."""
     checkpoint_path: Optional[str] = None
 
 
 @dataclass
-class EEGNetMultiRegTrainParamsDTO(AIBaseDTO):
+class EEGNetMultiRegTrainParamsDTO():
     """Training params for EEGNetMultiReg with regression targets.
 
     Provide selectable regression target options sourced from participants metadata.
@@ -44,8 +44,18 @@ class EEGNetMultiRegTrainParamsDTO(AIBaseDTO):
         "ccd_accuracy + ccd_response_time",
     ])
 
+
+@dataclass
+class MLTrainDatasetParamsDTO():
+    """Parameters for selecting a discovered dataset and training placeholder settings."""
+
+    dataset_path: List[Optional[str]] = field(default_factory=lambda: [None])
+    run_name: str = "ml_train_placeholder"
+    estimator: List[str] = field(default_factory=lambda: ["logistic_regression", "random_forest", "svm"])
+
 __all__ = [
     "AITrainParamsDTO",
     "AIPredictParamsDTO",
     "EEGNetMultiRegTrainParamsDTO",
+    "MLTrainDatasetParamsDTO",
 ]

@@ -53,8 +53,7 @@ class EEGUI:
         self.param_box = widgets.VBox()
         self.execution = ExecutionPanel()
 
-        self.jobs_root = Path("jobs")
-        self.jobs_root.mkdir(exist_ok=True, parents=True)
+        self.jobs_root = self.controller.jobs_root
 
         self.schema_panel = SchemaPanel(
             self.controller,

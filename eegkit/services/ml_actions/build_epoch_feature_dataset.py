@@ -8,7 +8,7 @@ import pandas as pd
 from scipy.signal import welch
 from tqdm.auto import tqdm
 
-from ...models.dtos import BaseTaskDTO, EpochParamsDTO
+from ...models.dtos import BaseTaskDTO, EpochFeatureDatasetParamsDTO
 from ...utils.channels import prepare_channels
 from . import register_ml
 
@@ -96,6 +96,7 @@ def _extract_nonlinear_features(signal_1d: np.ndarray, fs: float) -> Dict[str, f
     hist, _ = np.histogram(signal_1d, bins=10, density=True)
     hist = hist[hist > 0]
     shannon_entropy = float(-np.sum(hist * np.log2(hist))) if hist.size else 0.0
+    nperseg = min(len(signal_1d), 256)
 
     return {
         "approx_entropy": float(ent.app_entropy(signal_1d)),
@@ -103,7 +104,15 @@ def _extract_nonlinear_features(signal_1d: np.ndarray, fs: float) -> Dict[str, f
         "perm_entropy": float(ent.perm_entropy(signal_1d, normalize=True)),
         "svd_entropy": float(ent.svd_entropy(signal_1d, normalize=True)),
         "shannon_entropy": shannon_entropy,
-        "spectral_entropy": float(ent.spectral_entropy(signal_1d, sf=fs, method="welch", normalize=True)),
+        "spectral_entropy": float(
+            ent.spectral_entropy(
+                signal_1d,
+                sf=fs,
+                method="welch",
+                nperseg=nperseg,
+                normalize=True,
+            )
+        ),
     }
 
 
@@ -118,27 +127,32 @@ def _extract_epoch_vector(epoch_data: np.ndarray, fs: float) -> np.ndarray:
     return np.asarray(row_features, dtype=np.float64)
 
 
-def _empty_dataset() -> Dict[str, np.ndarray]:
-    """Return an empty dataset payload with stable dtypes."""
+def _empty_dataset(name: str) -> Dict[str, np.ndarray | str]:
+    """Return an empty dataset payload with stable dtypes and metadata."""
     return {
+        "name": name,
         "x": np.empty((0, 0), dtype=np.float64),
         "y": np.empty((0,), dtype=np.int64),
         "group": np.empty((0,), dtype=object),
     }
 
 
-def _build_task_dataset(task_model, params: EpochParamsDTO) -> Dict[str, np.ndarray]:
+def _build_task_dataset(task_model, params: EpochFeatureDatasetParamsDTO) -> Dict[str, np.ndarray]:
     """Build one dataset chunk for a single task model/run."""
     epochs, _labels = task_model.get_epochs(params)
     if epochs is None:
-        return _empty_dataset()
+        return {
+            "x": np.empty((0, 0), dtype=np.float64),
+            "y": np.empty((0,), dtype=np.int64),
+            "group": np.empty((0,), dtype=object),
+        }
 
     epochs = prepare_channels(epochs, params)
     x_data = epochs.get_data(copy=True)
     sfreq = float(epochs.info.get("sfreq", 128.0))
 
     x_rows = []
-    for epoch_data in tqdm(x_data, total=len(x_data), desc="Build dataset features", leave=False):
+    for epoch_data in x_data:
         x_rows.append(_extract_epoch_vector(epoch_data, sfreq))
     x = np.vstack(x_rows) if x_rows else np.empty((0, 0), dtype=np.float64)
 
@@ -155,12 +169,12 @@ def _build_task_dataset(task_model, params: EpochParamsDTO) -> Dict[str, np.ndar
     return {"x": x, "y": y, "group": group}
 
 
-@register_ml("Build Dataset", EpochParamsDTO)
-def build_dataset(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
-    """Build ML-ready arrays from epochs and CCD trial labels."""
+@register_ml("Build Epoch Feature Dataset", EpochFeatureDatasetParamsDTO)
+def build_epoch_feature_dataset(self, task_dto: BaseTaskDTO, params: EpochFeatureDatasetParamsDTO):
+    """Build epoch-feature dataset and return x/y/group with dataset metadata."""
     task_model = self.get_task(task_dto) if self.get_task is not None else None
     if task_model is None:
-        return _empty_dataset()
+        return _empty_dataset(params.dataset_name)
 
     if hasattr(task_model, "task_model_list"):
         task_models = list(getattr(task_model, "task_model_list", []))
@@ -174,9 +188,14 @@ def build_dataset(self, task_dto: BaseTaskDTO, params: EpochParamsDTO):
             chunks.append(chunk)
 
     if not chunks:
-        return _empty_dataset()
+        return _empty_dataset(params.dataset_name)
 
     x = np.vstack([chunk["x"] for chunk in chunks])
     y = np.concatenate([chunk["y"] for chunk in chunks])
     group = np.concatenate([chunk["group"] for chunk in chunks])
-    return {"x": x, "y": y, "group": group}
+    return {
+        "name": params.dataset_name,
+        "x": x,
+        "y": y,
+        "group": group,
+    }

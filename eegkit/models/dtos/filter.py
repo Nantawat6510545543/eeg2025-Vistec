@@ -210,6 +210,13 @@ class TableInfoDTO(FilterParamsDTO):
     table_type: List[str] = field(default_factory=lambda: ["events", "channels", "electrodes"])
     rows: int = 10
 
+
+@dataclass
+class EpochFeatureDatasetParamsDTO(EpochParamsDTO):
+    """Parameters for building epoch-derived ML feature datasets."""
+
+    dataset_name: str = "epoch_feature_dataset"
+
 __all__ = [
     "FilterParamsDTO",
     "EpochParamsDTO",
@@ -220,4 +227,5 @@ __all__ = [
     "EvokedJointParamsDTO",
     "TimeDomainParamsDTO",
     "TableInfoDTO",
+    "EpochFeatureDatasetParamsDTO",
 ]
