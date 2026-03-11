@@ -1,4 +1,4 @@
-"""EEGNet trunk with configurable multi-output regression head(s)."""
+"""EEGNet(aliasvishnu) trunk with configurable multi-output regression head(s)."""
 from __future__ import annotations
 
 import torch

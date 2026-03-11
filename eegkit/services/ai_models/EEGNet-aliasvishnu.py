@@ -1,4 +1,4 @@
-"""Compact CNN example (EEGNet-inspired) with single binary output head for demos."""
+"""Compact CNN example (EEGNet-inspired) with single binary output head for demos (form:aliasvishnu)."""
 
 import torch.nn as nn
 import torch.nn.functional as F

@@ -1,4 +1,4 @@
-"""EEGNet variant with three classification heads (background/foreground/stimulus)."""
+"""EEGNet(aliasvishnu) variant with three classification heads (background/foreground/stimulus)."""
 
 import torch
 import torch.nn as nn
