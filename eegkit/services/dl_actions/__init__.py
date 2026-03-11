@@ -10,13 +10,13 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Optional, Type
 
-from ...models.dtos import AITrainParamsDTO
+from ...models.dtos import DLTrainParamsDTO
 
 # Shared registry: name -> {"params": DTO class | None, "function": unbound callable}
 dl_registry: Dict[str, Dict[str, Any]] = {}
 
 
-def register_dl(name: str, dto_cls: Optional[Type[AITrainParamsDTO]], category: str = "deep"):
+def register_dl(name: str, dto_cls: Optional[Type[DLTrainParamsDTO]], category: str = "deep"):
     """Register an deep learning action with params DTO, handler function, and category."""
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:

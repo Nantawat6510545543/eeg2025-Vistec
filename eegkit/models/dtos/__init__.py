@@ -31,8 +31,8 @@ from .filter import (
     EpochFeatureDatasetParamsDTO,
 )
 from .ai import (
-    AITrainParamsDTO,
-    AIPredictParamsDTO,
+    DLTrainParamsDTO,
+    MLTrainParamsDTO,
     EEGNetMultiRegTrainParamsDTO,
     MLTrainDatasetParamsDTO,
     MLTestDatasetModelParamsDTO,
@@ -58,8 +58,8 @@ __all__ = [
     "TableInfoDTO",
     "EpochFeatureDatasetParamsDTO",
     # ai
-    "AITrainParamsDTO",
-    "AIPredictParamsDTO",
+    "DLTrainParamsDTO",
+    "MLTrainParamsDTO",
     "EEGNetMultiRegTrainParamsDTO",
     "MLTrainDatasetParamsDTO",
     "MLTestDatasetModelParamsDTO",

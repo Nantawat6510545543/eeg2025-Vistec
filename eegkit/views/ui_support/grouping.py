@@ -27,8 +27,8 @@ TITLE_OVERRIDES: Dict[str, str] = {
     "EvokedJointParamsDTO": "Joint Plot",
     "TimeDomainParamsDTO": "Time Domain",
     "TableInfoDTO": "Tables",
-    "AITrainParamsDTO": "Training",
-    "AIPredictParamsDTO": "Prediction",
+    "DLTrainParamsDTO": "Training",
+    "MLTrainParamsDTO": "Training",
 }
 
 
