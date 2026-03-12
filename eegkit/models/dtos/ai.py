@@ -53,15 +53,16 @@ class MLTrainDatasetParamsDTO(MLTrainParamsDTO):
     dataset_path: List[Optional[str]] = field(default_factory=lambda: [None])
     run_name: str = "ml_train_placeholder"
     estimator: List[str] = field(default_factory=lambda: ["svm", "knn", "random_forest"])
+    label_smoothing: float = 0.0
 
 
 @dataclass
 class MLTestDatasetModelParamsDTO(MLTrainParamsDTO):
     """Parameters for testing saved ML models on selected datasets."""
 
-    model_path: List[Optional[str]] = field(default_factory=lambda: ["__all__"])
-    dataset_path: List[Optional[str]] = field(default_factory=lambda: ["__all__"])
-    display_mode: List[str] = field(default_factory=lambda: ["table", "graph"])
+    model_path: List[Optional[str]] = field(default_factory=lambda: [None])
+    dataset_path: List[Optional[str]] = field(default_factory=lambda: [None])
+    display_mode: List[str] = field(default_factory=lambda: ["true_vs_pred"])
 
 __all__ = [
     "DLTrainParamsDTO",

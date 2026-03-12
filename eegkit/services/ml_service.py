@@ -167,33 +167,53 @@ class EEGMLService(BaseService):
         models.sort(key=lambda item: (item.get("task", ""), item.get("run_name", ""), item["name"]))
         return models
 
+    @staticmethod
+    def dataset_option_key(item: Dict[str, str]) -> str:
+        """Return stable dataset dropdown key in datasetname-jobid format."""
+        return f"{item.get('name', 'dataset')}-{item.get('session', 'unknown')}"
+
+    @staticmethod
+    def model_option_key(item: Dict[str, str]) -> str:
+        """Return stable model dropdown key in modelname-jobid format."""
+        return f"{item.get('name', 'model')}-{item.get('run_name', 'run')}"
+
+    def resolve_dataset_path(self, selected: str | None, task_name: str | None = None) -> str | None:
+        """Resolve selected dataset key/path to a real dataset path."""
+        if not selected or selected == "__all__":
+            return selected
+        p = Path(str(selected))
+        if p.exists():
+            return str(p.resolve())
+        for item in self.discover_datasets(task_name):
+            if selected in {item.get("path"), self.dataset_option_key(item), item.get("name")}:
+                return item.get("path")
+        return None
+
+    def resolve_model_path(self, selected: str | None, task_name: str | None = None) -> str | None:
+        """Resolve selected model key/path to a real model artifact path."""
+        if not selected or selected == "__all__":
+            return selected
+        p = Path(str(selected))
+        if p.exists():
+            return str(p.resolve())
+        for item in self.discover_models(task_name):
+            if selected in {item.get("path"), self.model_option_key(item), item.get("name")}:
+                return item.get("path")
+        return None
+
     def prepare_params(self, task_dto, params_dto):
         """Return dynamic parameter choices for ML actions including discovered datasets."""
         updates = super().prepare_params(task_dto, params_dto)
         task_name = getattr(task_dto, "task", None)
         if hasattr(params_dto, "dataset_path"):
             datasets = self.discover_datasets(task_name)
-            updates["dataset_path"] = [
-                (
-                    f"{item['name']} [{item['kind']}] - {item.get('action', 'unknown')}/{item.get('session', 'unknown')}",
-                    item["path"],
-                )
-                for item in datasets
-            ] or [None]
-            if hasattr(params_dto, "model_path") and updates["dataset_path"]:
-                updates["dataset_path"] = [("__all__", "__all__")] + updates["dataset_path"]
+            updates["dataset_path"] = [self.dataset_option_key(item) for item in datasets] or [None]
 
         if hasattr(params_dto, "model_path"):
             models = self.discover_models(task_name)
-            updates["model_path"] = [
-                (
-                    f"{item['name']} [{item.get('estimator', 'unknown')}] - {item.get('run_name', 'run')}",
-                    item["path"],
-                )
-                for item in models
-            ]
+            updates["model_path"] = [self.model_option_key(item) for item in models]
             if updates["model_path"]:
-                updates["model_path"] = [("__all__", "__all__")] + updates["model_path"]
+                updates["model_path"] = updates["model_path"]
             else:
                 updates["model_path"] = [None]
         return updates

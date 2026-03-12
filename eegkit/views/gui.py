@@ -201,12 +201,7 @@ class EEGUI:
             if isinstance(w, widgets.Dropdown):
                 w.options = new_val
                 if new_val:
-                    first = new_val[0]
-                    # Dropdown options may be [(label, value), ...] or [value, ...].
-                    if isinstance(first, (tuple, list)) and len(first) >= 2:
-                        w.value = first[1]
-                    else:
-                        w.value = first
+                    w.value = new_val[0]
             elif hasattr(w, "value"):
                 w.value = new_val
         group_meta = self.param_panel.param_group_meta.get(layout_key, [])

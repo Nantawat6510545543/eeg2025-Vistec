@@ -48,6 +48,24 @@ def _flatten_features(x: np.ndarray) -> np.ndarray:
     return x.reshape(x.shape[0], -1)
 
 
+def _label_smoothing(y: np.ndarray, epsilon: float = 0.1, seed: int = 42) -> np.ndarray:
+    """Randomly reassign ``epsilon`` fraction of training labels to another class.
+
+    Acts as label-noise regularization for small or imbalanced datasets.
+    Pass ``epsilon=0`` to disable (returns *y* unchanged).
+    """
+    if epsilon <= 0.0 or len(np.unique(y)) < 2:
+        return y
+    rng = np.random.default_rng(seed)
+    classes = np.unique(y)
+    y_smooth = y.copy()
+    flip_idx = rng.choice(len(y), size=max(1, int(len(y) * epsilon)), replace=False)
+    for i in flip_idx:
+        other = classes[classes != y[i]]
+        y_smooth[i] = rng.choice(other)
+    return y_smooth
+
+
 def _split_with_groups(
     x: np.ndarray,
     y: np.ndarray,
@@ -96,7 +114,13 @@ def _split_with_groups(
 @register_ml("Train Feature Model", MLTrainDatasetParamsDTO)
 def train_feature_model(self, task_dto: BaseTaskDTO, params: MLTrainDatasetParamsDTO):
     """Train a classical model from a discovered feature dataset."""
-    dataset_path = _selected_value(getattr(params, "dataset_path", None))
+    selected_dataset = _selected_value(getattr(params, "dataset_path", None))
+    task_name = getattr(task_dto, "task", None)
+    dataset_path = (
+        self.resolve_dataset_path(selected_dataset, task_name)
+        if hasattr(self, "resolve_dataset_path")
+        else selected_dataset
+    )
 
     if not dataset_path:
         return {
@@ -128,6 +152,9 @@ def train_feature_model(self, task_dto: BaseTaskDTO, params: MLTrainDatasetParam
     x_train, y_train = x[train_idx], y[train_idx]
     x_val, y_val = x[val_idx], y[val_idx]
     x_test, y_test = x[test_idx], y[test_idx]
+
+    label_smoothing = float(getattr(params, "label_smoothing", 0.0))
+    y_train = _label_smoothing(y_train, epsilon=label_smoothing, seed=int(getattr(params, "seed", 42)))
 
     run_name = getattr(params, "run_name", "ml_train")
     dataset_name = Path(dataset_path).stem if Path(dataset_path).is_file() else Path(dataset_path).name
