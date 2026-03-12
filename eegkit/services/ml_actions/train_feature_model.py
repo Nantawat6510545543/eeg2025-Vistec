@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict
 
 import numpy as np
 from sklearn.model_selection import GroupShuffleSplit, train_test_split
@@ -11,41 +10,6 @@ from sklearn.model_selection import GroupShuffleSplit, train_test_split
 from ...models.dtos import BaseTaskDTO, MLTrainDatasetParamsDTO
 from ..ai_models.machine_learning import build_estimator
 from . import register_ml
-
-
-def _selected_value(value):
-    """Normalize dropdown-style list values to a single selection."""
-    if isinstance(value, (list, tuple)):
-        return value[0] if value else None
-    return value
-
-
-def _load_dataset(dataset_path: str) -> Dict[str, np.ndarray]:
-    """Load dataset arrays from a directory of NPY files or an NPZ archive."""
-    path = Path(dataset_path)
-    if path.is_dir():
-        return {
-            "x": np.load(path / "x.npy", allow_pickle=False),
-            "y": np.load(path / "y.npy", allow_pickle=False),
-            "group": np.load(path / "group.npy", allow_pickle=True),
-        }
-
-    if path.is_file() and path.suffix == ".npz":
-        with np.load(path, allow_pickle=True) as archive:
-            return {
-                "x": archive["x"],
-                "y": archive["y"],
-                "group": archive["group"],
-            }
-
-    raise FileNotFoundError(f"Unsupported dataset path: {dataset_path}")
-
-
-def _flatten_features(x: np.ndarray) -> np.ndarray:
-    """Flatten input features to 2D for classical estimators."""
-    if x.ndim <= 2:
-        return x
-    return x.reshape(x.shape[0], -1)
 
 
 def _label_smoothing(y: np.ndarray, epsilon: float = 0.1, seed: int = 42) -> np.ndarray:
@@ -114,13 +78,9 @@ def _split_with_groups(
 @register_ml("Train Feature Model", MLTrainDatasetParamsDTO)
 def train_feature_model(self, task_dto: BaseTaskDTO, params: MLTrainDatasetParamsDTO):
     """Train a classical model from a discovered feature dataset."""
-    selected_dataset = _selected_value(getattr(params, "dataset_path", None))
+    selected_dataset = self.selected_value(getattr(params, "dataset_path", None))
     task_name = getattr(task_dto, "task", None)
-    dataset_path = (
-        self.resolve_dataset_path(selected_dataset, task_name)
-        if hasattr(self, "resolve_dataset_path")
-        else selected_dataset
-    )
+    dataset_path = self.resolve_dataset_path(selected_dataset, task_name)
 
     if not dataset_path:
         return {
@@ -128,8 +88,8 @@ def train_feature_model(self, task_dto: BaseTaskDTO, params: MLTrainDatasetParam
             "message": "Select a discovered dataset before training.",
         }
 
-    arrays = _load_dataset(dataset_path)
-    x = _flatten_features(np.asarray(arrays["x"]))
+    arrays = self.load_xyg_dataset(dataset_path)
+    x = self.flatten_features_2d(np.asarray(arrays["x"]))
     y = np.asarray(arrays["y"])
     group = np.asarray(arrays["group"])
 
@@ -139,7 +99,7 @@ def train_feature_model(self, task_dto: BaseTaskDTO, params: MLTrainDatasetParam
             "message": "Selected dataset has no rows.",
         }
 
-    estimator_name = _selected_value(getattr(params, "estimator", None)) or "svm"
+    estimator_name = self.selected_value(getattr(params, "estimator", None)) or "svm"
     train_idx, val_idx, test_idx = _split_with_groups(
         x,
         y,

@@ -49,6 +49,7 @@ class EEGController:
             get_epochs_func=self.get_epochs,
             get_task_func=self.subject_model.get_task,
             get_subjects_metadata_func=self.subject_model.get_subjects_metadata,
+            jobs_root=self.jobs_root,
         )
 
         self._modes = {

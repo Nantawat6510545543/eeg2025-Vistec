@@ -34,6 +34,14 @@ def save_output(result, out_dir: Path):
     import numpy as _np
     from joblib import dump as _joblib_dump
 
+    def _value_counts(arr):
+        """Return JSON-serializable value counts for 1D-like arrays."""
+        try:
+            vals, counts = _np.unique(_np.asarray(arr), return_counts=True)
+            return {str(v): int(c) for v, c in zip(vals.tolist(), counts.tolist())}
+        except Exception:
+            return {}
+
     if isinstance(result, _pd.DataFrame):
         fp = out_dir / 'dataframe.csv'
         result.to_csv(fp, index=False)
@@ -86,6 +94,18 @@ def save_output(result, out_dir: Path):
         preview_fp = ds_dir / 'labels_groups.csv'
         preview.to_csv(preview_fp, index=False)
 
+        dataset_summary = {
+            "name": dataset_name,
+            "rows": rows,
+            "x_shape": list(x.shape),
+            "y_shape": list(y.shape),
+            "group_shape": list(group.shape),
+            "y_class_counts": _value_counts(y[:rows]),
+            "group_counts": _value_counts(group[:rows]),
+        }
+        summary_fp = ds_dir / 'dataset_summary.json'
+        summary_fp.write_text(json.dumps(dataset_summary, indent=2, default=str))
+
         summary.update({
             "type": "dataset",
             "name": dataset_name,
@@ -94,16 +114,29 @@ def save_output(result, out_dir: Path):
             "y_path": str(y_fp),
             "group_path": str(g_fp),
             "rows": rows,
+            "x_shape": list(x.shape),
+            "y_shape": list(y.shape),
+            "group_shape": list(group.shape),
+            "y_class_counts": dataset_summary["y_class_counts"],
+            "group_counts": dataset_summary["group_counts"],
+            "dataset_summary_path": str(summary_fp),
         })
         return summary
 
-    # Trained model payload: persist estimator object and metadata.
+    # Trained model payload: persist model object and metadata.
     if isinstance(result, dict) and "model" in result:
         model_obj = result.get("model")
         model_name = str(result.get("model_name") or "model")
         safe_name = ''.join(ch if (ch.isalnum() or ch in ('-', '_')) else '_' for ch in model_name).strip('_')
-        model_fp = out_dir / f"{safe_name or 'model'}_model.gz"
-        _joblib_dump(model_obj, model_fp)
+
+        # Detect PyTorch nn.Module and save state dict with torch.save.
+        if hasattr(model_obj, 'state_dict') and callable(model_obj.state_dict):
+            import torch as _torch
+            model_fp = out_dir / f"{safe_name or 'model'}_model.pt"
+            _torch.save(model_obj.state_dict(), model_fp)
+        else:
+            model_fp = out_dir / f"{safe_name or 'model'}_model.gz"
+            _joblib_dump(model_obj, model_fp)
 
         metadata = result.get("metadata") if isinstance(result.get("metadata"), dict) else {}
         metadata = {**metadata, "model_path": str(model_fp)}

@@ -1,1 +1,1 @@
-from .deep_learning import CNNLSTMDense, EEGNetAliasVishnu, EEGNetMultiOutput, EEGNetMultiReg, SimpleNN
+from .deep_learning import CNNLSTMDense, EEGNetAliasVishnu, EEGNetBinary, EEGNetMultiOutput, EEGNetMultiReg, SimpleNN

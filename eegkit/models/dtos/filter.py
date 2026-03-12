@@ -217,6 +217,14 @@ class EpochFeatureDatasetParamsDTO(EpochParamsDTO):
 
     dataset_name: str = "epoch_feature_dataset"
 
+
+@dataclass
+class DLEpochDatasetParamsDTO(EpochParamsDTO):
+    """Parameters for building raw epoch tensor datasets for DL training."""
+
+    dataset_name: str = "dl_epoch_dataset"
+
+
 __all__ = [
     "FilterParamsDTO",
     "EpochParamsDTO",
@@ -228,4 +236,5 @@ __all__ = [
     "TimeDomainParamsDTO",
     "TableInfoDTO",
     "EpochFeatureDatasetParamsDTO",
+    "DLEpochDatasetParamsDTO",
 ]

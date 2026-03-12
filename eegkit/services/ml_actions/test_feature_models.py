@@ -13,41 +13,6 @@ from ...models.dtos import BaseTaskDTO, MLTestDatasetModelParamsDTO
 from . import register_ml
 
 
-def _selected_value(value):
-    """Normalize dropdown-style list values to a single selection."""
-    if isinstance(value, (list, tuple)):
-        return value[0] if value else None
-    return value
-
-
-def _load_dataset(dataset_path: str) -> Dict[str, np.ndarray]:
-    """Load dataset arrays from a directory of NPY files or an NPZ archive."""
-    path = Path(dataset_path)
-    if path.is_dir():
-        return {
-            "x": np.load(path / "x.npy", allow_pickle=False),
-            "y": np.load(path / "y.npy", allow_pickle=False),
-            "group": np.load(path / "group.npy", allow_pickle=True),
-        }
-
-    if path.is_file() and path.suffix == ".npz":
-        with np.load(path, allow_pickle=True) as archive:
-            return {
-                "x": archive["x"],
-                "y": archive["y"],
-                "group": archive["group"],
-            }
-
-    raise FileNotFoundError(f"Unsupported dataset path: {dataset_path}")
-
-
-def _flatten_features(x: np.ndarray) -> np.ndarray:
-    """Flatten input features to 2D for classical estimators."""
-    if x.ndim <= 2:
-        return x
-    return x.reshape(x.shape[0], -1)
-
-
 def _build_true_vs_pred_figure(pred_records: List[Dict[str, object]]):
     """Create a per-run true-vs-pred scatter plot figure."""
     n_panels = max(1, len(pred_records))
@@ -93,21 +58,13 @@ def _build_true_vs_pred_figure(pred_records: List[Dict[str, object]]):
 def test_feature_models(self, task_dto: BaseTaskDTO, params: MLTestDatasetModelParamsDTO):
     """Test selected model/dataset and return a true-vs-pred plot."""
     task_name = getattr(task_dto, "task", None)
-    all_models = self.discover_models(task_name) if hasattr(self, "discover_models") else []
-    all_datasets = self.discover_datasets(task_name) if hasattr(self, "discover_datasets") else []
+    all_models = self.discover_models(task_name)
+    all_datasets = self.discover_datasets(task_name)
 
-    selected_model = _selected_value(getattr(params, "model_path", None))
-    selected_dataset = _selected_value(getattr(params, "dataset_path", None))
-    selected_model_path = (
-        self.resolve_model_path(selected_model, task_name)
-        if hasattr(self, "resolve_model_path")
-        else selected_model
-    )
-    selected_dataset_path = (
-        self.resolve_dataset_path(selected_dataset, task_name)
-        if hasattr(self, "resolve_dataset_path")
-        else selected_dataset
-    )
+    selected_model = self.selected_value(getattr(params, "model_path", None))
+    selected_dataset = self.selected_value(getattr(params, "dataset_path", None))
+    selected_model_path = self.resolve_model_path(selected_model, task_name)
+    selected_dataset_path = self.resolve_dataset_path(selected_dataset, task_name)
 
     if not all_models:
         return {"status": "no_models", "message": "No saved models discovered for testing."}
@@ -128,8 +85,8 @@ def test_feature_models(self, task_dto: BaseTaskDTO, params: MLTestDatasetModelP
     for model_info in models:
         clf = load(model_info["path"])
         for dataset_info in datasets:
-            arrays = _load_dataset(dataset_info["path"])
-            x_test = _flatten_features(np.asarray(arrays["x"]))
+            arrays = self.load_xyg_dataset(dataset_info["path"])
+            x_test = self.flatten_features_2d(np.asarray(arrays["x"]))
             y_test = np.asarray(arrays["y"])
 
             if x_test.shape[0] == 0:

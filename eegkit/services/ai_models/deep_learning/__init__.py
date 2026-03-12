@@ -8,12 +8,14 @@ in_channels, n_classes or num_classes).
 
 from .CNNLSTMDense import CNNLSTMDense
 from .EEGNetAliasVishnu import EEGNetAliasVishnu
+from .EEGNetBinary import EEGNetBinary
 from .EEGNetMultiOutput import EEGNetMultiOutput
 from .EEGNetMultiReg import EEGNetMultiReg
 from .simpleNN import SimpleNN
 
 __all__ = [
     "EEGNet",
+    "EEGNetBinary",
     "EEGNetMultiOutput",
     "SimpleNN",
     "CNNLSTMDense",

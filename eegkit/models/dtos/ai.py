@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import List, Optional
 
 
 # @dataclass
@@ -24,6 +24,12 @@ class DLTrainParamsDTO():
     save_checkpoint: bool = True
     weight_classes: bool = False
     patience: int = 0
+    dataset_path: List[Optional[str]] = field(default_factory=lambda: [None])
+    run_name: str = "dl_train"
+    min_lr: float = 1e-6
+    lr_factor: float = 0.5
+    weighted_sampler: bool = True
+    early_stopping: bool = False
 
 
 @dataclass
@@ -33,6 +39,8 @@ class MLTrainParamsDTO():
     val_split: float = 0.2
     test_split: float = 0.2
     seed: int = 42
+
+    
 @dataclass
 class EEGNetMultiRegTrainParamsDTO():
     """Training params for EEGNetMultiReg with regression targets.
