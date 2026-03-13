@@ -22,13 +22,15 @@ class DLTrainParamsDTO():
     test_split: float = 0.2
     seed: int = 42
     save_checkpoint: bool = True
-    weight_classes: bool = False
+    weight_classes: bool = True
     patience: int = 0
     dataset_path: List[Optional[str]] = field(default_factory=lambda: [None])
     run_name: str = "dl_train"
     min_lr: float = 1e-6
     lr_factor: float = 0.5
-    weighted_sampler: bool = True
+    weighted_sampler: bool = False
+    loss_function: List[str] = field(default_factory=lambda: ["cross_entropy", "focal_loss"])
+    label_smoothing: float = 0.0
     early_stopping: bool = False
 
 

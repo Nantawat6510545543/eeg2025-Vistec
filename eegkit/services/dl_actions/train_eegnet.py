@@ -210,6 +210,43 @@ def _compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray)
     }
 
 
+class _FocalLoss(nn.Module):
+    """Multi-class focal loss for logits."""
+
+    def __init__(self, gamma: float = 2.0, weight: Optional[torch.Tensor] = None):
+        super().__init__()
+        self.gamma = gamma
+        self.weight = weight
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        ce = nn.functional.cross_entropy(logits, targets, weight=self.weight, reduction="none")
+        pt = torch.exp(-ce)
+        return ((1.0 - pt) ** self.gamma * ce).mean()
+
+
+def _class_weights(y, device: torch.device) -> Optional[torch.Tensor]:
+    """Compute balanced class weights from labels and move to target device."""
+    if isinstance(y, torch.Tensor):
+        y = y.cpu().numpy()
+    labels = np.asarray(y).astype(int)
+    classes = np.unique(labels)
+    if classes.size <= 1:
+        return None
+    cw = compute_class_weight(class_weight="balanced", classes=classes, y=labels)
+    return torch.from_numpy(np.asarray(cw)).float().to(device)
+
+
+def _build_loss_function(
+    name: str,
+    class_weights: Optional[torch.Tensor],
+    label_smoothing: float,
+) -> nn.Module:
+    """Create configured loss module from dropdown selection."""
+    if name == "focal_loss":
+        return _FocalLoss(gamma=2.0, weight=class_weights)
+    return nn.CrossEntropyLoss(weight=class_weights, label_smoothing=label_smoothing)
+
+
 @register_dl("Train EEGNet", DLTrainParamsDTO)
 def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     """Train a binary EEGNet from a saved DL epoch tensor dataset and return results."""
@@ -241,7 +278,6 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
         seed=int(getattr(params, "seed", 42)),
     )
 
-    # Select compute device
     device_str = self.selected_value(getattr(params, "device", "cpu")) or "cpu"
     if device_str == "auto":
         device_str = "cuda" if torch.cuda.is_available() else "cpu"
@@ -258,15 +294,21 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     n_timepoints = x_tr.shape[3]
     model = EEGNetBinary(n_channels=n_channels, n_timepoints=n_timepoints).to(device)
 
-    # Class weights for imbalanced data
-    counts = np.bincount(y_tr, minlength=2)
-    if np.all(counts > 0):
-        cw = compute_class_weight("balanced", classes=np.array([0, 1]), y=y_tr).astype(np.float32)
-        weight_tensor = torch.tensor(cw, dtype=torch.float32, device=device)
-    else:
-        weight_tensor = None
+    weighted_sampler = bool(getattr(params, "weighted_sampler", False))
+    use_class_weights = bool(getattr(params, "weight_classes", True))
+    if weighted_sampler and use_class_weights:
+        logger.warning(
+            "Both weighted_sampler and weight_classes are enabled; "
+            "disabling class-weighted loss to avoid double compensation."
+        )
+        use_class_weights = False
 
-    loss_fn = nn.CrossEntropyLoss(weight=weight_tensor)
+    weight_tensor = _class_weights(y_tr, device) if use_class_weights else None
+
+    loss_choice = self.selected_value(getattr(params, "loss_function", "cross_entropy"))
+    loss_name = str(loss_choice or "cross_entropy")
+    label_smoothing = float(getattr(params, "label_smoothing", 0.0))
+    loss_fn = _build_loss_function(loss_name, weight_tensor, label_smoothing)
     lr = float(getattr(params, "lr", 1e-3))
     min_lr = float(getattr(params, "min_lr", 1e-6))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -280,7 +322,6 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
 
     epochs_n = int(getattr(params, "epochs_n", 50))
     batch_size = int(getattr(params, "batch_size", 32))
-    weighted_sampler = bool(getattr(params, "weighted_sampler", True))
     early_stopping = bool(getattr(params, "early_stopping", False))
     es_patience = int(getattr(params, "patience", 10)) * 2 if early_stopping else 0
 
@@ -313,6 +354,10 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
             "n_channels": n_channels,
             "n_timepoints": n_timepoints,
             "device": device_str,
+            "loss_function": loss_name,
+            "label_smoothing": label_smoothing,
+            "weight_classes": use_class_weights,
+            "weighted_sampler": weighted_sampler,
             "train_samples": int(len(x_tr)),
             "val_samples": int(len(x_val)),
             "test_samples": int(len(x_te)),
