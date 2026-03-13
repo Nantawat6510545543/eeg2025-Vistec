@@ -144,6 +144,23 @@ def save_output(result, out_dir: Path):
         meta_fp.write_text(json.dumps(metadata, indent=2, default=str))
 
         summary_payload = {k: v for k, v in result.items() if k != "model"}
+
+        # Save optional plot payloads from model actions as files, then store paths in output JSON.
+        plots_payload = summary_payload.get("plots")
+        if isinstance(plots_payload, dict):
+            plots_dir = out_dir / "plots"
+            plots_dir.mkdir(exist_ok=True)
+            saved_plot_paths = {}
+            for plot_name, plot_obj in plots_payload.items():
+                if hasattr(plot_obj, "savefig"):
+                    plot_fp = plots_dir / f"{plot_name}.png"
+                    plot_obj.savefig(plot_fp, dpi=150, bbox_inches="tight")
+                    _plt.close(plot_obj)
+                    saved_plot_paths[plot_name] = str(plot_fp)
+                else:
+                    saved_plot_paths[plot_name] = None
+            summary_payload["plots"] = saved_plot_paths
+
         summary_payload["model_path"] = str(model_fp)
         output_fp = out_dir / 'output.json'
         output_fp.write_text(json.dumps(summary_payload, indent=2, default=str))
