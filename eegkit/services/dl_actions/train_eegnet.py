@@ -27,13 +27,14 @@ from . import register_dl
 logger = logging.getLogger(__name__)
 
 
-def _load_and_validate_dataset(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
-    """Resolve dataset selection, load arrays, and validate shape/min rows."""
+@register_dl("Train EEGNet", DLTrainParamsDTO)
+def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
+    """Train a binary EEGNet from a saved DL epoch tensor dataset and return results."""
     selected = self.selected_value(getattr(params, "dataset_path", None))
     task_name = getattr(task_dto, "task", None)
     dataset_path = self.resolve_dataset_path(selected, task_name)
     if not dataset_path:
-        return None, {"status": "no_dataset_selected", "message": "Select a dataset before training."}
+        return {"status": "no_dataset_selected", "message": "Select a dataset before training."}
 
     arrays = self.load_xyg_dataset(dataset_path)
     x = np.asarray(arrays["x"], dtype=np.float32)
@@ -41,20 +42,9 @@ def _load_and_validate_dataset(self, task_dto: BaseTaskDTO, params: DLTrainParam
     groups = np.asarray(arrays["group"]).astype(str)
 
     if x.ndim != 4 or x.shape[1] != 1:
-        return None, {"status": "bad_shape", "message": f"Expected x shape (N,1,C,T), got {x.shape}."}
+        return {"status": "bad_shape", "message": f"Expected x shape (N,1,C,T), got {x.shape}."}
     if len(x) < 10:
-        return None, {"status": "too_few_samples", "message": f"Only {len(x)} samples — need at least 10."}
-
-    return (dataset_path, x, y, groups), None
-
-
-@register_dl("Train EEGNet", DLTrainParamsDTO)
-def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
-    """Train a binary EEGNet from a saved DL epoch tensor dataset and return results."""
-    loaded, error = _load_and_validate_dataset(self, task_dto, params)
-    if error is not None:
-        return error
-    dataset_path, x, y, groups = loaded
+        return {"status": "too_few_samples", "message": f"Only {len(x)} samples — need at least 10."}
 
     test_split = float(getattr(params, "test_split", 0.25))
     val_split = float(getattr(params, "val_split", 0.25))
