@@ -32,11 +32,34 @@ def train_loop(
     pbar = tqdm(range(epochs), desc="Training", unit="epoch", dynamic_ncols=True)
     for epoch in pbar:
         model.train()
+        train_loss = 0.0
+        train_batches = 0
         for x_b, y_b in tr_dl:
             x_b, y_b = x_b.to(device), y_b.to(device)
             optimizer.zero_grad()
-            loss_fn(model(x_b), y_b).backward()
+            y_p = model(x_b)
+            loss = loss_fn(y_p, y_b)
+            loss.backward()
+
+            # --- GRADIENT CHECK SNIPPET ---
+            has_gradients = False
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    has_gradients = True
+                    # Check if gradients are vanishingly small (e.g., all zeros)
+                    if param.grad.abs().max() < 1e-6:
+                        logger.warning(f"Vanishing gradient in {name} - Max grad: {param.grad.abs().max():.8f}")
+                    break # Check only the first trainable layer
+
+            if not has_gradients:
+                logger.error("FATAL: No gradients found in the model at all!")
+            # ------------------------------
+
             optimizer.step()
+            train_loss += loss.item()
+            train_batches += 1
+
+        train_loss /= max(train_batches, 1)
 
         model.eval()
         val_loss = 0.0
@@ -55,8 +78,8 @@ def train_loop(
         else:
             no_improve += 1
 
-        pbar.set_postfix(val_loss=f"{val_loss:.4f}", best=f"{best_val:.4f}", improved=improved)
-        logger.debug("epoch %d/%d  val_loss=%.4f", epoch + 1, epochs, val_loss)
+        pbar.set_postfix(train_loss=f"{train_loss:.4f}", val_loss=f"{val_loss:.4f}", best=f"{best_val:.4f}", improved=improved)
+        # logger.info("epoch %d/%d  val_loss=%.4f", epoch + 1, epochs, val_loss)
 
         if es_patience > 0 and no_improve >= es_patience:
             logger.info("early stopping triggered at epoch %d", epoch + 1)

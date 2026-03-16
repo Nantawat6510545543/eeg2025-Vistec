@@ -53,10 +53,10 @@ class EEGController:
         )
 
         self._modes = {
-            "Plot": {
-                "description": getattr(self.visualizer, 'description', "Single-figure visualizations."),
-                "spec": self.visualizer.spec,
-            },
+            # "Plot": {
+            #     "description": getattr(self.visualizer, 'description', "Single-figure visualizations."),
+            #     "spec": self.visualizer.spec,
+            # },
             # "Grid Plot": {
             #     "description": getattr(self.grid_visualizer, 'description', "Grid-based visualizations."),
             #     "spec": self.grid_visualizer.spec,

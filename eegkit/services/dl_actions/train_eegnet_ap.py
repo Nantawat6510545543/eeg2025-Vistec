@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from ...models.dtos import BaseTaskDTO, DLTrainParamsDTO
-from ...services.ai_models.deep_learning.EEGNetBinary import EEGNetBinary
+from ...services.ai_models.deep_learning.EEGNetAlphaGrad import EEGNet
 from .training_utils import (
     build_dataloaders,
     build_loss_function,
@@ -27,8 +27,8 @@ from . import register_dl
 logger = logging.getLogger(__name__)
 
 
-@register_dl("Train EEGNet", DLTrainParamsDTO)
-def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
+@register_dl("Train EEGNet AlphaGrad", DLTrainParamsDTO)
+def train_eegnet_ap(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     """Train a binary EEGNet from a saved DL epoch tensor dataset and return results."""
     selected = self.selected_value(getattr(params, "dataset_path", None))
     task_name = getattr(task_dto, "task", None)
@@ -38,25 +38,18 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
 
     arrays = self.load_xyg_dataset(dataset_path)
     x = np.asarray(arrays["x"], dtype=np.float32)
-    y = (np.asarray(arrays["y"]) > 0).astype(np.int64)
+    y = (np.asarray(arrays["y"]) > 0).astype(np.long)
     groups = np.asarray(arrays["group"]).astype(str)
+
+    # z-score per epoch so the model receives unit-scale input regardless of recording units
+    x_std = x.std(axis=(2, 3), keepdims=True)
+    x_std = np.where(x_std < 1e-10, 1e-10, x_std)
+    x = (x - x.mean(axis=(2, 3), keepdims=True)) / x_std
 
     if x.ndim != 4 or x.shape[1] != 1:
         return {"status": "bad_shape", "message": f"Expected x shape (N,1,C,T), got {x.shape}."}
     if len(x) < 10:
         return {"status": "too_few_samples", "message": f"Only {len(x)} samples — need at least 10."}
-    if not np.isfinite(x).all():
-        return {"status": "bad_values", "message": "Input dataset contains NaN or Inf values."}
-    if np.unique(y).size < 2:
-        label_counts = dict(zip(*np.unique(y, return_counts=True)))
-        return {
-            "status": "single_class_dataset",
-            "message": f"Dataset has only one class: {label_counts}. Check CCD label extraction.",
-        }
-
-    x_mean = x.mean(axis=(2, 3), keepdims=True)
-    x_std = x.std(axis=(2, 3), keepdims=True)
-    x = (x - x_mean) / np.clip(x_std, 1e-6, None)
 
     test_split = float(getattr(params, "test_split", 0.25))
     val_split = float(getattr(params, "val_split", 0.25))
@@ -68,12 +61,6 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
         val_split=val_split,
         seed=int(getattr(params, "seed", 42)),
     )
-    if np.unique(y_tr).size < 2:
-        train_counts = dict(zip(*np.unique(y_tr, return_counts=True)))
-        return {
-            "status": "single_class_train_split",
-            "message": f"Training split has only one class: {train_counts}. Adjust split or inspect labels.",
-        }
 
     device_str, device = resolve_device_and_seed(
         self.selected_value(getattr(params, "device", "cpu")),
@@ -82,7 +69,7 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
 
     n_channels = x_tr.shape[2]
     n_timepoints = x_tr.shape[3]
-    model = EEGNetBinary(n_channels=n_channels, n_timepoints=n_timepoints).to(device)
+    model = EEGNet(n_channel=n_channels, n_time=n_timepoints).to(device)
 
     weighted_sampler = bool(getattr(params, "weighted_sampler", False))
     use_class_weights = bool(getattr(params, "weight_classes", True))
@@ -122,13 +109,7 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
         "Training EEGNet: n_ch=%d n_t=%d device=%s train/val/test=%d/%d/%d",
         n_channels, n_timepoints, device_str, len(x_tr), len(x_val), len(x_te),
     )
-    logger.info(
-        "Label balance all/train/val/test: %s / %s / %s / %s",
-        dict(zip(*np.unique(y, return_counts=True))),
-        dict(zip(*np.unique(y_tr, return_counts=True))),
-        dict(zip(*np.unique(y_val, return_counts=True))),
-        dict(zip(*np.unique(y_te, return_counts=True))),
-    )
+    logger.info("Label balance (train): %s", dict(zip(*np.unique(y_tr, return_counts=True))))
 
     model = train_loop(
         model, tr_dl, val_dl, loss_fn, optimizer, scheduler, epochs_n, device, es_patience

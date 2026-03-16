@@ -9,7 +9,8 @@ import torch
 from sklearn.model_selection import GroupShuffleSplit
 from torch.utils.data import DataLoader, Dataset as TorchDataset, WeightedRandomSampler
 
-
+import logging
+logger = logging.getLogger(__name__)
 class NumpyDataset(TorchDataset):
     """Wrap numpy arrays as a minimal torch Dataset."""
 
@@ -87,4 +88,6 @@ def build_dataloaders(
     )
     val_dl = DataLoader(NumpyDataset(x_val, y_val), batch_size=batch_size, shuffle=False)
     te_dl = DataLoader(NumpyDataset(x_te, y_te), batch_size=batch_size, shuffle=False)
+
+    logger.info("DataLoader Shapes: train=%s val=%s test=%s", tr_dl.dataset.x.shape, val_dl.dataset.x.shape, te_dl.dataset.x.shape)
     return tr_dl, val_dl, te_dl
