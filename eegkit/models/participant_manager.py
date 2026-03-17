@@ -453,7 +453,19 @@ class ParticipantManager:
         if rdir is None:
             return []
         disk_pairs = self._subject_task_pairs(subject, rdir)
-        return sorted([(t, r) for (t, r) in disk_pairs if self._norm(t) in avail_bases])
+
+        def _task_run_sort_key(pair: tuple[str, Optional[str]]):
+            task, run = pair
+            task_key = task.lower()
+            if run is None:
+                return (task_key, 0, -1, "")
+            run_text = str(run)
+            if run_text.isdigit():
+                return (task_key, 1, int(run_text), "")
+            return (task_key, 1, 10**9, run_text)
+
+        pairs = [(t, r) for (t, r) in disk_pairs if self._norm(t) in avail_bases]
+        return sorted(pairs, key=_task_run_sort_key)
 
     def filter_subjects_by_dto(self, dto: SubjectFilterDTO) -> List[str]:
         """Filter subjects by availability and DTO constraints; return subject IDs."""
