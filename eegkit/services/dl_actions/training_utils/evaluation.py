@@ -58,6 +58,14 @@ def compute_binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.nd
     class_recalls = recall_score(y_true, y_pred, labels=[0, 1], average=None, zero_division=0)
     class_precisions = precision_score(y_true, y_pred, labels=[0, 1], average=None, zero_division=0)
 
+    prob_pos_true_0 = y_prob[y_true == 0]
+    prob_pos_true_1 = y_prob[y_true == 1]
+
+    stats_0_mean = float(np.mean(prob_pos_true_0)) if prob_pos_true_0.size > 0 else 0.0
+    stats_0_std = float(np.std(prob_pos_true_0)) if prob_pos_true_0.size > 0 else 0.0
+    stats_1_mean = float(np.mean(prob_pos_true_1)) if prob_pos_true_1.size > 0 else 0.0
+    stats_1_std = float(np.std(prob_pos_true_1)) if prob_pos_true_1.size > 0 else 0.0
+
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
         "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
@@ -83,5 +91,15 @@ def compute_binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.nd
         "class_precision": {
             "0": float(class_precisions[0]),
             "1": float(class_precisions[1]),
+        },
+        "class_prob_pos_stats": {
+            "0": {
+                "mean": stats_0_mean,
+                "std": stats_0_std,
+            },
+            "1": {
+                "mean": stats_1_mean,
+                "std": stats_1_std,
+            },
         },
     }

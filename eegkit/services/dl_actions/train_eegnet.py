@@ -16,7 +16,6 @@ from ...services.ai_models.deep_learning.EEGNetBinary import EEGNetBinary
 from .training_utils import (
     build_dataloaders,
     build_loss_function,
-    build_shaded_error_bar_plot,
     class_weights,
     compute_binary_metrics,
     eval_loop,
@@ -208,8 +207,6 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
         metrics = compute_binary_metrics(y_true, y_pred, y_prob)
         logger.info("EEGNet training done. Metrics: %s", metrics)
 
-        shaded_error_bar = build_shaded_error_bar_plot(x_te, y_te, model_name)
-
         if wandb_run is not None:
             try:
                 payload: Dict[str, Any] = {
@@ -237,15 +234,21 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
                 if isinstance(class_precision, dict):
                     payload["test/precision_class_0"] = class_precision.get("0")
                     payload["test/precision_class_1"] = class_precision.get("1")
+
+                class_prob_pos_stats = metrics.get("class_prob_pos_stats", {})
+                if isinstance(class_prob_pos_stats, dict):
+                    c0 = class_prob_pos_stats.get("0", {})
+                    c1 = class_prob_pos_stats.get("1", {})
+                    if isinstance(c0, dict):
+                        payload["test/prob_pos_mean_true_class_0"] = c0.get("mean")
+                        payload["test/prob_pos_std_true_class_0"] = c0.get("std")
+                    if isinstance(c1, dict):
+                        payload["test/prob_pos_mean_true_class_1"] = c1.get("mean")
+                        payload["test/prob_pos_std_true_class_1"] = c1.get("std")
                 
                 payload["train/best_epoch"] = float(best_epoch)
 
                 wandb_run.log(payload)
-
-                if shaded_error_bar is not None:
-                    import wandb
-
-                    wandb_run.log({"plots/shaded_error_bar": wandb.Image(shaded_error_bar)})
             except Exception as exc:
                 logger.warning("W&B metric logging failed: %s", exc)
     finally:
@@ -259,9 +262,7 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
         "model": model,
         "model_name": model_name,
         "evaluation": metrics,
-        "plots": {
-            "shaded_error_bar": shaded_error_bar,
-        },
+        "plots": {},
         "metadata": {
             "model_name": model_name,
             "dataset_path": dataset_path,
