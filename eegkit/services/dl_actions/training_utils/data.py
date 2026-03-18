@@ -6,7 +6,7 @@ from typing import Optional
 
 import numpy as np
 import torch
-from sklearn.model_selection import GroupShuffleSplit
+from sklearn.model_selection import GroupShuffleSplit, LeaveOneGroupOut
 from torch.utils.data import DataLoader, Dataset as TorchDataset, WeightedRandomSampler
 
 import logging
@@ -60,6 +60,87 @@ def split_with_groups(
         x_tv[val_idx], y_tv[val_idx],
         x[test_idx], y[test_idx],
     )
+
+
+def split_with_groups_auto(
+    x: np.ndarray,
+    y: np.ndarray,
+    groups: np.ndarray,
+    *,
+    test_split: float = 0.2,
+    val_split: float = 0.2,
+    seed: int = 42,
+    n_subjects_threshold: int = 5,
+):
+    """Choose between GroupShuffleSplit and LeaveOneGroupOut based on subject count.
+    
+    If number of unique subjects < threshold, uses LeaveOneGroupOut CV (leave one subject out as test).
+    Otherwise, uses standard GroupShuffleSplit with fixed train/val/test ratios.
+    
+    Args:
+        x: Input features (N, n_features, ...)
+        y: Labels (N,)
+        groups: Subject/group assignments (N,)
+        test_split: Test set ratio if using GroupShuffleSplit (default 0.2 = 20%)
+        val_split: Validation set ratio if using GroupShuffleSplit (default 0.2 = 20%)
+        seed: Random seed
+        n_subjects_threshold: If n_unique_subjects < this, use LeaveOneGroupOut (default 5)
+    
+    Returns:
+        Tuple of (x_train, y_train, x_val, y_val, x_test, y_test)
+    """
+    n_unique_subjects = len(np.unique(groups))
+    
+    if n_unique_subjects < n_subjects_threshold:
+        logger.info(
+            f"Detected {n_unique_subjects} subjects (< {n_subjects_threshold}). "
+            "Using LeaveOneGroupOut CV for better small-cohort generalization."
+        )
+        return _split_with_logo(x, y, groups, val_split=val_split, seed=seed)
+    else:
+        logger.info(
+            f"Detected {n_unique_subjects} subjects (>= {n_subjects_threshold}). "
+            "Using standard GroupShuffleSplit."
+        )
+        return split_with_groups(x, y, groups, test_split=test_split, val_split=val_split, seed=seed)
+
+
+def _split_with_logo(
+    x: np.ndarray,
+    y: np.ndarray,
+    groups: np.ndarray,
+    *,
+    val_split: float,
+    seed: int,
+):
+    """Leave-One-Group-Out (LOGO) for small cohorts: one group as test, split remainder into train/val."""
+    logo = LeaveOneGroupOut()
+    splits = list(logo.split(x, groups=groups))
+    
+    if len(splits) == 0:
+        raise ValueError("Cannot perform LOGO split with current data")
+    
+    # Use first split: one group left out as test, remaining as train+val
+    trainval_idx, test_idx = splits[0]
+    
+    x_tv, y_tv, g_tv = x[trainval_idx], y[trainval_idx], groups[trainval_idx]
+    x_te, y_te = x[test_idx], y[test_idx]
+    
+    # Further split trainval into train/val using GroupShuffleSplit
+    gss = GroupShuffleSplit(n_splits=1, test_size=val_split, random_state=seed)
+    train_idx, val_idx = next(gss.split(x_tv, y_tv, groups=g_tv))
+    
+    logger.info(
+        f"LOGO split: test_group={np.unique(groups[test_idx])}, "
+        f"train={len(train_idx)}, val={len(val_idx)}, test={len(test_idx)}"
+    )
+    
+    return (
+        x_tv[train_idx], y_tv[train_idx],
+        x_tv[val_idx], y_tv[val_idx],
+        x_te, y_te,
+    )
+
 
 
 def build_dataloaders(
