@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 import numpy as np
 import torch
@@ -118,6 +120,65 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     tr_dl, val_dl, te_dl = build_dataloaders(
         x_tr, y_tr, x_val, y_val, x_te, y_te, batch_size, weighted_sampler
     )
+
+    dataset_name = Path(dataset_path).name
+    run_name = str(getattr(params, "run_name", "dl_train"))
+    model_name = f"{run_name}_{dataset_name}"
+
+    default_wandb_enabled = bool(os.getenv("WANDB_API_KEY"))
+    wandb_enabled = bool(getattr(params, "wandb_enabled", default_wandb_enabled))
+    wandb_project = str(getattr(params, "wandb_project", os.getenv("WANDB_PROJECT", "eeg2025-vistec")))
+    wandb_entity = getattr(params, "wandb_entity", None)
+    wandb_tags_raw = getattr(params, "wandb_tags", None)
+    wandb_run: Optional[Any] = None
+    epoch_logger = None
+
+    if wandb_enabled:
+        try:
+            import wandb
+
+            init_kwargs: Dict[str, Any] = {
+                "project": wandb_project,
+                "name": model_name,
+                "config": {
+                    "dataset_path": dataset_path,
+                    "run_name": run_name,
+                    "model_name": model_name,
+                    "device": device_str,
+                    "n_channels": int(n_channels),
+                    "n_timepoints": int(n_timepoints),
+                    "train_samples": int(len(x_tr)),
+                    "val_samples": int(len(x_val)),
+                    "test_samples": int(len(x_te)),
+                    "loss_function": loss_name,
+                    "label_smoothing": label_smoothing,
+                    "weighted_sampler": weighted_sampler,
+                    "weight_classes": use_class_weights,
+                    "lr": lr,
+                    "min_lr": min_lr,
+                    "epochs": epochs_n,
+                    "batch_size": batch_size,
+                    "seed": int(getattr(params, "seed", 42)),
+                },
+            }
+            if wandb_entity:
+                init_kwargs["entity"] = str(wandb_entity)
+            if wandb_tags_raw:
+                if isinstance(wandb_tags_raw, str):
+                    tags = [t.strip() for t in wandb_tags_raw.split(",") if t.strip()]
+                elif isinstance(wandb_tags_raw, (list, tuple)):
+                    tags = [str(t).strip() for t in wandb_tags_raw if str(t).strip()]
+                else:
+                    tags = []
+                if tags:
+                    init_kwargs["tags"] = tags
+
+            wandb_run = wandb.init(**init_kwargs)
+            epoch_logger = lambda payload: wandb_run.log(payload)
+            logger.info("W&B run started: %s", getattr(wandb_run, "name", model_name))
+        except Exception as exc:
+            logger.warning("W&B disabled due to init failure: %s", exc)
+
     logger.info(
         "Training EEGNet: n_ch=%d n_t=%d device=%s train/val/test=%d/%d/%d",
         n_channels, n_timepoints, device_str, len(x_tr), len(x_val), len(x_te),
@@ -130,17 +191,69 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
         dict(zip(*np.unique(y_te, return_counts=True))),
     )
 
-    model = train_loop(
-        model, tr_dl, val_dl, loss_fn, optimizer, scheduler, epochs_n, device, es_patience
-    )
-    y_true, y_pred, y_prob = eval_loop(model, te_dl, device)
-    metrics = compute_binary_metrics(y_true, y_pred, y_prob)
-    logger.info("EEGNet training done. Metrics: %s", metrics)
+    try:
+        model, best_epoch = train_loop(
+            model,
+            tr_dl,
+            val_dl,
+            loss_fn,
+            optimizer,
+            scheduler,
+            epochs_n,
+            device,
+            es_patience,
+            epoch_logger=epoch_logger,
+        )
+        y_true, y_pred, y_prob = eval_loop(model, te_dl, device)
+        metrics = compute_binary_metrics(y_true, y_pred, y_prob)
+        logger.info("EEGNet training done. Metrics: %s", metrics)
 
-    dataset_name = Path(dataset_path).name
-    run_name = str(getattr(params, "run_name", "dl_train"))
-    model_name = f"{run_name}_{dataset_name}"
-    shaded_error_bar = build_shaded_error_bar_plot(x_te, y_te, model_name)
+        shaded_error_bar = build_shaded_error_bar_plot(x_te, y_te, model_name)
+
+        if wandb_run is not None:
+            try:
+                payload: Dict[str, Any] = {
+                    "test/accuracy": metrics.get("accuracy"),
+                    "test/balanced_accuracy": metrics.get("balanced_accuracy"),
+                    "test/f1_binary": metrics.get("f1_binary"),
+                    "test/f1_macro": metrics.get("f1_macro"),
+                    "test/f1_weighted": metrics.get("f1_weighted"),
+                    "test/sensitivity": metrics.get("sensitivity"),
+                    "test/specificity": metrics.get("specificity"),
+                    "test/roc_auc": metrics.get("roc_auc"),
+                    "test/pr_auc": metrics.get("pr_auc"),
+                }
+                cm = metrics.get("confusion_matrix", {})
+                if isinstance(cm, dict):
+                    payload["test/cm_tn"] = cm.get("tn")
+                    payload["test/cm_fp"] = cm.get("fp")
+                    payload["test/cm_fn"] = cm.get("fn")
+                    payload["test/cm_tp"] = cm.get("tp")
+                class_recall = metrics.get("class_recall", {})
+                if isinstance(class_recall, dict):
+                    payload["test/recall_class_0"] = class_recall.get("0")
+                    payload["test/recall_class_1"] = class_recall.get("1")
+                class_precision = metrics.get("class_precision", {})
+                if isinstance(class_precision, dict):
+                    payload["test/precision_class_0"] = class_precision.get("0")
+                    payload["test/precision_class_1"] = class_precision.get("1")
+                
+                payload["train/best_epoch"] = float(best_epoch)
+
+                wandb_run.log(payload)
+
+                if shaded_error_bar is not None:
+                    import wandb
+
+                    wandb_run.log({"plots/shaded_error_bar": wandb.Image(shaded_error_bar)})
+            except Exception as exc:
+                logger.warning("W&B metric logging failed: %s", exc)
+    finally:
+        if wandb_run is not None:
+            try:
+                wandb_run.finish()
+            except Exception as exc:
+                logger.warning("W&B finish failed: %s", exc)
 
     return {
         "model": model,
@@ -163,5 +276,6 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
             "val_samples": int(len(x_val)),
             "test_samples": int(len(x_te)),
             "run_name": run_name,
+            "wandb_enabled": wandb_run is not None,
         },
     }

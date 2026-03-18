@@ -13,6 +13,7 @@ from sklearn.metrics import (
     balanced_accuracy_score,
     confusion_matrix,
     f1_score,
+    precision_score,
     recall_score,
     roc_auc_score,
 )
@@ -55,6 +56,7 @@ def compute_binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.nd
             pass
 
     class_recalls = recall_score(y_true, y_pred, labels=[0, 1], average=None, zero_division=0)
+    class_precisions = precision_score(y_true, y_pred, labels=[0, 1], average=None, zero_division=0)
 
     return {
         "accuracy": float(accuracy_score(y_true, y_pred)),
@@ -77,5 +79,9 @@ def compute_binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.nd
         "class_recall": {
             "0": float(class_recalls[0]),
             "1": float(class_recalls[1]),
+        },
+        "class_precision": {
+            "0": float(class_precisions[0]),
+            "1": float(class_precisions[1]),
         },
     }
