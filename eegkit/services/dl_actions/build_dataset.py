@@ -2,54 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
-import pandas as pd
 from tqdm.auto import tqdm
 
 from ...models.dtos import DLEpochDatasetParamsDTO, BaseTaskDTO
+from ...models.pipeline.label_builders import CCD_TARGET_HIT, CCD_TARGET_WRONG, CCD_TARGET_MISS
 from ...utils.channels import prepare_channels
 from . import register_dl
-
-
-def _build_ccd_trial_labels(events_df: pd.DataFrame) -> np.ndarray:
-    """Return one binary label per CCD trial (1=hit, 0=miss) from a raw events DataFrame."""
-    if events_df is None or events_df.empty:
-        return np.asarray([], dtype=np.int64)
-    if "onset" not in events_df.columns or "value" not in events_df.columns:
-        return np.asarray([], dtype=np.int64)
-
-    df = events_df.copy()
-    df["onset"] = pd.to_numeric(df["onset"], errors="coerce")
-    df = df.dropna(subset=["onset"]).sort_values("onset").reset_index(drop=True)
-
-    trial_starts = np.where(df["value"].eq("contrastTrial_start").values)[0]
-    if trial_starts.size == 0:
-        return np.asarray([], dtype=np.int64)
-
-    onsets = df["onset"].to_numpy()
-    values = df["value"].astype(str).to_numpy()
-    labels: List[int] = []
-
-    for i, s_idx in enumerate(trial_starts):
-        t_start = float(onsets[s_idx])
-        t_end = float(onsets[trial_starts[i + 1]]) if i + 1 < len(trial_starts) else np.inf
-        in_win = (onsets > t_start) & (onsets < t_end)
-        press_mask = np.isin(values, ["left_buttonPress", "right_buttonPress"]) & in_win
-        press_idx = np.where(press_mask)[0]
-
-        if press_idx.size == 0:
-            labels.append(0)
-            continue
-
-        first_press = int(press_idx[0])
-        feedback = None
-        if "feedback" in df.columns and pd.notna(df.iloc[first_press].get("feedback")):
-            feedback = str(df.iloc[first_press]["feedback"]).strip()
-        labels.append(1 if feedback == "smiley_face" else 0)
-
-    return np.asarray(labels, dtype=np.int64)
 
 
 def _build_subject_chunk(task_model, params: DLEpochDatasetParamsDTO) -> Dict:
@@ -66,12 +27,28 @@ def _build_subject_chunk(task_model, params: DLEpochDatasetParamsDTO) -> Dict:
     x_data = epochs.get_data(copy=True).astype(np.float32)   # (N, C, T)
     x = x_data[:, np.newaxis, :, :]                           # (N, 1, C, T)
 
-    events_df = task_model.get_event() if hasattr(task_model, "get_event") else pd.DataFrame()
-    y = _build_ccd_trial_labels(events_df if events_df is not None else pd.DataFrame())
+    if epochs.events is None or len(epochs.events) == 0:
+        raise ValueError("CCD epochs contain no events for label mapping")
 
-    n = min(len(x), len(y))
-    x = x[:n]
-    y = y[:n]
+    outcome_to_binary = {
+        CCD_TARGET_HIT: 1,
+        CCD_TARGET_WRONG: 0,
+        CCD_TARGET_MISS: 0,
+    }
+
+    id_to_label = {int(v): str(k).strip().lower() for k, v in epochs.event_id.items()}
+    event_codes = np.asarray(epochs.events[:, 2], dtype=int)
+    normalized = [id_to_label.get(int(code), "") for code in event_codes]
+    invalid = sorted({v for v in normalized if v not in outcome_to_binary})
+    if invalid:
+        raise ValueError(f"Unsupported CCD event labels from preprocess: {invalid}")
+
+    y = np.asarray([outcome_to_binary[v] for v in normalized], dtype=np.int64)
+
+    if len(x) != len(y):
+        raise ValueError(f"CCD x/y length mismatch: x={len(x)} epochs, y={len(y)} labels")
+
+    n = len(x)
 
     subject = getattr(getattr(task_model, "task_dto", None), "subject", None)
     group = np.asarray([subject if subject is not None else "unknown"] * n, dtype=object)
