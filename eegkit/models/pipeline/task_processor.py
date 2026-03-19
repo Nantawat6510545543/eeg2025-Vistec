@@ -4,12 +4,19 @@ import logging
 
 import mne
 import numpy as np
+import pandas as pd
 from mne import Epochs, events_from_annotations
 
 from .constants import (
     EVENT_ID,
     RESTING_STATE_EVENT_ID,
     CCD_EVENT_ID,
+)
+from .label_builders import (
+    build_ccd_trial_outcome_labels,
+    CCD_TARGET_HIT,
+    CCD_TARGET_WRONG,
+    CCD_TARGET_MISS,
 )
 from ..dtos import TaskDTO, FilterParamsDTO, EpochParamsDTO, EvokedParamsDTO
 from ...cache import CacheKey
@@ -278,22 +285,106 @@ class EEGTaskProcessor:
     @register_preprocessor("contrastChangeDetection")
     def _ccd_preprocess(self, params: EpochParamsDTO):
         filtered = self.get_filtered(params)
-        events_arr, ann_event_id = events_from_annotations(self.get_raw())
+        events_df = self.get_events()
+        # Build one outcome label per trial_start window from the parsed event table.
+        trial_outcomes = build_ccd_trial_outcome_labels(events_df)
+
+        raw = self.get_raw()
+        events_arr, ann_event_id = events_from_annotations(raw)
         if 'contrastTrial_start' not in ann_event_id:
             return None, None
         ccd_code = ann_event_id['contrastTrial_start']
         trial_rows = events_arr[events_arr[:, 2] == ccd_code]
         if trial_rows.size == 0:
             return None, None
+
+        if len(trial_outcomes) != int(trial_rows.shape[0]):
+            raise ValueError(
+                "CCD trial mismatch before epoching: "
+                f"{int(trial_rows.shape[0])} trial_start annotations vs {len(trial_outcomes)} outcome labels"
+            )
+
+        # Strictly validate trial order alignment between events_df and raw annotations.
+        # This prevents silent label rotation when both sources have equal length but different ordering.
+        if events_df is None or events_df.empty or "onset" not in events_df.columns or "value" not in events_df.columns:
+            raise ValueError("CCD events_df must contain non-empty onset/value columns for strict alignment")
+
+        df_align = events_df.copy()
+        df_align["onset"] = pd.to_numeric(df_align["onset"], errors="coerce")
+        df_align = df_align[np.isfinite(df_align["onset"])].copy()
+        value_norm = np.asarray([str(v).strip().lower() for v in df_align["value"].to_numpy()], dtype=object)
+        df_trial = df_align[value_norm == "contrasttrial_start"].sort_values("onset")
+        trial_onsets_df = df_trial["onset"].to_numpy(dtype=float)
+
+        raw_sfreq = float(raw.info.get('sfreq', 0.0))
+        if raw_sfreq <= 0:
+            raise ValueError("Invalid raw sampling rate for CCD alignment")
+        trial_onsets_raw = trial_rows[:, 0].astype(float) / raw_sfreq
+
+        if len(trial_onsets_df) != len(trial_onsets_raw):
+            raise ValueError(
+                "CCD trial-start onset mismatch: "
+                f"events_df has {len(trial_onsets_df)} starts vs raw has {len(trial_onsets_raw)}"
+            )
+
+        # One-sample tolerance at raw sampling grid.
+        tol_sec = max(1.0 / raw_sfreq, 1e-3)
+        onset_delta = np.abs(trial_onsets_df - trial_onsets_raw)
+        bad_idx = np.where(onset_delta > tol_sec)[0]
+        if bad_idx.size > 0:
+            i = int(bad_idx[0])
+            raise ValueError(
+                "CCD trial order/alignment mismatch at index "
+                f"{i}: events_df onset={trial_onsets_df[i]:.6f}, raw onset={trial_onsets_raw[i]:.6f}, "
+                f"delta={onset_delta[i]:.6f}s > tol={tol_sec:.6f}s"
+            )
+
+        # Drop trial anchors that would create out-of-bounds epochs at the requested tmin/tmax.
+        samples = trial_rows[:, 0].astype(int)
+        sfreq = float(filtered.info.get('sfreq', 0.0))
+        n_times = int(filtered.n_times)
+        tmin_samp = int(np.floor(params.tmin * sfreq))
+        tmax_samp = int(np.ceil(params.tmax * sfreq))
+        start_idx = samples + tmin_samp
+        stop_idx = samples + tmax_samp
+        in_bounds = (start_idx >= 0) & (stop_idx < n_times)
+        if not np.any(in_bounds):
+            return None, None
+
+        kept_samples = samples[in_bounds]
+        kept_outcomes = np.asarray(trial_outcomes, dtype=object)[in_bounds]
+
+        outcome_to_code = {
+            CCD_TARGET_HIT: CCD_EVENT_ID['hit'],
+            CCD_TARGET_WRONG: CCD_EVENT_ID['wrong'],
+            CCD_TARGET_MISS: CCD_EVENT_ID['miss'],
+        }
+        norm_outcomes = [str(v).strip().lower() for v in kept_outcomes.tolist()]
+        invalid = sorted({v for v in norm_outcomes if v not in outcome_to_code})
+        if invalid:
+            raise ValueError(f"Unsupported CCD outcomes: {invalid}")
+
+        # Encode per-epoch class directly in events[:, 2] so epochs['hit'|'wrong'|'miss'] works.
+        event_codes = np.asarray([outcome_to_code[v] for v in norm_outcomes], dtype=int)
         new_events = np.column_stack([
-            trial_rows[:, 0].astype(int),
-            np.zeros(trial_rows.shape[0], dtype=int),
-            np.full(trial_rows.shape[0], CCD_EVENT_ID['trial_start'], dtype=int)
+            kept_samples,
+            np.zeros(len(kept_samples), dtype=int),
+            event_codes,
         ])
+
+        present = set(norm_outcomes)
+        event_id_sub = {
+            k: CCD_EVENT_ID[k]
+            for k in [CCD_TARGET_HIT, CCD_TARGET_WRONG, CCD_TARGET_MISS]
+            if k in present
+        }
+
         epochs = Epochs(
-            filtered, new_events, event_id=CCD_EVENT_ID,
+            filtered, new_events, event_id=event_id_sub,
             tmin=params.tmin, tmax=params.tmax,
             proj=True, preload=False
         )
-        labels = ['trial_start']
+
+        # Return unique available conditions for UI stimulus options.
+        labels = list(event_id_sub.keys())
         return epochs, labels

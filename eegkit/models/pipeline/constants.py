@@ -25,7 +25,9 @@ RESTING_STATE_EVENT_ID = {
 
 # Contrast Change Detection (CCD) events
 CCD_EVENT_ID = {
-    'trial_start': 1,
+    'hit': 1,
+    'wrong': 2,
+    'miss': 3,
 }
 
 __all__ = [
