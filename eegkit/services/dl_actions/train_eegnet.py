@@ -11,15 +11,18 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from ...models.dtos import BaseTaskDTO, DLTrainParamsDTO
+from ...models.dtos import BaseTaskDTO, EEGNetBinaryTrainParamsDTO
 from ...services.ai_models.deep_learning.EEGNetBinary import EEGNetBinary
 from .training_utils import (
     build_dataloaders,
     build_loss_function,
+    build_lr_scheduler,
     class_weights,
     compute_binary_metrics,
     eval_loop,
+    resolve_balance_config,
     resolve_device_and_seed,
+    resolve_early_stopping_patience,
     split_with_groups,
     train_loop,
 )
@@ -28,8 +31,8 @@ from . import register_dl
 logger = logging.getLogger(__name__)
 
 
-@register_dl("Train EEGNet", DLTrainParamsDTO)
-def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
+@register_dl("Train EEGNet", EEGNetBinaryTrainParamsDTO)
+def train_eegnet(self, task_dto: BaseTaskDTO, params: EEGNetBinaryTrainParamsDTO):
     """Train a binary EEGNet from a saved DL epoch tensor dataset and return results."""
     selected = self.selected_value(getattr(params, "dataset_path", None))
     task_name = getattr(task_dto, "task", None)
@@ -85,24 +88,9 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     n_timepoints = x_tr.shape[3]
     model = EEGNetBinary(n_channels=n_channels, n_timepoints=n_timepoints).to(device)
 
-    weighted_sampler = bool(getattr(params, "weighted_sampler", False))
-    undersample = bool(getattr(params, "undersample", False))
-    if weighted_sampler and undersample:
-        logger.warning(
-            "Both weighted_sampler and undersample are enabled; "
-            "disabling weighted_sampler and using undersample."
-        )
-        weighted_sampler = False
+    balance = resolve_balance_config(params, select_value=self.selected_value)
 
-    use_class_weights = bool(getattr(params, "weight_classes", True))
-    if weighted_sampler and use_class_weights:
-        logger.warning(
-            "Both weighted_sampler and weight_classes are enabled; "
-            "disabling class-weighted loss to avoid double compensation."
-        )
-        use_class_weights = False
-
-    weight_tensor = class_weights(y_tr, device) if use_class_weights else None
+    weight_tensor = class_weights(y_tr, device) if balance.use_class_weights else None
     loss_choice = self.selected_value(getattr(params, "loss_function", "cross_entropy"))
     loss_name = str(loss_choice or "cross_entropy")
     label_smoothing = float(getattr(params, "label_smoothing", 0.0))
@@ -111,18 +99,20 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     lr = float(getattr(params, "lr", 1e-3))
     min_lr = float(getattr(params, "min_lr", 1e-6))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+
+    scheduler_type_choice = self.selected_value(getattr(params, "scheduler_type", "reduce_on_plateau"))
+    scheduler_type = str(scheduler_type_choice or "reduce_on_plateau").strip().lower()
+    scheduler = build_lr_scheduler(
         optimizer,
-        "min",
-        factor=float(getattr(params, "lr_factor", 0.5)),
-        patience=int(getattr(params, "patience", 10)),
+        params,
         min_lr=min_lr,
+        select_value=self.selected_value,
     )
 
     epochs_n = int(getattr(params, "epochs_n", 50))
     batch_size = int(getattr(params, "batch_size", 32))
     early_stopping = bool(getattr(params, "early_stopping", False))
-    es_patience = int(getattr(params, "patience", 10)) * 2 if early_stopping else 0
+    es_patience = resolve_early_stopping_patience(params)
 
     tr_dl, val_dl, te_dl = build_dataloaders(
         x_tr,
@@ -132,8 +122,8 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
         x_te,
         y_te,
         batch_size,
-        weighted_sampler,
-        undersample=undersample,
+        balance.weighted_sampler,
+        undersample=balance.undersample,
         seed=int(getattr(params, "seed", 42)),
     )
 
@@ -168,11 +158,22 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
                     "test_samples": int(len(x_te)),
                     "loss_function": loss_name,
                     "label_smoothing": label_smoothing,
-                    "weighted_sampler": weighted_sampler,
-                    "undersample": undersample,
-                    "weight_classes": use_class_weights,
+                    "balance_strategy": balance.strategy,
+                    "weighted_sampler": balance.weighted_sampler,
+                    "undersample": balance.undersample,
+                    "weight_classes": balance.use_class_weights,
                     "lr": lr,
                     "min_lr": min_lr,
+                    "scheduler_type": scheduler_type,
+                    "scheduler_mode": self.selected_value(getattr(params, "scheduler_mode", "min")),
+                    "scheduler_patience": int(getattr(params, "scheduler_patience", 10)),
+                    "scheduler_threshold": float(getattr(params, "scheduler_threshold", 1e-4)),
+                    "scheduler_threshold_mode": self.selected_value(
+                        getattr(params, "scheduler_threshold_mode", "rel")
+                    ),
+                    "scheduler_cooldown": int(getattr(params, "scheduler_cooldown", 0)),
+                    "early_stopping": early_stopping,
+                    "early_stopping_patience": int(es_patience),
                     "epochs": epochs_n,
                     "batch_size": batch_size,
                     "seed": int(getattr(params, "seed", 42)),
@@ -264,7 +265,8 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
                         payload["test/prob_pos_mean_true_class_1"] = c1.get("mean")
                         payload["test/prob_pos_std_true_class_1"] = c1.get("std")
                 
-                payload["train/best_epoch"] = float(best_epoch)
+                if best_epoch is not None:
+                    payload["train/best_epoch"] = float(best_epoch)
 
                 wandb_run.log(payload)
             except Exception as exc:
@@ -289,9 +291,10 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
             "device": device_str,
             "loss_function": loss_name,
             "label_smoothing": label_smoothing,
-            "weight_classes": use_class_weights,
-            "weighted_sampler": weighted_sampler,
-            "undersample": undersample,
+            "balance_strategy": balance.strategy,
+            "weight_classes": balance.use_class_weights,
+            "weighted_sampler": balance.weighted_sampler,
+            "undersample": balance.undersample,
             "train_samples": int(len(x_tr)),
             "val_samples": int(len(x_val)),
             "test_samples": int(len(x_te)),

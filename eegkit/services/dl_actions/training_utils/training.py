@@ -80,7 +80,15 @@ def train_loop(
                 val_trues.extend(y_b.cpu().numpy())
         val_loss /= max(len(val_dl), 1)
         val_accuracy = float(accuracy_score(val_trues, val_preds))
-        scheduler.step(val_loss)
+
+        if scheduler is not None:
+            try:
+                if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    scheduler.step(val_loss)
+                else:
+                    scheduler.step()
+            except Exception as exc:
+                logger.warning("scheduler.step failed at epoch %d: %s", epoch + 1, exc)
 
         improved = val_loss < best_val
         if improved:

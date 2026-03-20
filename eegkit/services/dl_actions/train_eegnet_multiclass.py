@@ -19,8 +19,11 @@ from ...services.ai_models.deep_learning.EEGNetNClass import EEGNetNClass
 from .training_utils import (
     build_dataloaders,
     build_loss_function,
+    build_lr_scheduler,
     class_weights,
     resolve_device_and_seed,
+    resolve_balance_config,
+    resolve_early_stopping_patience,
     split_with_groups_auto,
     train_loop,
 )
@@ -101,16 +104,9 @@ def train_eegnet_multiclass(self, task_dto: BaseTaskDTO, params: DLTrainParamsDT
         num_classes=num_classes,
     ).to(device)
 
-    weighted_sampler = bool(getattr(params, "weighted_sampler", False))
-    use_class_weights = bool(getattr(params, "weight_classes", True))
-    if weighted_sampler and use_class_weights:
-        logger.warning(
-            "Both weighted_sampler and weight_classes are enabled; "
-            "disabling class-weighted loss to avoid double compensation."
-        )
-        use_class_weights = False
+    balance = resolve_balance_config(params, select_value=self.selected_value)
 
-    weight_tensor = class_weights(y_tr, device) if use_class_weights else None
+    weight_tensor = class_weights(y_tr, device) if balance.use_class_weights else None
     loss_choice = self.selected_value(getattr(params, "loss_function", "cross_entropy"))
     loss_name = str(loss_choice or "cross_entropy")
     label_smoothing = float(getattr(params, "label_smoothing", 0.0))
@@ -119,21 +115,29 @@ def train_eegnet_multiclass(self, task_dto: BaseTaskDTO, params: DLTrainParamsDT
     lr = float(getattr(params, "lr", 1e-3))
     min_lr = float(getattr(params, "min_lr", 1e-6))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+
+    scheduler = build_lr_scheduler(
         optimizer,
-        "min",
-        factor=float(getattr(params, "lr_factor", 0.5)),
-        patience=int(getattr(params, "patience", 10)),
+        params,
         min_lr=min_lr,
+        select_value=self.selected_value,
     )
 
     epochs_n = int(getattr(params, "epochs_n", 50))
     batch_size = int(getattr(params, "batch_size", 32))
-    early_stopping = bool(getattr(params, "early_stopping", False))
-    es_patience = int(getattr(params, "patience", 10)) * 2 if early_stopping else 0
+    es_patience = resolve_early_stopping_patience(params)
 
     tr_dl, val_dl, te_dl = build_dataloaders(
-        x_tr, y_tr, x_val, y_val, x_te, y_te, batch_size, weighted_sampler
+        x_tr,
+        y_tr,
+        x_val,
+        y_val,
+        x_te,
+        y_te,
+        batch_size,
+        balance.weighted_sampler,
+        undersample=balance.undersample,
+        seed=int(getattr(params, "seed", 42)),
     )
 
     dataset_name = Path(dataset_path).name
@@ -169,8 +173,10 @@ def train_eegnet_multiclass(self, task_dto: BaseTaskDTO, params: DLTrainParamsDT
                     "test_samples": int(len(x_te)),
                     "loss_function": loss_name,
                     "label_smoothing": label_smoothing,
-                    "weighted_sampler": weighted_sampler,
-                    "weight_classes": use_class_weights,
+                    "balance_strategy": balance.strategy,
+                    "weighted_sampler": balance.weighted_sampler,
+                    "undersample": balance.undersample,
+                    "weight_classes": balance.use_class_weights,
                     "lr": lr,
                     "min_lr": min_lr,
                     "epochs": epochs_n,
@@ -266,8 +272,10 @@ def train_eegnet_multiclass(self, task_dto: BaseTaskDTO, params: DLTrainParamsDT
             "device": device_str,
             "loss_function": loss_name,
             "label_smoothing": label_smoothing,
-            "weight_classes": use_class_weights,
-            "weighted_sampler": weighted_sampler,
+            "balance_strategy": balance.strategy,
+            "weight_classes": balance.use_class_weights,
+            "weighted_sampler": balance.weighted_sampler,
+            "undersample": balance.undersample,
             "train_samples": int(len(x_tr)),
             "val_samples": int(len(x_val)),
             "test_samples": int(len(x_te)),

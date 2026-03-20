@@ -15,6 +15,7 @@ from .training_utils import (
     build_dataloaders,
     build_loss_function,
     build_shaded_error_bar_plot,
+    build_lr_scheduler,
     compute_binary_metrics,
     eval_loop,
     resolve_device_and_seed,
@@ -103,12 +104,14 @@ def train_eegnet_sanity(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     lr = float(getattr(params, "lr", 1e-3))
     min_lr = float(getattr(params, "min_lr", 1e-6))
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+
+    scheduler_patience = max(int(getattr(params, "scheduler_patience", 10)), 1)
+    scheduler = build_lr_scheduler(
         optimizer,
-        "min",
-        factor=float(getattr(params, "lr_factor", 0.5)),
-        patience=max(5, int(getattr(params, "patience", 10)) // 2),
+        params,
         min_lr=min_lr,
+        select_value=self.selected_value,
+        patience=max(5, scheduler_patience // 2),
     )
 
     epochs_n = max(int(getattr(params, "epochs_n", 50)), 100)
@@ -134,7 +137,17 @@ def train_eegnet_sanity(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     )
     logger.info("Label balance (sanity subset): %s", dict(zip(*np.unique(y_small, return_counts=True))))
 
-    model = train_loop(tr_model := model, tr_dl, val_dl, loss_fn, optimizer, scheduler, epochs_n, device, 0)
+    model, best_epoch = train_loop(
+        model,
+        tr_dl,
+        val_dl,
+        loss_fn,
+        optimizer,
+        scheduler,
+        epochs_n,
+        device,
+        0,
+    )
     y_true, y_pred, y_prob = eval_loop(model, te_dl, device)
     metrics = compute_binary_metrics(y_true, y_pred, y_prob)
     logger.info("EEGNet sanity-check done. Metrics: %s", metrics)
@@ -165,6 +178,7 @@ def train_eegnet_sanity(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
             "val_samples": int(len(x_small)),
             "test_samples": int(len(x_small)),
             "run_name": run_name,
+            "best_epoch": int(best_epoch) if best_epoch is not None else -1,
             "sanity_check": True,
             "sanity_subset_size": int(len(x_small)),
             "memorized": bool(metrics.get("accuracy", 0.0) >= 0.95),

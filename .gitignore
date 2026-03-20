@@ -7,6 +7,9 @@ models/
 doc/
 refs/
 wandb/
+sample_dataset/
+kagglehub_dataset/
+eeg_npy_data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
