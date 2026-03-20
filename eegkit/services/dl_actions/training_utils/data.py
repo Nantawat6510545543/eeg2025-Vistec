@@ -144,9 +144,42 @@ def _split_with_logo(
 
 
 def build_dataloaders(
-    x_tr, y_tr, x_val, y_val, x_te, y_te, batch_size: int, weighted_sampler: bool
+    x_tr,
+    y_tr,
+    x_val,
+    y_val,
+    x_te,
+    y_te,
+    batch_size: int,
+    weighted_sampler: bool,
+    undersample: bool = False,
+    seed: int = 42,
 ):
     """Return train / val / test DataLoaders."""
+    if undersample:
+        before_counts = dict(zip(*np.unique(y_tr, return_counts=True)))
+        classes, counts = np.unique(y_tr, return_counts=True)
+        if classes.size >= 2 and counts.min() > 0:
+            target_n = int(counts.min())
+            rng = np.random.default_rng(seed)
+            sampled_idx = []
+            for c in classes:
+                cls_idx = np.where(y_tr == c)[0]
+                keep_idx = rng.choice(cls_idx, size=target_n, replace=False)
+                sampled_idx.append(keep_idx)
+            sampled_idx = np.concatenate(sampled_idx)
+            rng.shuffle(sampled_idx)
+            x_tr = x_tr[sampled_idx]
+            y_tr = y_tr[sampled_idx]
+            after_counts = dict(zip(*np.unique(y_tr, return_counts=True)))
+            logger.info(
+                "Applied undersampling: train class counts before=%s after=%s",
+                before_counts,
+                after_counts,
+            )
+        else:
+            logger.warning("Undersampling requested but train split is not suitable; skipping undersample.")
+
     sampler: Optional[WeightedRandomSampler] = None
     shuffle = True
     if weighted_sampler:

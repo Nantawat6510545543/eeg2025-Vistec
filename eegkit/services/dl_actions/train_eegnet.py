@@ -86,6 +86,14 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     model = EEGNetBinary(n_channels=n_channels, n_timepoints=n_timepoints).to(device)
 
     weighted_sampler = bool(getattr(params, "weighted_sampler", False))
+    undersample = bool(getattr(params, "undersample", False))
+    if weighted_sampler and undersample:
+        logger.warning(
+            "Both weighted_sampler and undersample are enabled; "
+            "disabling weighted_sampler and using undersample."
+        )
+        weighted_sampler = False
+
     use_class_weights = bool(getattr(params, "weight_classes", True))
     if weighted_sampler and use_class_weights:
         logger.warning(
@@ -117,7 +125,16 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
     es_patience = int(getattr(params, "patience", 10)) * 2 if early_stopping else 0
 
     tr_dl, val_dl, te_dl = build_dataloaders(
-        x_tr, y_tr, x_val, y_val, x_te, y_te, batch_size, weighted_sampler
+        x_tr,
+        y_tr,
+        x_val,
+        y_val,
+        x_te,
+        y_te,
+        batch_size,
+        weighted_sampler,
+        undersample=undersample,
+        seed=int(getattr(params, "seed", 42)),
     )
 
     dataset_name = Path(dataset_path).name
@@ -126,7 +143,7 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
 
     default_wandb_enabled = bool(os.getenv("WANDB_API_KEY"))
     wandb_enabled = bool(getattr(params, "wandb_enabled", default_wandb_enabled))
-    wandb_project = str(getattr(params, "wandb_project", os.getenv("WANDB_PROJECT", "eeg2025-vistec")))
+    wandb_project = str(getattr(params, "wandb_project", os.getenv("WANDB_PROJECT", "ku-final-eegkit")))
     wandb_entity = getattr(params, "wandb_entity", None)
     wandb_tags_raw = getattr(params, "wandb_tags", None)
     wandb_run: Optional[Any] = None
@@ -152,6 +169,7 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
                     "loss_function": loss_name,
                     "label_smoothing": label_smoothing,
                     "weighted_sampler": weighted_sampler,
+                    "undersample": undersample,
                     "weight_classes": use_class_weights,
                     "lr": lr,
                     "min_lr": min_lr,
@@ -273,6 +291,7 @@ def train_eegnet(self, task_dto: BaseTaskDTO, params: DLTrainParamsDTO):
             "label_smoothing": label_smoothing,
             "weight_classes": use_class_weights,
             "weighted_sampler": weighted_sampler,
+            "undersample": undersample,
             "train_samples": int(len(x_tr)),
             "val_samples": int(len(x_val)),
             "test_samples": int(len(x_te)),
