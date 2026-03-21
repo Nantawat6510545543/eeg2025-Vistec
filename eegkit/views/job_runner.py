@@ -1,6 +1,7 @@
 """Background job runner utilities for launching EEG tasks out-of-band."""
 import datetime
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -14,7 +15,13 @@ from pathlib import Path
 class JobRunner:
     """Create job specs and launch them via tmux or subprocess."""
 
-    def __init__(self, controller, jobs_root: Path, runner_module: str = "eegkit.views.job_runner_script"):
+    def __init__(
+        self,
+        controller,
+        jobs_root: Path,
+        runner_module: str = "eegkit.views.job_runner_script",
+        queue_enabled: bool | None = None,
+    ):
         """Initialize the job runner with a controller and jobs root directory."""
         self.controller = controller
         self.jobs_root = Path(jobs_root)
@@ -23,6 +30,10 @@ class JobRunner:
         self._runs_log_path = self.jobs_root / "runs.log"
         # Use the same Python executable as the current process to avoid env issues in tmux
         self.python_exec = sys.executable or "python"
+        env_default = os.getenv("EEG_JOB_QUEUE", "1").strip().lower() not in {"0", "false", "no"}
+        self.queue_enabled = env_default if queue_enabled is None else bool(queue_enabled)
+        self.queue_dir = self.jobs_root / ".queue"
+        self.queue_dir.mkdir(exist_ok=True, parents=True)
 
     def schedule(self, group: str, key: str, dto, params_dto):
         """Create a job directory, persist its spec, and launch it."""
@@ -31,7 +42,11 @@ class JobRunner:
         self._write_spec(spec_path, group, key, dto, params_dto, job_dir)
         runner_path = self._write_runner(job_dir, spec_path)
         self._log_run(job_dir, group, key, dto, params_dto)
-        self._launch(job_dir, runner_path)
+        if self.queue_enabled:
+            self._enqueue(job_dir, runner_path)
+            self._start_queue_worker()
+        else:
+            self._launch(job_dir, runner_path)
 
     def _safe_name(self, value: str, default: str = "na") -> str:
         """Return a filesystem-safe token from an arbitrary string."""
@@ -189,6 +204,38 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
         print("[INFO] Started background process PID", proc.pid)
         print(f"[INFO] Logs: {log_path}")
         print(f"[INFO] Job directory: {job_dir}")
+
+    def _enqueue(self, job_dir: Path, runner_path: Path):
+        """Mark a job as queued and persist queue metadata."""
+        queued_flag = job_dir / "QUEUED"
+        queued_flag.write_text(datetime.datetime.now().isoformat() + "Z")
+        queue_entry = {
+            "timestamp": datetime.datetime.now().isoformat() + "Z",
+            "job_id": job_dir.name,
+            "job_dir": str(job_dir),
+            "runner_path": str(runner_path),
+        }
+        try:
+            with (self.queue_dir / "queue.log").open("a") as f:
+                f.write(json.dumps(queue_entry, sort_keys=True) + "\n")
+        except Exception:
+            pass
+        print(f"[INFO] Queued job: {job_dir}")
+
+    def _start_queue_worker(self):
+        """Start queue worker in background; no-op if one is already running."""
+        worker_cmd = [
+            self.python_exec,
+            "-m",
+            "eegkit.views.job_queue_worker",
+            "--jobs-root",
+            str(self.jobs_root),
+        ]
+        try:
+            subprocess.Popen(worker_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
+            print("[INFO] Queue worker triggered (single-worker lock prevents duplicates).")
+        except Exception as e:
+            print(f"[WARN] Failed to start queue worker ({e}).")
 
     def _append_session_log(self, session_name: str, job_dir: Path):
         """Record tmux session or process id alongside the job directory."""
