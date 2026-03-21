@@ -30,3 +30,4 @@ from . import train_eegnet   # noqa: E402,F401
 from . import train_eegnet_sanity   # noqa: E402,F401
 from . import train_eegnet_ap   # noqa: E402,F401
 from . import train_eegnet_multiclass  # noqa: E402,F401
+from . import train_eegnet_reg  # noqa: E402,F401

@@ -78,16 +78,33 @@ class DLTrainParamsDTO(
     DLTrainRuntimeParamsDTO,
     DLTrainSplitParamsDTO,
     DLTrainIOParamsDTO,
-    DLTrainSchedulerParamsDTO,
-    DLTrainBalanceParamsDTO,
-    DLTrainLossParamsDTO,
+    DLTrainSchedulerParamsDTO
 ):
     """Base training params shared across deep-learning workflows."""
 
 
 @dataclass
-class EEGNetBinaryTrainParamsDTO(DLTrainParamsDTO):
+class EEGNetBinaryTrainParamsDTO(
+    DLTrainParamsDTO,
+    DLTrainBalanceParamsDTO,
+    DLTrainLossParamsDTO,):
     """Training params for binary EEGNet."""
+
+
+@dataclass
+class DLTrainRegParamsDTO:
+    """Regression-specific training parameters."""
+
+    regression_loss: List[str] = field(default_factory=lambda: ["huber", "mse", "mae"])
+    normalize_target: bool = True
+
+
+@dataclass
+class EEGNetRegTrainParamsDTO(
+    DLTrainParamsDTO,
+    DLTrainRegParamsDTO,
+):
+    """Training params for single-target EEGNet regression."""
 
 
 @dataclass
@@ -139,6 +156,8 @@ __all__ = [
     "DLTrainBalanceParamsDTO",
     "DLTrainLossParamsDTO",
     "EEGNetBinaryTrainParamsDTO",
+    "DLTrainRegParamsDTO",
+    "EEGNetRegTrainParamsDTO",
     "MLTrainParamsDTO",
     "EEGNetMultiRegTrainParamsDTO",
     "MLTrainDatasetParamsDTO",

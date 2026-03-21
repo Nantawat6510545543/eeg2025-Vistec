@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 class NumpyDataset(TorchDataset):
     """Wrap numpy arrays as a minimal torch Dataset."""
 
-    def __init__(self, x: np.ndarray, y: np.ndarray):
+    def __init__(self, x: np.ndarray, y: np.ndarray, target_dtype: torch.dtype = torch.long):
         self.x = x
         self.y = y
+        self.target_dtype = target_dtype
 
     def __len__(self):
         return len(self.y)
@@ -24,7 +25,7 @@ class NumpyDataset(TorchDataset):
     def __getitem__(self, idx):
         return (
             torch.as_tensor(self.x[idx], dtype=torch.float32),
-            torch.as_tensor(self.y[idx], dtype=torch.long),
+            torch.as_tensor(self.y[idx], dtype=self.target_dtype),
         )
 
 
@@ -151,9 +152,10 @@ def build_dataloaders(
     x_te,
     y_te,
     batch_size: int,
-    weighted_sampler: bool,
+    weighted_sampler: bool = False,
     undersample: bool = False,
     seed: int = 42,
+    target_dtype: torch.dtype = torch.long,
 ):
     """Return train / val / test DataLoaders."""
     if undersample:
@@ -194,14 +196,15 @@ def build_dataloaders(
         shuffle = False
 
     tr_dl = DataLoader(
-        NumpyDataset(x_tr, y_tr),
+        NumpyDataset(x_tr, y_tr, target_dtype=target_dtype),
         batch_size=batch_size,
         shuffle=shuffle,
         sampler=sampler,
         pin_memory=False,
     )
-    val_dl = DataLoader(NumpyDataset(x_val, y_val), batch_size=batch_size, shuffle=False)
-    te_dl = DataLoader(NumpyDataset(x_te, y_te), batch_size=batch_size, shuffle=False)
+    val_dl = DataLoader(NumpyDataset(x_val, y_val, target_dtype=target_dtype), batch_size=batch_size, shuffle=False)
+    te_dl = DataLoader(NumpyDataset(x_te, y_te, target_dtype=target_dtype), batch_size=batch_size, shuffle=False)
 
     logger.info("DataLoader Shapes: train=%s val=%s test=%s", tr_dl.dataset.x.shape, val_dl.dataset.x.shape, te_dl.dataset.x.shape)
     return tr_dl, val_dl, te_dl
+

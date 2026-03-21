@@ -29,12 +29,14 @@ TITLE_OVERRIDES: Dict[str, str] = {
     "TableInfoDTO": "Tables",
     "DLTrainParamsDTO": "Training",
     "EEGNetBinaryTrainParamsDTO": "Training",
+    "EEGNetRegTrainParamsDTO": "Training",
     "DLTrainRuntimeParamsDTO": "Runtime",
     "DLTrainSplitParamsDTO": "Split",
     "DLTrainIOParamsDTO": "I/O",
     "DLTrainSchedulerParamsDTO": "Scheduler",
     "DLTrainBalanceParamsDTO": "Balance",
     "DLTrainLossParamsDTO": "Loss",
+    "DLTrainRegParamsDTO": "Regression",
     "MLTrainParamsDTO": "Training",
 }
 

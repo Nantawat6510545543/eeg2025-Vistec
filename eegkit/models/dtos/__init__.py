@@ -34,6 +34,7 @@ from .filter import (
 from .ai import (
     DLTrainParamsDTO,
     EEGNetBinaryTrainParamsDTO,
+    EEGNetRegTrainParamsDTO,
     MLTrainParamsDTO,
     EEGNetMultiRegTrainParamsDTO,
     MLTrainDatasetParamsDTO,
@@ -62,6 +63,7 @@ __all__ = [
     # ai
     "DLTrainParamsDTO",
     "EEGNetBinaryTrainParamsDTO",
+    "EEGNetRegTrainParamsDTO",
     "DLEpochDatasetParamsDTO",
     "MLTrainParamsDTO",
     "EEGNetMultiRegTrainParamsDTO",

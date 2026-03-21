@@ -27,6 +27,7 @@ def train_loop(
     device: torch.device,
     es_patience: int,
     epoch_logger: Optional[Callable[[Dict[str, float]], None]] = None,
+    classification: bool = True,
 ) -> nn.Module:
     """Run training with optional early stopping; return model with best val loss."""
     best_val = float("inf")
@@ -76,10 +77,11 @@ def train_loop(
                 x_b, y_b = x_b.to(device), y_b.to(device)
                 y_p = model(x_b)
                 val_loss += loss_fn(y_p, y_b).item()
-                val_preds.extend(y_p.argmax(dim=1).cpu().numpy())
-                val_trues.extend(y_b.cpu().numpy())
+                if classification:
+                    val_preds.extend(y_p.argmax(dim=1).cpu().numpy())
+                    val_trues.extend(y_b.cpu().numpy())
         val_loss /= max(len(val_dl), 1)
-        val_accuracy = float(accuracy_score(val_trues, val_preds))
+        val_accuracy = float(accuracy_score(val_trues, val_preds)) if classification else float("nan")
 
         if scheduler is not None:
             try:
@@ -127,3 +129,5 @@ def train_loop(
     if best_state is not None:
         model.load_state_dict(best_state)
     return model, best_epoch
+
+

@@ -45,3 +45,13 @@ def build_loss_function(
     if name == "focal_loss":
         return FocalLoss(gamma=2.0, weight=class_weight_tensor)
     return nn.CrossEntropyLoss(weight=class_weight_tensor, label_smoothing=label_smoothing)
+
+
+def build_regression_loss(name: str) -> nn.Module:
+    """Create configured regression loss module from selection key."""
+    key = str(name or "huber").strip().lower()
+    if key == "mse":
+        return nn.MSELoss()
+    if key == "mae":
+        return nn.L1Loss()
+    return nn.SmoothL1Loss()
