@@ -16,7 +16,7 @@ class DLTrainRuntimeParamsDTO:
     """Runtime/training loop parameters (epochs, batch size, device, seed)."""
 
     batch_size: int = 32
-    epochs_n: int = 50
+    epochs_n: int = 100
     lr: float = 0.001
     device: List[str] = field(default_factory=lambda: ["auto", "cpu", "cuda"])
     seed: int = 42
@@ -45,15 +45,15 @@ class DLTrainSchedulerParamsDTO:
 
     scheduler_type: List[str] = field(default_factory=lambda: ["reduce_on_plateau", "none"])
     scheduler_mode: List[str] = field(default_factory=lambda: ["min", "max"])
-    scheduler_patience: int = 10
+    scheduler_patience: int = 6
     scheduler_threshold: float = 1e-4
     scheduler_threshold_mode: List[str] = field(default_factory=lambda: ["rel", "abs"])
-    scheduler_cooldown: int = 0
+    scheduler_cooldown: int = 1
 
     min_lr: float = 1e-6
     lr_factor: float = 0.5
-    early_stopping: bool = False
-    early_stopping_patience: int = 20
+    early_stopping: bool = True
+    early_stopping_patience: int = 12
 
 
 @dataclass
