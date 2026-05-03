@@ -223,16 +223,60 @@ sys.exit(int(ret) if isinstance(ret, int) else 0)
         print(f"[INFO] Queued job: {job_dir}")
 
     def _start_queue_worker(self):
-        """Start queue worker in background; no-op if one is already running."""
-        worker_cmd = [
-            self.python_exec,
-            "-m",
-            "eegkit.views.job_queue_worker",
-            "--jobs-root",
-            str(self.jobs_root),
-        ]
+        """Start queue worker; prefer tmux so users can inspect it.
+
+        The worker itself enforces a single active instance via a filesystem lock.
+        Here we additionally avoid spawning duplicate tmux sessions.
+        """
+
+        worker_cmd = (
+            f"{shlex.quote(self.python_exec)} -m eegkit.views.job_queue_worker "
+            f"--jobs-root {shlex.quote(str(self.jobs_root))}"
+        )
+
+        tmux_path = shutil.which("tmux")
+        if tmux_path:
+            session_name = "eeg_queue_worker"
+            worker_log = self.queue_dir / "worker.log"
+            shell_cmd = f"{worker_cmd} 2>&1 | tee -a {shlex.quote(str(worker_log))}"
+
+            # If session already exists, don't start a second one.
+            has_proc = subprocess.run(
+                [tmux_path, "has-session", "-t", session_name],
+                capture_output=True,
+                text=True,
+            )
+            if has_proc.returncode == 0:
+                print(f"[INFO] Queue worker tmux session already running: {session_name}")
+                print(f"[INFO] Attach: tmux attach -t {session_name}")
+                print(f"[INFO] Log: {worker_log}")
+                return
+
+            cmd = [
+                tmux_path,
+                "new-session",
+                "-d",
+                "-s",
+                session_name,
+                shell_cmd,
+            ]
+            try:
+                subprocess.run(cmd, check=True)
+                print(f"[INFO] Queue worker started in tmux session: {session_name}")
+                print(f"[INFO] Attach: tmux attach -t {session_name}")
+                print(f"[INFO] Log: {worker_log}")
+                return
+            except Exception as e:
+                print(f"[WARN] Failed to start queue worker in tmux ({e}). Falling back to background process...")
+
+        # Fallback: detached background process (no tmux available)
         try:
-            subprocess.Popen(worker_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
+            subprocess.Popen(
+                [self.python_exec, "-m", "eegkit.views.job_queue_worker", "--jobs-root", str(self.jobs_root)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+            )
             print("[INFO] Queue worker triggered (single-worker lock prevents duplicates).")
         except Exception as e:
             print(f"[WARN] Failed to start queue worker ({e}).")

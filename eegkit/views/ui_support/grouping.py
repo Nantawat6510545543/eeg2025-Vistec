@@ -38,6 +38,8 @@ TITLE_OVERRIDES: Dict[str, str] = {
     "DLTrainLossParamsDTO": "Loss",
     "DLTrainRegParamsDTO": "Regression",
     "MLTrainParamsDTO": "Training",
+    "DLEpochRegressionDatasetParamsDTO": "Dataset",
+    "DLEpochReactionTimeDatasetParamsDTO": "Dataset",
 }
 
 

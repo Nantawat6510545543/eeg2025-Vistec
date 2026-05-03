@@ -30,6 +30,8 @@ from .filter import (
     TableInfoDTO,
     EpochFeatureDatasetParamsDTO,
     DLEpochDatasetParamsDTO,
+    DLEpochRegressionDatasetParamsDTO,
+    DLEpochReactionTimeDatasetParamsDTO,
 )
 from .ai import (
     DLTrainParamsDTO,
@@ -60,6 +62,8 @@ __all__ = [
     "TimeDomainParamsDTO",
     "TableInfoDTO",
     "EpochFeatureDatasetParamsDTO",
+    "DLEpochRegressionDatasetParamsDTO",
+    "DLEpochReactionTimeDatasetParamsDTO",
     # ai
     "DLTrainParamsDTO",
     "EEGNetBinaryTrainParamsDTO",

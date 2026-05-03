@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Dict, Tuple
 
@@ -15,6 +16,41 @@ from sklearn.svm import SVC
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _resolve_grid_n_jobs(total_rows: int) -> int:
+    """Choose a memory-safe n_jobs for GridSearchCV.
+
+    Priority:
+    1) honor EEGKIT_SKLEARN_N_JOBS env var when valid,
+    2) auto-scale down parallelism for large datasets.
+    """
+    env = os.getenv("EEGKIT_SKLEARN_N_JOBS")
+    if env is not None:
+        try:
+            forced = int(env)
+            if forced != 0:
+                return forced
+        except Exception:
+            LOGGER.warning("Invalid EEGKIT_SKLEARN_N_JOBS=%r; using auto mode", env)
+
+    cpu = max(1, (os.cpu_count() or 1))
+    if total_rows >= 50_000:
+        return 1
+    if total_rows >= 20_000:
+        return min(2, cpu)
+    return min(4, cpu)
+
+
+def _grid_kwargs(total_rows: int) -> Dict[str, object]:
+    """Return common GridSearchCV kwargs tuned for stability."""
+    n_jobs = _resolve_grid_n_jobs(total_rows)
+    pre_dispatch = n_jobs if isinstance(n_jobs, int) and n_jobs > 0 else "2*n_jobs"
+    return {
+        "n_jobs": n_jobs,
+        "pre_dispatch": pre_dispatch,
+        "error_score": "raise",
+    }
 
 
 class SVM:
@@ -68,11 +104,15 @@ class SVM:
         split_index = np.concatenate((tr_index, val_index), axis=0).tolist()
 
         pds = PredefinedSplit(test_fold=split_index)
+        grid_opts = _grid_kwargs(x_all.shape[0])
+        LOGGER.info("[SVM] GridSearchCV resources: n_jobs=%s pre_dispatch=%s", grid_opts["n_jobs"], grid_opts["pre_dispatch"])
         clf = GridSearchCV(
             estimator=SVC(),
             param_grid=self.tuned_parameters,
             cv=pds,
-            n_jobs=-1,
+            n_jobs=grid_opts["n_jobs"],
+            pre_dispatch=grid_opts["pre_dispatch"],
+            error_score=grid_opts["error_score"],
             scoring="accuracy",
             verbose=0,
         )
@@ -157,11 +197,15 @@ class KNN:
         split_index = np.concatenate((tr_index, val_index), axis=0).tolist()
 
         pds = PredefinedSplit(test_fold=split_index)
+        grid_opts = _grid_kwargs(x_all.shape[0])
+        LOGGER.info("[KNN] GridSearchCV resources: n_jobs=%s pre_dispatch=%s", grid_opts["n_jobs"], grid_opts["pre_dispatch"])
         clf = GridSearchCV(
             estimator=KNeighborsClassifier(),
             param_grid=self.tuned_parameters,
             cv=pds,
-            n_jobs=-1,
+            n_jobs=grid_opts["n_jobs"],
+            pre_dispatch=grid_opts["pre_dispatch"],
+            error_score=grid_opts["error_score"],
             scoring="accuracy",
             verbose=0,
         )
@@ -248,11 +292,15 @@ class RandomForest:
         split_index = np.concatenate((tr_index, val_index), axis=0).tolist()
 
         pds = PredefinedSplit(test_fold=split_index)
+        grid_opts = _grid_kwargs(x_all.shape[0])
+        LOGGER.info("[RF] GridSearchCV resources: n_jobs=%s pre_dispatch=%s", grid_opts["n_jobs"], grid_opts["pre_dispatch"])
         clf = GridSearchCV(
-            estimator=RandomForestClassifier(),
+            estimator=RandomForestClassifier(n_jobs=1, random_state=self.random_state),
             param_grid=self.tuned_parameters,
             cv=pds,
-            n_jobs=-1,
+            n_jobs=grid_opts["n_jobs"],
+            pre_dispatch=grid_opts["pre_dispatch"],
+            error_score=grid_opts["error_score"],
             scoring="accuracy",
             verbose=0,
         )
@@ -261,7 +309,7 @@ class RandomForest:
 
         best_params = clf.best_params_
         LOGGER.info("[RF] Best params: %s", best_params)
-        classifier = RandomForestClassifier(**best_params)
+        classifier = RandomForestClassifier(**best_params, n_jobs=1, random_state=self.random_state)
         classifier.fit(x_train, y_train)
         self.classifier = classifier
         return {"best_params": best_params, "model": classifier, "model_name": self.model_name}

@@ -225,6 +225,23 @@ class DLEpochDatasetParamsDTO(EpochParamsDTO):
     dataset_name: str = "dl_epoch_dataset"
 
 
+@dataclass
+class DLEpochRegressionDatasetParamsDTO(EpochParamsDTO):
+    """Parameters for building epoch tensor datasets with continuous regression targets."""
+
+    dataset_name: str = "dl_epoch_reg_dataset"
+    regression_target: List[str] = field(default_factory=lambda: [
+        "ccd_response_time",
+        "ccd_accuracy",
+    ])
+
+
+@dataclass
+class DLEpochReactionTimeDatasetParamsDTO(EpochParamsDTO):
+    """Parameters for building strict hit-only CCD reaction-time datasets."""
+
+    dataset_name: str = "dl_epoch_rt_hit_only"
+
 __all__ = [
     "FilterParamsDTO",
     "EpochParamsDTO",
@@ -237,4 +254,6 @@ __all__ = [
     "TableInfoDTO",
     "EpochFeatureDatasetParamsDTO",
     "DLEpochDatasetParamsDTO",
+    "DLEpochRegressionDatasetParamsDTO",
+    "DLEpochReactionTimeDatasetParamsDTO",
 ]

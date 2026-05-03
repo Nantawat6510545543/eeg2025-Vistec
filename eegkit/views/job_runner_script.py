@@ -42,6 +42,58 @@ def save_output(result, out_dir: Path):
         except Exception:
             return {}
 
+    def _summarize_targets(arr):
+        """Summarize y targets for dataset previews.
+
+        - For numeric arrays: report basic stats + percentiles; include counts if low-cardinality.
+        - For non-numeric arrays: report counts.
+        """
+        a = _np.asarray(arr)
+        summary = {
+            "dtype": str(a.dtype),
+            "rows": int(a.shape[0]) if a.ndim > 0 else 0,
+        }
+
+        if a.size == 0:
+            return {**summary, "kind": "empty"}
+
+        kind = a.dtype.kind
+        if kind in {"i", "u", "f", "b"}:
+            # Numeric-ish
+            af = a.astype(_np.float64, copy=False)
+            finite = _np.isfinite(af)
+            n_finite = int(_np.sum(finite))
+            summary.update({
+                "kind": "numeric",
+                "finite": n_finite,
+                "non_finite": int(af.size - n_finite),
+            })
+            if n_finite == 0:
+                return summary
+
+            v = af[finite]
+            q = _np.quantile(v, [0.0, 0.05, 0.25, 0.5, 0.75, 0.95, 1.0])
+            summary.update({
+                "min": float(q[0]),
+                "p05": float(q[1]),
+                "p25": float(q[2]),
+                "median": float(q[3]),
+                "p75": float(q[4]),
+                "p95": float(q[5]),
+                "max": float(q[6]),
+                "mean": float(_np.mean(v)),
+                "std": float(_np.std(v)),
+                "unique": int(_np.unique(v).size),
+            })
+
+            # Include counts only when y is clearly discrete / low-cardinality.
+            if summary["unique"] <= 20:
+                summary["value_counts"] = _value_counts(v)
+            return summary
+
+        # Categorical / object
+        return {**summary, "kind": "categorical", "value_counts": _value_counts(a)}
+
     if isinstance(result, _pd.DataFrame):
         fp = out_dir / 'dataframe.csv'
         result.to_csv(fp, index=False)
@@ -100,7 +152,7 @@ def save_output(result, out_dir: Path):
             "x_shape": list(x.shape),
             "y_shape": list(y.shape),
             "group_shape": list(group.shape),
-            "y_class_counts": _value_counts(y[:rows]),
+            "y_summary": _summarize_targets(y[:rows]),
             "group_counts": _value_counts(group[:rows]),
         }
         summary_fp = ds_dir / 'dataset_summary.json'
@@ -117,7 +169,7 @@ def save_output(result, out_dir: Path):
             "x_shape": list(x.shape),
             "y_shape": list(y.shape),
             "group_shape": list(group.shape),
-            "y_class_counts": dataset_summary["y_class_counts"],
+            "y_summary": dataset_summary["y_summary"],
             "group_counts": dataset_summary["group_counts"],
             "dataset_summary_path": str(summary_fp),
         })
