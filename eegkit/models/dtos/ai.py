@@ -90,6 +90,11 @@ class EEGNetBinaryTrainParamsDTO(
     DLTrainLossParamsDTO,):
     """Training params for binary EEGNet."""
 
+    # Optional comma-separated seeds for multi-run stability checks (e.g. "0,1,2,3,4").
+    # When provided, `seed` is still used as the split seed; each listed seed controls
+    # model init / training randomness.
+    seeds: str = ""
+
 
 @dataclass
 class DLTrainRegParamsDTO:

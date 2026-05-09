@@ -7,10 +7,14 @@ This module provides ChannelsHelper used by visualization utilities to:
 """
 from __future__ import annotations
 
+import logging
 from typing import List
 
 import mne
 import numpy as np
+
+
+_LOG = logging.getLogger(__name__)
 
 
 class ChannelsHelper:
@@ -35,7 +39,28 @@ class ChannelsHelper:
             exclude = []
         else:
             exclude = list(getattr(self.inst.info, 'bads', []) or [])
-        picks_raw = mne.pick_channels(self.inst.ch_names, include=ch, exclude=exclude)
+        # mne.pick_channels raises if any name in include is missing.
+        # Some recordings have a reduced/mismatched channel set, so we intersect.
+        if ch:
+            present = set(self.inst.ch_names)
+            requested = [c for c in ch if c in present and c not in exclude]
+            missing = [c for c in ch if c not in present]
+            if missing:
+                _LOG.warning(
+                    "[channels] %d requested channels missing; using %d present channels",
+                    len(missing),
+                    len(requested),
+                )
+            ch = requested
+
+        if not ch:
+            # Fall back to whatever EEG channels exist (excluding bads unless showbad).
+            try:
+                picks_raw = mne.pick_types(self.inst.info, eeg=True, exclude=exclude)
+            except Exception:
+                picks_raw = mne.pick_channels(self.inst.ch_names, include=[], exclude=exclude)
+        else:
+            picks_raw = mne.pick_channels(self.inst.ch_names, include=ch, exclude=exclude)
         try:
             picks = [int(i) for i in np.array(picks_raw).tolist()]
         except Exception:

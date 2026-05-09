@@ -1,9 +1,10 @@
 # Project
 .eegcache/
+.report/
 .idea/
 jobs/
 .github/copilot-instructions.md
-models/
+/models/
 doc/
 refs/
 wandb/

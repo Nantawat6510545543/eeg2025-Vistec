@@ -63,8 +63,18 @@ class EEGNetBinary(nn.Module):
             nn.Dropout(p=dropout_rate),
         )
 
-        self.flatten_size = F2 * max(1, n_timepoints // 32)
-        self.classifier = nn.Linear(self.flatten_size, 2)
+        # Infer classifier input size from the actual conv/pool output shape.
+        # This avoids fragile hard-coded formulas that break when padding/pooling
+        # yields a different temporal length than expected.
+        self.flatten_size = self._infer_flatten_size(n_channels, n_timepoints)
+        self.classifier = nn.Linear(int(self.flatten_size), 2)
+
+    def _infer_flatten_size(self, n_channels: int, n_timepoints: int) -> int:
+        with torch.no_grad():
+            x = torch.zeros(1, 1, int(n_channels), int(n_timepoints), dtype=torch.float32)
+            x = self.block1(x)
+            x = self.block2(x)
+            return int(x.view(1, -1).shape[1])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Return 2-class logits for input shaped [B, 1, C, T]."""

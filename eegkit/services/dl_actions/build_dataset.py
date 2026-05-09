@@ -25,6 +25,23 @@ from . import register_dl
 _LOG = logging.getLogger(__name__)
 
 
+def _get_subject_id(task_model) -> str:
+    task_dto = getattr(task_model, "task_dto", None)
+    subject = getattr(task_dto, "subject", None)
+    return str(subject) if subject is not None else "unknown"
+
+
+def _log_and_skip(action: str, task_model, exc: Exception) -> None:
+    subject = _get_subject_id(task_model)
+    _LOG.warning(
+        "[%s] skip subject=%s due to error: %s",
+        action,
+        subject,
+        str(exc),
+        exc_info=True,
+    )
+
+
 def _build_subject_chunk(task_model, params: DLEpochDatasetParamsDTO) -> Dict:
     """Build x (N,1,C,T), y, group arrays for a single task model."""
     epochs, _labels = task_model.get_epochs(params)
@@ -64,6 +81,49 @@ def _build_subject_chunk(task_model, params: DLEpochDatasetParamsDTO) -> Dict:
 
     subject = getattr(getattr(task_model, "task_dto", None), "subject", None)
     group = np.asarray([subject if subject is not None else "unknown"] * n, dtype=object)
+    return {"x": x, "y": y, "group": group}
+
+
+def _build_subject_restingstate_open_close_chunk(task_model, params: DLEpochDatasetParamsDTO) -> Dict:
+    """Build x (N,1,C,T), y, group arrays for RestingState open/close eyes.
+
+    Label encoding:
+    - close -> 0
+    - open  -> 1
+    """
+    epochs, _labels = task_model.get_epochs(params)
+    if epochs is None:
+        return {
+            "x": np.empty((0, 1, 0, 0), dtype=np.float32),
+            "y": np.empty((0,), dtype=np.int64),
+            "group": np.empty((0,), dtype=object),
+        }
+
+    epochs = prepare_channels(epochs, params)
+    x_data = epochs.get_data(copy=True).astype(np.float32)  # (N, C, T)
+    x = x_data[:, np.newaxis, :, :]  # (N, 1, C, T)
+
+    if epochs.events is None or len(epochs.events) == 0:
+        raise ValueError("RestingState epochs contain no events for label mapping")
+
+    label_to_binary = {
+        "close": 0,
+        "open": 1,
+    }
+
+    id_to_label = {int(v): str(k).strip().lower() for k, v in epochs.event_id.items()}
+    event_codes = np.asarray(epochs.events[:, 2], dtype=int)
+    normalized = [id_to_label.get(int(code), "") for code in event_codes]
+    invalid = sorted({v for v in normalized if v not in label_to_binary})
+    if invalid:
+        raise ValueError(f"Unsupported RestingState event labels from preprocess: {invalid}")
+
+    y = np.asarray([label_to_binary[v] for v in normalized], dtype=np.int64)
+    if len(x) != len(y):
+        raise ValueError(f"RestingState x/y length mismatch: x={len(x)} epochs, y={len(y)} labels")
+
+    subject = getattr(getattr(task_model, "task_dto", None), "subject", None)
+    group = np.asarray([subject if subject is not None else "unknown"] * len(y), dtype=object)
     return {"x": x, "y": y, "group": group}
 
 
@@ -189,6 +249,68 @@ def _build_subject_reaction_time_chunk(task_model, params: DLEpochReactionTimeDa
     return {"x": x, "y": y, "group": group}
 
 
+def _validate_and_maybe_set_expected_x_shape(
+    action: str,
+    task_model,
+    chunk: Dict,
+    expected_x_tail_shape: tuple[int, ...] | None,
+) -> tuple[bool, tuple[int, ...] | None]:
+    x = chunk.get("x")
+    y = chunk.get("y")
+    group = chunk.get("group")
+    subject = _get_subject_id(task_model)
+
+    if not isinstance(x, np.ndarray) or not isinstance(y, np.ndarray) or not isinstance(group, np.ndarray):
+        _LOG.warning(
+            "[%s] skip subject=%s due to invalid chunk types: x=%s y=%s group=%s",
+            action,
+            subject,
+            type(x).__name__,
+            type(y).__name__,
+            type(group).__name__,
+        )
+        return False, expected_x_tail_shape
+
+    if x.ndim != 4:
+        _LOG.warning(
+            "[%s] skip subject=%s due to unexpected x.ndim=%d shape=%s",
+            action,
+            subject,
+            int(x.ndim),
+            tuple(int(s) for s in x.shape),
+        )
+        return False, expected_x_tail_shape
+
+    n = int(x.shape[0])
+    if int(y.shape[0]) != n or int(group.shape[0]) != n:
+        _LOG.warning(
+            "[%s] skip subject=%s due to x/y/group length mismatch: x=%d y=%d group=%d",
+            action,
+            subject,
+            n,
+            int(y.shape[0]),
+            int(group.shape[0]),
+        )
+        return False, expected_x_tail_shape
+
+    tail_shape = tuple(int(s) for s in x.shape[1:])
+    if expected_x_tail_shape is None:
+        return True, tail_shape
+
+    if tail_shape != expected_x_tail_shape:
+        _LOG.warning(
+            "[%s] skip subject=%s due to shape mismatch: expected x[:,%s] but got x[:,%s] full=%s",
+            action,
+            subject,
+            expected_x_tail_shape,
+            tail_shape,
+            tuple(int(s) for s in x.shape),
+        )
+        return False, expected_x_tail_shape
+
+    return True, expected_x_tail_shape
+
+
 @register_dl("Build EEGNet Classification Dataset", DLEpochDatasetParamsDTO)
 def build_dataset(self, task_dto: BaseTaskDTO, params: DLEpochDatasetParamsDTO):
     """Build epoch tensor dataset and return {name, x:(N,1,C,T), y:(N,), group:(N,)}."""
@@ -204,9 +326,73 @@ def build_dataset(self, task_dto: BaseTaskDTO, params: DLEpochDatasetParamsDTO):
     task_models = list(getattr(task_model, "task_model_list", [])) or [task_model]
     chunks = []
     for single_model in tqdm(task_models, desc="Build classification dataset subjects", leave=False):
-        chunk = _build_subject_chunk(single_model, params)
+        try:
+            chunk = _build_subject_chunk(single_model, params)
+        except Exception as exc:
+            _log_and_skip("dl-build-classification", single_model, exc)
+            continue
         if len(chunk["y"]) > 0:
             chunks.append(chunk)
+
+    if not chunks:
+        return {
+            "name": params.dataset_name,
+            "x": np.empty((0, 1, 0, 0), dtype=np.float32),
+            "y": np.empty((0,), dtype=np.int64),
+            "group": np.empty((0,), dtype=object),
+        }
+
+    return {
+        "name": params.dataset_name,
+        "x": np.concatenate([c["x"] for c in chunks]),
+        "y": np.concatenate([c["y"] for c in chunks]),
+        "group": np.concatenate([c["group"] for c in chunks]),
+    }
+
+
+@register_dl("Build Resting State Dataset", DLEpochDatasetParamsDTO)
+def build_restingstate_open_close_dataset(self, task_dto: BaseTaskDTO, params: DLEpochDatasetParamsDTO):
+    """Build RestingState open/close eyes dataset for binary EEGNet training."""
+    task_model = self.get_task(task_dto) if self.get_task is not None else None
+    if task_model is None:
+        return {
+            "name": params.dataset_name,
+            "x": np.empty((0, 1, 0, 0), dtype=np.float32),
+            "y": np.empty((0,), dtype=np.int64),
+            "group": np.empty((0,), dtype=object),
+        }
+
+    task_models = list(getattr(task_model, "task_model_list", [])) or [task_model]
+    chunks = []
+    expected_x_tail_shape: tuple[int, ...] | None = None
+    skipped_shape = 0
+    for single_model in tqdm(task_models, desc="Build RestingState open/close dataset subjects", leave=False):
+        try:
+            chunk = _build_subject_restingstate_open_close_chunk(single_model, params)
+        except Exception as exc:
+            _log_and_skip("dl-build-restingstate-open-close", single_model, exc)
+            continue
+
+        if len(chunk["y"]) == 0:
+            continue
+
+        ok, expected_x_tail_shape = _validate_and_maybe_set_expected_x_shape(
+            "dl-build-restingstate-open-close",
+            single_model,
+            chunk,
+            expected_x_tail_shape,
+        )
+        if not ok:
+            skipped_shape += 1
+            continue
+
+        chunks.append(chunk)
+
+    if skipped_shape:
+        _LOG.warning(
+            "[dl-build-restingstate-open-close] skipped %d subject chunks due to shape mismatch",
+            int(skipped_shape),
+        )
 
     if not chunks:
         return {
@@ -238,7 +424,11 @@ def build_reaction_time_dataset(self, task_dto: BaseTaskDTO, params: DLEpochReac
     task_models = list(getattr(task_model, "task_model_list", [])) or [task_model]
     chunks = []
     for single_model in tqdm(task_models, desc="Build RT hit-only dataset subjects", leave=False):
-        chunk = _build_subject_reaction_time_chunk(single_model, params)
+        try:
+            chunk = _build_subject_reaction_time_chunk(single_model, params)
+        except Exception as exc:
+            _log_and_skip("dl-build-rt-hit-only", single_model, exc)
+            continue
         if len(chunk["y"]) > 0:
             chunks.append(chunk)
 

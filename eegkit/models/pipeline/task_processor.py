@@ -250,7 +250,39 @@ class EEGTaskProcessor:
             t_start = float(starts.iloc[0])
             t_end = float(ends.iloc[-1])
             if t_end > t_start:
-                filtered.crop(tmin=t_start, tmax=t_end)
+                # Guard against events-derived onsets that slightly exceed the true
+                # recording boundary due to rounding / resampling.
+                max_t = float(filtered.times[-1]) if getattr(filtered, "n_times", 0) else None
+                if max_t is not None:
+                    if t_end > max_t:
+                        self._log.warning(
+                            "RestingState crop t_end (%.5f) exceeds max time (%.5f); clamping",
+                            t_end,
+                            max_t,
+                        )
+                    t_end = min(t_end, max_t)
+                    t_start = max(0.0, min(t_start, max_t))
+
+                if t_end > t_start:
+                    try:
+                        filtered.crop(tmin=t_start, tmax=t_end)
+                    except ValueError as e:
+                        # Final safety: clamp just inside the boundary.
+                        if max_t is not None:
+                            sfreq = float(filtered.info.get("sfreq", 0.0) or 0.0)
+                            eps = (1.0 / sfreq) if sfreq > 0 else 1e-3
+                            t_end_safe = max(t_start, max_t - eps)
+                            if t_end_safe > t_start:
+                                self._log.warning(
+                                    "RestingState crop failed (%s); retry with tmax=%.5f",
+                                    str(e),
+                                    t_end_safe,
+                                )
+                                filtered.crop(tmin=t_start, tmax=t_end_safe)
+                            else:
+                                self._log.warning("RestingState crop failed (%s); skipping crop", str(e))
+                        else:
+                            raise
 
         # Compute events from annotations on the Raw
         events_arr, ann_event_id = events_from_annotations(filtered)
